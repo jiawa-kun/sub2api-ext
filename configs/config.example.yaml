@@ -1,0 +1,30 @@
+# Sub2API 扩展 sidecar 配置示例（产品 sub2api-ext / 兼容 sub2api-ext）
+server:
+  # 监听地址
+  addr: ":8090"
+  # 对外访问前缀（若反代到 /checkin，可设 base_path: /checkin）
+  base_path: ""
+
+checkin:
+  # 是否开放签到
+  enabled: true
+  # 每日奖励金额（与 sub2api 余额单位一致，通常为美元）
+  reward_amount: 0.1
+  # 自然日切分时区
+  timezone: "Asia/Shanghai"
+  # 写到 sub2api 调账备注里的前缀
+  notes_prefix: "daily-checkin"
+
+sub2api:
+  # sub2api 根地址，不要带尾斜杠
+  base_url: "https://sub2api.example.com"
+  # public_host: your-sub2api.example.com
+  # Admin JWT 或能调用 /api/v1/admin/* 的 Bearer Token
+  # 也可用环境变量 SUB2API_ADMIN_TOKEN 覆盖
+  admin_token: ""
+  # HTTP 超时（秒）
+  timeout_seconds: 15
+
+store:
+  # SQLite 路径（Docker 请挂卷）
+  sqlite_path: "./data/checkin.db"

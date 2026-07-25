@@ -1,0 +1,32 @@
+# Sub2API 扩展服务（项目/镜像/容器：sub2api-ext；HTTP 前缀仍为 /checkin）
+services:
+  ext:
+    image: sub2api-ext:local
+    container_name: sub2api-ext
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      SERVER_ADDR: ":8090"
+      SERVER_BASE_PATH: "/checkin"
+      CHECKIN_ENABLED: "${CHECKIN_ENABLED:-true}"
+      CHECKIN_REWARD_AMOUNT: "${CHECKIN_REWARD_AMOUNT:-0.1}"
+      CHECKIN_TIMEZONE: "${CHECKIN_TIMEZONE:-Asia/Shanghai}"
+      # 容器内走 docker 网络访问 sub2api 服务名
+      SUB2API_BASE_URL: "${SUB2API_BASE_URL:-http://sub2api:8080}"
+      SUB2API_PUBLIC_HOST: "${SUB2API_PUBLIC_HOST:-}"
+      # 管理员 API Key（推荐）或管理员 JWT
+      SUB2API_ADMIN_API_KEY: "${SUB2API_ADMIN_API_KEY:-}"
+      SUB2API_ADMIN_TOKEN: "${SUB2API_ADMIN_TOKEN:-}"
+      SQLITE_PATH: "/data/checkin.db"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/data
+    networks:
+      - default
+      - sub2api-net
+
+networks:
+  sub2api-net:
+    external: true
+    name: sub2api-deploy_sub2api-network

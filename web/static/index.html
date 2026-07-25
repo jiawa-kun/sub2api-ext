@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>每日签到 · Sub2API 扩展</title>
+  <style>
+    :root {
+      --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.88); --text:#eef3ff; --muted:#93a0b8;
+      --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+      --border:rgba(255,255,255,.09); --glow:rgba(91,140,255,.32);
+    }
+    html.light {
+      --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.94); --text:#0f172a; --muted:#64748b;
+      --border:rgba(15,23,42,.08); --glow:rgba(59,130,246,.18);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+      background:
+        radial-gradient(800px 360px at 12% -10%, var(--glow), transparent 58%),
+        radial-gradient(600px 300px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      display:flex; justify-content:center; align-items:flex-start; padding:12px 12px 20px;
+    }
+    .shell{width:min(440px,100%)}
+    .topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
+    .topnav a{
+      text-decoration:none; color:var(--text); font-size:.75rem; font-weight:650;
+      border:1px solid var(--border); border-radius:999px; padding:5px 9px;
+      background:rgba(127,127,127,.06);
+    }
+    .topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+
+    .card{
+      background:var(--card); backdrop-filter:blur(14px);
+      border:1px solid var(--border); border-radius:18px;
+      box-shadow:0 16px 40px rgba(0,0,0,.26); padding:16px;
+    }
+    .head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:10px}
+    h1{margin:0; font-size:1.15rem; letter-spacing:.2px}
+    .badge{
+      font-size:.72rem; padding:3px 9px; border-radius:999px; border:1px solid var(--border);
+      color:var(--muted); white-space:nowrap; font-weight:650;
+    }
+    .badge.on{color:var(--ok); border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.1)}
+    .badge.off{color:var(--danger); border-color:rgba(244,63,94,.35); background:rgba(244,63,94,.1)}
+    .sub{color:var(--muted); font-size:.8rem; line-height:1.4; margin:4px 0 0}
+    .hero{
+      border-radius:14px; padding:12px 14px; margin-bottom:10px;
+      background:linear-gradient(135deg, rgba(91,140,255,.15), rgba(124,92,255,.08));
+      border:1px solid rgba(91,140,255,.2);
+    }
+    .hero .label{font-size:.75rem; color:var(--muted); margin-bottom:2px}
+    .hero .amount{font-size:1.55rem; font-weight:780; letter-spacing:.2px; line-height:1.2}
+    .hero .meta{margin-top:4px; font-size:.76rem; color:var(--muted); line-height:1.35}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px}
+    .stat{
+      border:1px solid var(--border); border-radius:12px; padding:10px;
+      background:linear-gradient(180deg, rgba(91,140,255,.07), rgba(127,127,127,.04));
+    }
+    .stat .k{font-size:.7rem; color:var(--muted)}
+    .stat .v{margin-top:3px; font-size:1rem; font-weight:700}
+    .budget{margin:0 0 10px}
+    .budget .row{display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); margin-bottom:4px}
+    .bar{height:6px; border-radius:999px; background:rgba(127,127,127,.15); overflow:hidden}
+    .bar > i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--primary2)); transition:width .35s ease}
+    button#btn{
+      width:100%; border:0; border-radius:12px; padding:12px 14px; cursor:pointer;
+      font-size:1rem; font-weight:700; color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--primary2));
+      box-shadow:0 8px 18px rgba(91,140,255,.26);
+      transition:transform .12s, box-shadow .12s, opacity .12s;
+    }
+    button#btn:hover:not(:disabled){transform:translateY(-1px)}
+    button#btn:disabled{cursor:not-allowed; transform:none}
+    button#btn.done{background:rgba(16,185,129,.1)!important;color:#059669!important;border:1px solid rgba(16,185,129,.28)!important;box-shadow:none!important}
+    .msg{margin-top:8px; padding:8px 10px; border-radius:10px; display:none; font-size:.84rem}
+    .msg.show{display:block}
+    .msg.ok{background:rgba(34,197,94,.12); color:var(--ok)}
+    .msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
+    .msg.warn{background:rgba(245,158,11,.12); color:var(--warn)}
+    .milestone{font-size:.76rem; color:var(--muted); margin-top:6px; line-height:1.35}
+    details.more{
+      margin-top:10px; border:1px solid var(--border); border-radius:12px;
+      background:rgba(127,127,127,.04); overflow:hidden;
+    }
+    details.more + details.more{margin-top:8px}
+    details.more > summary{
+      list-style:none; cursor:pointer; user-select:none;
+      padding:10px 12px; font-size:.84rem; font-weight:650;
+      display:flex; justify-content:space-between; align-items:center; color:var(--text);
+    }
+    details.more > summary::-webkit-details-marker{display:none}
+    details.more > summary::after{content:"▾"; color:var(--muted); font-size:.75rem; transition:transform .15s}
+    details.more[open] > summary::after{transform:rotate(-180deg)}
+    details.more .body{padding:0 12px 12px}
+    .cal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+    .cal-dow{text-align:center;font-size:.65rem;color:var(--muted);padding:2px 0}
+    .cal-day{
+      aspect-ratio:1;border-radius:8px;border:1px solid var(--border);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      font-size:.7rem;background:rgba(127,127,127,.05);
+    }
+    .cal-day.checked{background:rgba(34,197,94,.15);border-color:rgba(34,197,94,.35);color:var(--ok);font-weight:650}
+    .cal-day.today{box-shadow:0 0 0 2px rgba(91,140,255,.45)}
+    .cal-day .amt{font-size:.55rem;opacity:.85;margin-top:0}
+    .btn-mini{
+      width:auto; padding:5px 10px; font-size:.75rem; font-weight:650;
+      border:0; border-radius:8px; cursor:pointer;
+      background:rgba(127,127,127,.16); color:var(--text);
+    }
+    .sec-title{margin:0; font-size:.84rem; font-weight:700}
+    .row-inline{display:flex; gap:6px; align-items:center}
+    .history h2{margin:0 0 6px; font-size:.84rem}
+    .hist-item{display:flex; justify-content:space-between; padding:7px 0; border-top:1px solid var(--border); font-size:.8rem}
+    .hist-item:first-child{border-top:0}
+    .foot{
+      margin-top:10px; padding-top:10px; border-top:1px solid var(--border);
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    a{color:var(--primary); text-decoration:none; font-size:.82rem}
+    #adminLink{display:none}
+    .meta-line{font-size:.74rem; color:var(--muted); margin-top:6px; line-height:1.35}
+  
+    .card{position:relative; overflow:hidden}
+    .card::before{content:""; position:absolute; left:0; right:0; top:0; height:3px;
+      background:linear-gradient(90deg,#5b7cfa,#7c6cf0,#60a5fa)}
+    .card.is-loading{opacity:.72}
+    .hero{background:linear-gradient(145deg,rgba(91,124,250,.13),rgba(124,108,240,.06)); border:1px solid rgba(91,124,250,.16)}
+    .hero.success{background:linear-gradient(145deg,rgba(16,185,129,.14),rgba(16,185,129,.05)); border-color:rgba(16,185,129,.22)}
+    .hero .amount{font-size:1.7rem; font-weight:800}
+    .btn,.btn.primary{
+      width:100%; border:0; border-radius:14px; padding:12px 14px; cursor:pointer;
+      font-size:.98rem; font-weight:750; color:#fff;
+      background:linear-gradient(135deg,#5b7cfa,#7c6cf0);
+      box-shadow:0 10px 22px rgba(91,124,250,.26);
+      transition:transform .12s, box-shadow .12s, opacity .12s, background .12s, color .12s;
+    }
+    .btn.primary:hover:not(:disabled){transform:translateY(-1px)}
+    .btn.done{color:#059669!important; background:rgba(16,185,129,.1)!important; border:1px solid rgba(16,185,129,.28)!important; box-shadow:none!important; cursor:default}
+    .btn.ghost{color:#64748b!important; background:#f8fafc!important; border:1px solid rgba(15,23,42,.08)!important; box-shadow:none!important}
+    button#btn:disabled{opacity:.9}
+    .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+    .chip{font-size:.7rem; font-weight:650; padding:4px 8px; border-radius:999px;
+      background:rgba(91,124,250,.08); color:#4560d6; border:1px solid rgba(91,124,250,.12)}
+    .chip.ok{background:rgba(16,185,129,.1); color:#059669; border-color:rgba(16,185,129,.18)}
+    .chip.soft{background:#f8fafc; color:#64748b; border-color:rgba(15,23,42,.08)}
+    details.more{border-radius:12px; background:#f8fafc}
+    .foot{border-top:1px solid rgba(15,23,42,.08); margin-top:12px; padding-top:10px}
+
+  
+    .foot{margin-top:10px; padding-top:8px; border-top:1px solid rgba(15,23,42,.08);
+      display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .foot a{font-size:.76rem}
+    #userLine{font-size:.72rem; color:var(--muted); max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right}
+
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="card">
+      <div class="topnav">
+        <a href="./home.html">扩展中心</a>
+        <a class="active" href="./">每日签到</a>
+        <a href="./admin.html">管理台</a>
+      </div>
+      <div class="head">
+        <div>
+          <h1>每日签到</h1>
+          <p class="sub" style="margin-top:4px">Sub2API 扩展 · 签到模块</p>
+          <p class="sub" id="hint">加载中…</p>
+        </div>
+        <div class="badge" id="stateBadge">—</div>
+      </div>
+
+      <div class="hero" id="hero">
+        <div class="label" id="rewardLabel">今日奖励</div>
+        <div class="amount" id="reward">—</div>
+        <div class="meta" id="rewardMeta">—</div>
+      </div>
+
+      <div class="grid2">
+        <div class="stat"><div class="k">余额</div><div class="v" id="balance">—</div></div>
+        <div class="stat"><div class="k">连续签到</div><div class="v" id="streak">—</div></div>
+      </div>
+      <div class="meta-line" id="extraMeta">累计 <span id="total">—</span> · 连签加成 <span id="streakBonus">—</span></div>
+
+      <div class="budget" id="budgetBox" style="display:none">
+        <div class="row"><span>今日预算</span><span id="budgetText">—</span></div>
+        <div class="bar"><i id="budgetBar"></i></div>
+      </div>
+
+      <button id="btn" disabled>签到</button>
+      <div id="msg" class="msg"></div>
+      <div class="chips" id="milestoneHint" style="display:none"></div>
+
+      <details class="more">
+        <summary>签到月历</summary>
+        <div class="body cal">
+          <div class="cal-head">
+            <h2 class="sec-title" id="calTitle">—</h2>
+            <div class="row-inline">
+              <button type="button" class="btn-mini" id="calPrev">‹</button>
+              <button type="button" class="btn-mini" id="calNext">›</button>
+            </div>
+          </div>
+          <div class="cal-grid" id="calendar"></div>
+        </div>
+      </details>
+
+      <details class="more">
+        <summary>近 7 次记录</summary>
+        <div class="body history">
+          <div id="recent"><div class="sub" style="margin:0">暂无记录</div></div>
+        </div>
+      </details>
+
+      <div class="foot">
+        <a id="adminLink" href="./admin.html">管理台</a> · <a href="./home.html">扩展中心</a>
+        <span class="sub" style="margin:0" id="userLine"></span>
+      </div>
+    </div>
+  </div>
+<script>
+    const params = new URLSearchParams(location.search);
+    if ((params.get('theme')||'').toLowerCase()==='light') document.documentElement.classList.add('light');
+    const el = id => document.getElementById(id);
+    const msg = el('msg');
+    function showMsg(text, type){ msg.textContent=text; msg.className='msg show '+type; }
+    function money(n){
+      const x=Number(n); if(!Number.isFinite(x)) return '—';
+      return '$' + x.toFixed(4).replace(/\.?0+$/, m => m.includes('.') ? m.replace(/0+$/,'').replace(/\.$/,'') : m);
+    }
+    function readStorage(key){ try{return localStorage.getItem(key)||''}catch{return ''} }
+    function cleanToken(raw){
+      let t=(raw||'').trim();
+      if(/^bearer\s+/i.test(t)) t=t.replace(/^bearer\s+/i,'');
+      return t.replace(/^["']|["']$/g,'');
+    }
+    function storageGetAll(key){
+      const out=[];
+      try{ const v=localStorage.getItem(key); if(v) out.push(v); }catch{}
+      try{
+        if(window.parent && window.parent!==window){
+          const v=window.parent.localStorage.getItem(key);
+          if(v) out.push(v);
+        }
+      }catch{}
+      return out;
+    }
+    function storageGet(key){
+      // Prefer parent (main site) over iframe self, so re-login wins over stale iframe cache.
+      try{
+        if(window.parent && window.parent!==window){
+          const v=window.parent.localStorage.getItem(key);
+          if(v) return v;
+        }
+      }catch{}
+      try{ const v=localStorage.getItem(key); if(v) return v; }catch{}
+      return '';
+    }
+    function storageSet(key, val){
+      try{ localStorage.setItem(key, val); }catch{}
+      try{
+        if(window.parent && window.parent!==window){
+          window.parent.localStorage.setItem(key, val);
+        }
+      }catch{}
+    }
+    function storageClearLocal(keys){
+      try{
+        (keys||[]).forEach(k=>{ try{ localStorage.removeItem(k); }catch{} });
+      }catch{}
+    }
+    function b64urlJson(part){
+      try{
+        const s=part.replace(/-/g,'+').replace(/_/g,'/');
+        const pad=s.length%4===0?'':'='.repeat(4-s.length%4);
+        return JSON.parse(atob(s+pad));
+      }catch{ return null; }
+    }
+    function jwtExp(token){
+      const t=cleanToken(token||'');
+      if(!t) return 0;
+      const parts=t.split('.');
+      if(parts.length<2) return 0;
+      const payload=b64urlJson(parts[1]);
+      const exp=payload && Number(payload.exp);
+      return Number.isFinite(exp)?exp:0;
+    }
+    function tokenExpiredOrNear(token, skewSec){
+      const exp=jwtExp(token);
+      if(!exp) return false; // not a JWT / unknown -> do not force refresh
+      const now=Math.floor(Date.now()/1000);
+      return exp <= now + (skewSec||60);
+    }
+    function scoreToken(token){
+      const t=cleanToken(token||'');
+      if(!t) return -1;
+      const exp=jwtExp(t);
+      const now=Math.floor(Date.now()/1000);
+      if(exp > now + 30) return 1e12 + exp;          // valid JWT: prefer later exp
+      if(exp > 0) return exp;                         // expired JWT: weak fallback
+      return 1e9;                                     // non-JWT opaque token: mid priority
+    }
+    function pickToken(){
+      const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      const cands=[];
+      for(const k of keys){
+        for(const raw of storageGetAll(k)){
+          const t=cleanToken(raw);
+          if(t) cands.push(t);
+        }
+      }
+      const q=cleanToken(params.get('token')||'');
+      if(q) cands.push(q);
+      const uniq=[...new Set(cands)];
+      if(!uniq.length) return '';
+      let best='', bestScore=-1;
+      for(const t of uniq){
+        const sc=scoreToken(t);
+        if(sc>bestScore){ bestScore=sc; best=t; }
+      }
+      return best;
+    }
+    function resyncTokenFromParent(){
+      // Only drop iframe cache when parent actually has a fresher token.
+      const authKeys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      const parentCands=[];
+      try{
+        if(window.parent && window.parent!==window){
+          for(const k of authKeys){
+            try{
+              const v=window.parent.localStorage.getItem(k);
+              const t=cleanToken(v||'');
+              if(t) parentCands.push(t);
+            }catch{}
+          }
+        }
+      }catch{}
+      const uniq=[...new Set(parentCands)];
+      let best='', bestScore=-1;
+      for(const t of uniq){
+        const sc=scoreToken(t);
+        if(sc>bestScore){ bestScore=sc; best=t; }
+      }
+      if(best && !tokenExpiredOrNear(best, 90)){
+        storageClearLocal(authKeys);
+        accessToken=best;
+        try{ localStorage.setItem('auth_token', best); }catch{}
+        return best;
+      }
+      // parent unavailable or also expired: re-pick across both (no forced clear)
+      const t=pickToken();
+      if(t){ accessToken=t; }
+      return t;
+    }
+    let accessToken = pickToken();
+
+    function isExpiredAuthError(err){
+      const m=String(err&&err.message?err.message:err||'');
+      return /TOKEN_EXPIRED|token has expired|expired user token|invalid or expired/i.test(m);
+    }
+    function friendlyAuthError(err){
+      if(isExpiredAuthError(err)){
+        return '登录已过期，请刷新主站页面或重新登录后再打开签到';
+      }
+      const m=String(err&&err.message?err.message:err||'');
+      if(/missing token|未检测|empty user token/i.test(m)){
+        return '未检测到登录态，请从 Sub2API 内打开签到';
+      }
+      return m;
+    }
+    function extractAccessToken(data){
+      if(!data || typeof data!=='object') return '';
+      const d=data.data&&typeof data.data==='object'?data.data:null;
+      return cleanToken(
+        data.access_token || data.token || data.auth_token ||
+        (d && (d.access_token || d.token || d.auth_token)) ||
+        ''
+      );
+    }
+    function extractRefreshToken(data){
+      if(!data || typeof data!=='object') return '';
+      const d=data.data&&typeof data.data==='object'?data.data:null;
+      return cleanToken(
+        data.refresh_token || data.refreshToken ||
+        (d && (d.refresh_token || d.refreshToken)) ||
+        ''
+      );
+    }
+    function applyTokens(at, rt){
+      if(at){
+        accessToken=cleanToken(at);
+        storageSet('auth_token', accessToken);
+        storageSet('access_token', accessToken);
+      }
+      if(rt){
+        const r=cleanToken(rt);
+        storageSet('refresh_token', r);
+        storageSet('refreshToken', r);
+      }
+    }
+
+    async function tryRefresh(){
+      // collect refresh candidates from both storages
+      const rkeys=['refresh_token','refreshToken','refresh','sub2api_refresh_token'];
+      const rcands=[];
+      for(const k of rkeys){
+        for(const raw of storageGetAll(k)){
+          const t=cleanToken(raw);
+          if(t) rcands.push(t);
+        }
+      }
+      const uniq=[...new Set(rcands)];
+      if(!uniq.length) return false;
+      const bodiesFor = (refresh)=>[
+        {refresh_token: refresh},
+        {refreshToken: refresh},
+        {token: refresh},
+      ];
+      for(const refresh of uniq){
+        for(const body of bodiesFor(refresh)){
+          try{
+            const res=await fetch('/api/v1/auth/refresh',{
+              method:'POST',
+              credentials:'same-origin',
+              headers:{'Content-Type':'application/json','Accept':'application/json'},
+              body:JSON.stringify(body)
+            });
+            const data=await res.json().catch(()=>({}));
+            if(!res.ok) continue;
+            const at=extractAccessToken(data);
+            if(!at) continue;
+            const rt=extractRefreshToken(data);
+            applyTokens(at, rt);
+            return true;
+          }catch{}
+        }
+      }
+      return false;
+    }
+
+    async function ensureFreshToken(){
+      accessToken = pickToken() || accessToken;
+      if(!accessToken) return false;
+      if(tokenExpiredOrNear(accessToken, 90)){
+        // iframe may hold stale token while parent has a fresh login
+        const parentish = resyncTokenFromParent();
+        if(parentish && !tokenExpiredOrNear(parentish, 90)){
+          return true;
+        }
+        const ok=await tryRefresh();
+        if(!ok) return false;
+      }
+      return !!accessToken;
+    }
+
+    async function api(path, opts={}, retried=false){
+      if(!retried){
+        await ensureFreshToken();
+      }
+      const headers=Object.assign({'Accept':'application/json'}, opts.headers||{});
+      if(accessToken){
+        headers['Authorization']='Bearer '+accessToken;
+        headers['X-User-Token']=accessToken;
+      }
+      const res=await fetch(path,{...opts,headers,credentials: opts.credentials||'same-origin'});
+      const data=await res.json().catch(()=>({}));
+      const rawErr=data.error||data.message||data.detail||('HTTP '+res.status);
+      const expired = res.status===401 || /TOKEN_EXPIRED|expired/i.test(String(rawErr));
+      if(expired && !retried){
+        const parentish = resyncTokenFromParent();
+        if(parentish && !tokenExpiredOrNear(parentish, 90)){
+          accessToken = parentish;
+          return api(path, opts, true);
+        }
+        const ok=await tryRefresh();
+        if(ok) return api(path, opts, true);
+      }
+      if(!res.ok) throw new Error(rawErr);
+      return data;
+    }
+
+    function renderStatus(s){
+      const enabled=!!s.enabled;
+      el('stateBadge').textContent = enabled ? '开放中' : '已关闭';
+      el('stateBadge').className = 'badge ' + (enabled?'on':'off');
+      const random = s.reward_mode==='random' || s.random_reward;
+      if(s.checked_in_today && s.today_reward!=null){
+        el('rewardLabel').textContent='今日已领 ✓';
+        el('reward').textContent=money(s.today_reward);
+        el('rewardMeta').textContent='签到成功 · '+ (s.today||'');
+      } else if(random){
+        el('rewardLabel').textContent='今日奖励（随机）';
+        el('reward').textContent=money(s.reward_min)+' ~ '+money(s.reward_max);
+        el('rewardMeta').textContent='单次硬顶 '+money(s.hard_cap||0)+' · '+(s.timezone||'');
+      } else {
+        el('rewardLabel').textContent='今日奖励（固定）';
+        el('reward').textContent=money(s.reward_amount);
+        el('rewardMeta').textContent='单次硬顶 '+money(s.hard_cap||0)+' · '+(s.timezone||'');
+      }
+      el('balance').textContent = s.balance!=null ? money(s.balance) : '—';
+      el('total').textContent = s.total_checkins!=null ? String(s.total_checkins) : '—';
+      if(s.streak_enabled){
+        el('streak').textContent = (s.checked_in_today?s.current_streak:s.next_streak||s.current_streak||0) + ' 天';
+        el('streakBonus').textContent = s.streak_bonus>0 ? ('+'+money(s.streak_bonus)) : money(0);
+      } else {
+        el('streak').textContent = '关闭';
+        el('streakBonus').textContent = '—';
+      }
+      el('hint').textContent = `日期 ${s.today||'—'} · 时区 ${s.timezone||'—'}`;
+      if(s.username||s.email) el('userLine').textContent = s.username || s.email;
+      if(s.is_admin) el('adminLink').style.display='inline';
+
+      if(s.daily_budget>0){
+        el('budgetBox').style.display='block';
+        const spent=Number(s.daily_spent||0);
+        const bud=Number(s.daily_budget);
+        const pct=Math.max(0, Math.min(100, (spent/bud)*100));
+        el('budgetBar').style.width=pct+'%';
+        el('budgetText').textContent = money(spent)+' / '+money(bud);
+      } else {
+        el('budgetBox').style.display='none';
+      }
+
+      const btn=el('btn');
+      const hero=el('hero');
+      if(hero) hero.classList.toggle('success', !!(s.checked_in_today && s.today_reward!=null));
+      if(!enabled){
+        btn.disabled=true; btn.textContent='签到已关闭'; btn.className='btn ghost';
+      } else if(s.checked_in_today){
+        btn.disabled=true; btn.textContent='今日已签到 ✓'; btn.className='btn done';
+      } else if(s.daily_budget>0 && s.daily_remaining!=null && Number(s.daily_remaining)<0.0001){
+        btn.disabled=true; btn.textContent='今日预算已用尽'; btn.className='btn ghost';
+      } else if(!accessToken){
+        btn.disabled=true; btn.textContent='请先登录'; btn.className='btn ghost';
+      } else {
+        btn.disabled=false; btn.textContent='立即签到'; btn.className='btn primary';
+      }
+
+      const box=el('recent');
+      if(s.recent && s.recent.length){
+        box.innerHTML='';
+        s.recent.forEach(it=>{
+          const d=document.createElement('div');
+          d.className='hist-item';
+          d.innerHTML=`<span>${it.date}</span><span>${money(it.amount)}</span>`;
+          box.appendChild(d);
+        });
+      } else {
+        box.innerHTML='<div class="sub" style="margin:0">暂无记录</div>';
+      }
+    }
+
+    let calYear=0, calMonth=0;
+    function renderMilestone(s){
+      const elM=el('milestoneHint');
+      if(!elM) return;
+      elM.innerHTML='';
+      if(!s.streak_enabled){ elM.style.display='none'; return; }
+      const chips=[];
+      if(s.milestone_bonus>0) chips.push(['今日里程碑 +'+money(s.milestone_bonus),'ok']);
+      if(s.streak_bonus>0) chips.push(['连签 +'+money(s.streak_bonus),'']);
+      if(s.next_milestone_day) chips.push(['下一日 D'+s.next_milestone_day+' +'+money(s.next_milestone_amount),'']);
+      const ms=s.streak_milestones||{};
+      Object.keys(ms).sort((a,b)=>Number(a)-Number(b)).slice(0,4).forEach(k=>{
+        chips.push(['D'+k+' +'+money(ms[k]),'soft']);
+      });
+      if(!chips.length){ elM.style.display='none'; return; }
+      elM.style.display='flex';
+      chips.forEach(function(item){
+        const sp=document.createElement('span');
+        sp.className='chip'+(item[1]?' '+item[1]:'');
+        sp.textContent=item[0];
+        elM.appendChild(sp);
+      });
+    }
+    async function loadCalendar(y,m){
+      if(!accessToken){ el('calendar').innerHTML='<div class="sub" style="grid-column:1/-1;margin:0">登录后显示月历</div>'; return; }
+      try{
+        const q=new URLSearchParams({year:String(y),month:String(m)});
+        const data=await api('./api/calendar?'+q.toString());
+        calYear=data.year; calMonth=data.month;
+        el('calTitle').textContent=calYear+'-'+String(calMonth).padStart(2,'0')+' 签到月历';
+        const map={};
+        (data.days||[]).forEach(d=>{ map[d.date]=d; });
+        const first=new Date(calYear, calMonth-1, 1);
+        const startPad=(first.getDay()+6)%7; // Monday first
+        const daysInMonth=new Date(calYear, calMonth, 0).getDate();
+        const todayStr=new Date().toISOString().slice(0,10);
+        const box=el('calendar'); box.innerHTML='';
+        ['一','二','三','四','五','六','日'].forEach(w=>{
+          const d=document.createElement('div'); d.className='cal-dow'; d.textContent=w; box.appendChild(d);
+        });
+        for(let i=0;i<startPad;i++){ const e=document.createElement('div'); box.appendChild(e); }
+        for(let d=1;d<=daysInMonth;d++){
+          const date=calYear+'-'+String(calMonth).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+          const cell=document.createElement('div');
+          cell.className='cal-day';
+          const info=map[date];
+          if(info&&info.checked){ cell.classList.add('checked'); cell.innerHTML='<div>'+d+'</div><div class="amt">'+(info.amount!=null?money(info.amount):'')+'</div>'; cell.title=date+' '+money(info.amount); }
+          else { cell.textContent=String(d); cell.title=date; }
+          if(date===todayStr) cell.classList.add('today');
+          box.appendChild(cell);
+        }
+      }catch(e){
+        el('calendar').innerHTML='<div class="sub" style="grid-column:1/-1;margin:0">月历加载失败</div>';
+      }
+    }
+    async function load(){
+      const card=document.querySelector('.card');
+      if(card) card.classList.add('is-loading');
+      try{
+        accessToken = pickToken() || accessToken;
+        if(!accessToken){
+          el('hint').textContent='未检测到登录态，请从 Sub2API 内打开';
+          el('stateBadge').textContent='未登录';
+          el('stateBadge').className='badge';
+          el('btn').disabled=true; el('btn').textContent='请先登录后签到'; el('btn').className='btn ghost';
+          el('rewardMeta').textContent='登录后查看可领额度';
+          showMsg('请先登录 Sub2API 后再使用签到','warn');
+          return;
+        }
+        // proactive: prefer parent re-login token over iframe stale cache, then refresh
+        if(tokenExpiredOrNear(accessToken, 90)){
+          const parentish = resyncTokenFromParent();
+          if(parentish && !tokenExpiredOrNear(parentish, 90)){
+            accessToken = parentish;
+          } else {
+            const ok=await tryRefresh();
+            if(!ok){
+              el('hint').textContent='登录已过期';
+              el('stateBadge').textContent='需登录';
+              el('stateBadge').className='badge off';
+              el('btn').disabled=false; el('btn').textContent='重新加载'; el('btn').className='btn ghost';
+              el('rewardMeta').textContent='请刷新主站或重新登录';
+              showMsg('登录已过期，请刷新主站页面或重新登录后再打开签到','err');
+              return;
+            }
+          }
+        }
+        const s=await api('./api/status');
+        renderStatus(s);
+        renderMilestone(s);
+        const now=new Date();
+        if(!calYear){ calYear=now.getFullYear(); calMonth=now.getMonth()+1; }
+        await loadCalendar(calYear, calMonth);
+      }catch(e){
+        const friendly=friendlyAuthError(e);
+        const expired=isExpiredAuthError(e);
+        el('hint').textContent=expired?'登录已过期，请刷新主站':'加载失败，可重试';
+        el('stateBadge').textContent=expired?'需登录':'异常';
+        el('stateBadge').className='badge off';
+        el('btn').disabled=false; el('btn').textContent='重新加载'; el('btn').className='btn ghost';
+        el('rewardMeta').textContent=expired?'请刷新主站或重新登录':'可点击下方重新加载';
+        showMsg(friendly,'err');
+      }finally{
+        if(card) card.classList.remove('is-loading');
+      }
+    }
+    el('calPrev').onclick=()=>{ let y=calYear,m=calMonth-1; if(m<1){m=12;y--;} loadCalendar(y,m); };
+    el('calNext').onclick=()=>{ let y=calYear,m=calMonth+1; if(m>12){m=1;y++;} loadCalendar(y,m); };
+
+    el('btn').onclick = async ()=>{
+      if(el('btn').textContent==='重新加载'){ await load(); return; }
+      el('btn').disabled=true;
+      try{
+        const r=await api('./api/checkin',{method:'POST'});
+        if(r.status==='success'){
+          showMsg('签到成功，到账 '+money(r.amount),'ok');
+        } else if(r.status==='already_checked_in'){
+          showMsg('今日已签到','warn');
+        } else if(r.status==='budget_exhausted'){
+          showMsg(r.message||'今日预算已用尽','warn');
+        } else if(r.status==='disabled'){
+          showMsg('签到已关闭','warn');
+        } else {
+          showMsg(r.message||r.status||'完成','ok');
+        }
+        await load();
+      }catch(e){
+        showMsg(friendlyAuthError(e),'err');
+        el('btn').disabled=false;
+      }
+    };
+    load();
+  </script>
+</body>
+</html>

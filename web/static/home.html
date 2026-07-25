@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sub2API 扩展</title>
+  <style>
+    :root {
+      --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.88); --text:#eef3ff; --muted:#93a0b8;
+      --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+      --border:rgba(255,255,255,.09); --glow:rgba(91,140,255,.32);
+    }
+    html.light {
+      --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.94); --text:#0f172a; --muted:#64748b;
+      --border:rgba(15,23,42,.08); --glow:rgba(59,130,246,.18);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+      background:
+        radial-gradient(800px 360px at 12% -10%, var(--glow), transparent 58%),
+        radial-gradient(600px 300px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      display:flex; justify-content:center; align-items:flex-start; padding:14px 12px 24px;
+    }
+    .shell{width:min(560px,100%)}
+    .card{
+      background:var(--card); backdrop-filter:blur(14px);
+      border:1px solid var(--border); border-radius:18px;
+      box-shadow:0 16px 40px rgba(0,0,0,.26); padding:16px;
+    }
+    .head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px}
+    h1{margin:0; font-size:1.18rem; letter-spacing:.2px}
+    .sub{color:var(--muted); font-size:.82rem; line-height:1.45; margin:6px 0 0}
+    .nav{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 14px}
+    .nav a{
+      text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
+      border:1px solid var(--border); border-radius:999px; padding:6px 10px;
+      background:rgba(127,127,127,.06);
+    }
+    .nav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+    .hero{
+      border-radius:14px; padding:12px 14px; margin-bottom:12px;
+      background:linear-gradient(135deg, rgba(91,140,255,.15), rgba(124,92,255,.08));
+      border:1px solid rgba(91,140,255,.2);
+    }
+    .hero .k{font-size:.75rem; color:var(--muted)}
+    .hero .v{margin-top:4px; font-size:1.05rem; font-weight:750}
+    .list{display:grid; gap:10px}
+    .mod{
+      border:1px solid var(--border); border-radius:14px; padding:12px 13px;
+      background:linear-gradient(180deg, rgba(91,140,255,.07), rgba(127,127,127,.03));
+      display:grid; gap:8px;
+    }
+    .mod .row{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+    .mod h2{margin:0; font-size:.98rem}
+    .mod p{margin:0; color:var(--muted); font-size:.8rem; line-height:1.45}
+    .badge{
+      font-size:.7rem; padding:3px 8px; border-radius:999px; border:1px solid var(--border);
+      color:var(--muted); white-space:nowrap; font-weight:650;
+    }
+    .badge.on{color:var(--ok); border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.1)}
+    .badge.off{color:var(--danger); border-color:rgba(244,63,94,.35); background:rgba(244,63,94,.1)}
+    .actions{display:flex; flex-wrap:wrap; gap:8px}
+    .actions a{
+      text-decoration:none; font-size:.8rem; font-weight:700; border-radius:10px; padding:8px 11px;
+    }
+    .actions a.primary{color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary2))}
+    .actions a.ghost{color:var(--text); border:1px solid var(--border); background:rgba(127,127,127,.05)}
+    .tags{display:flex; flex-wrap:wrap; gap:6px}
+    .tag{font-size:.68rem; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 7px}
+    .foot{margin-top:12px; color:var(--muted); font-size:.74rem; line-height:1.4}
+    .msg{margin-top:8px; padding:8px 10px; border-radius:10px; display:none; font-size:.84rem}
+    .msg.show{display:block}
+    .msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
+    .theme{
+      border:1px solid var(--border); background:transparent; color:var(--muted);
+      border-radius:999px; padding:4px 8px; cursor:pointer; font-size:.72rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="card">
+      <div class="head">
+        <div>
+          <h1>Sub2API 扩展</h1>
+          <p class="sub">独立于官方镜像的扩展服务。当前内置「每日签到」，后续可继续挂载更多运营能力。</p>
+        </div>
+        <button class="theme" id="themeBtn" type="button">主题</button>
+      </div>
+
+      <div class="nav">
+        <a class="active" href="./home.html">扩展中心</a>
+        <a href="./">每日签到</a>
+        <a href="./admin.html">管理台</a>
+      </div>
+
+      <div class="hero">
+        <div class="k">产品标识</div>
+        <div class="v" id="product">sub2api-ext</div>
+        <div class="sub" id="compat" style="margin-top:6px">项目名：sub2api-ext · 路径前缀保持 /checkin</div>
+      </div>
+
+      <div class="list" id="list">
+        <div class="mod">
+          <div class="row">
+            <h2>每日签到</h2>
+            <span class="badge on">加载中</span>
+          </div>
+          <p>正在读取模块列表…</p>
+        </div>
+      </div>
+
+      <div class="msg" id="msg"></div>
+      <p class="foot">
+        自定义菜单可继续指向 <code>/checkin/</code> 直接打开签到页（兼容旧入口）。
+        若希望侧栏进入扩展总览，可改为 <code>/checkin/home.html</code>。
+      </p>
+    </div>
+  </div>
+  <script>
+    const el = (id) => document.getElementById(id);
+    const themeKey = 'sub2api_ext_theme';
+    function applyTheme() {
+      const t = localStorage.getItem(themeKey) || 'dark';
+      document.documentElement.classList.toggle('light', t === 'light');
+    }
+    el('themeBtn').onclick = () => {
+      const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
+      localStorage.setItem(themeKey, next);
+      applyTheme();
+    };
+    applyTheme();
+
+    function showMsg(text, type) {
+      const m = el('msg');
+      m.textContent = text;
+      m.className = 'msg show ' + (type || '');
+    }
+
+    function renderModules(payload) {
+      const list = payload.modules || [];
+      el('product').textContent = (payload.product_name || 'Sub2API 扩展') + ' · ' + (payload.product || 'sub2api-ext');
+      el('compat').textContent = '项目名：' + (payload.compat_name || 'sub2api-ext') +
+        ' · 路径前缀 ' + (payload.base_path || '/checkin');
+      if (!list.length) {
+        el('list').innerHTML = '<div class="mod"><p>暂无可用扩展模块</p></div>';
+        return;
+      }
+      el('list').innerHTML = list.map(m => {
+        const on = !!m.enabled;
+        const badge = on
+          ? '<span class="badge on">已启用</span>'
+          : '<span class="badge off">已关闭</span>';
+        const tags = (m.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
+        const admin = m.admin_path
+          ? `<a class="ghost" href="${m.admin_path}">管理</a>`
+          : '';
+        return `<div class="mod">
+          <div class="row">
+            <div>
+              <h2>${m.name || m.id}</h2>
+            </div>
+            ${badge}
+          </div>
+          <p>${m.description || ''}</p>
+          <div class="tags">${tags}</div>
+          <div class="actions">
+            <a class="primary" href="${m.user_path || './'}">进入</a>
+            ${admin}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function load() {
+      try {
+        const r = await fetch('./api/modules', { credentials: 'same-origin' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        renderModules(data);
+      } catch (e) {
+        // offline fallback: still expose check-in card
+        renderModules({
+          product: 'sub2api-ext',
+          product_name: 'Sub2API 扩展',
+          compat_name: 'sub2api-ext',
+          base_path: '/checkin',
+          modules: [{
+            id: 'checkin',
+            name: '每日签到',
+            description: '每日签到领取余额奖励（离线兜底卡片）。',
+            user_path: './',
+            admin_path: './admin.html',
+            enabled: true,
+            tags: ['余额', '运营']
+          }]
+        });
+        showMsg('模块列表读取失败，已显示本地兜底入口：' + e.message, 'err');
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

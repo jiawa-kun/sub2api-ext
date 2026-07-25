@@ -1,0 +1,15 @@
+/data/
+*.db
+*.exe
+/bin/
+!/bin/.gitkeep
+/dist/
+configs/config.local.yaml
+configs/config.yaml
+.env
+.idea/
+.vscode/
+*.log
+*.pid
+deploy-remote.log
+deploy-run.log

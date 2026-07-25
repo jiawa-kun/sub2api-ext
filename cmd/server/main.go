@@ -1,0 +1,167 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"io/fs"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
+	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/handler"
+	"sub2api-ext/internal/modules"
+	"sub2api-ext/internal/settings"
+	"sub2api-ext/internal/store"
+	"sub2api-ext/internal/sub2api"
+	"sub2api-ext/web"
+)
+
+func main() {
+	cfgPath := flag.String("config", envOr("CONFIG_PATH", "configs/config.yaml"), "config file path")
+	flag.Parse()
+
+	cfg, err := config.Load(*cfgPath)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	st, err := store.Open(cfg.Store.SQLitePath)
+	if err != nil {
+		log.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	stg := settings.New(st, cfg.Checkin)
+	if err := stg.PersistClamped(context.Background()); err != nil {
+		log.Printf("persist clamped settings: %v", err)
+	}
+	client := sub2api.NewWithPublicHost(cfg.Sub2API.BaseURL, cfg.Sub2API.AdminToken, cfg.Sub2API.PublicHost, cfg.Timeout())
+	h := handler.New(cfg, st, client, stg)
+
+	mux := http.NewServeMux()
+	base := cfg.Server.BasePath
+
+	mux.HandleFunc(base+"/healthz", h.Health)
+	mux.HandleFunc(base+"/readyz", h.Ready)
+	mux.HandleFunc(base+"/metrics", h.Metrics)
+	mux.HandleFunc(base+"/api/modules", h.Modules)
+	mux.HandleFunc(base+"/api/status", h.Status)
+	mux.HandleFunc(base+"/api/checkin", h.Checkin)
+	mux.HandleFunc(base+"/api/calendar", h.Calendar)
+	mux.HandleFunc(base+"/api/admin/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetSettings(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminUpdateSettings(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc(base+"/api/admin/settings/audit", h.AdminListAudit)
+	mux.HandleFunc(base+"/api/admin/settings/rollback", h.AdminRollbackSettings)
+	mux.HandleFunc(base+"/api/admin/stats", h.AdminStats)
+	mux.HandleFunc(base+"/api/admin/checkins", h.AdminListCheckins)
+	mux.HandleFunc(base+"/api/admin/settings/template", h.AdminApplyTemplate)
+
+	staticRoot, err := fs.Sub(web.StaticFS, "static")
+	if err != nil {
+		log.Fatalf("static fs: %v", err)
+	}
+	fileServer := http.FileServer(http.FS(staticRoot))
+	mux.Handle(base+"/", http.StripPrefix(base+"/", spaFallback(fileServer, staticRoot)))
+
+	srv := &http.Server{
+		Addr:              cfg.Server.Addr,
+		Handler:           withEmbedHeaders(cfg, withCORS(cfg, withLogging(mux))),
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	rt := stg.Get()
+	if rt.RewardMode == "random" || rt.RandomReward {
+		log.Printf("sub2api-ext (sub2api-ext) listening on %s base_path=%q mode=random reward=[%.4f,%.4f] tz=%s enabled=%v",
+			cfg.Server.Addr, cfg.Server.BasePath, rt.RewardMin, rt.RewardMax, rt.Timezone, rt.Enabled)
+	} else {
+		log.Printf("sub2api-ext (sub2api-ext) listening on %s base_path=%q mode=fixed reward=%.4f tz=%s enabled=%v",
+			cfg.Server.Addr, cfg.Server.BasePath, rt.RewardAmount, rt.Timezone, rt.Enabled)
+	}
+	log.Printf("product=%s modules=%v sub2api base_url=%s hard_cap=%.4f daily_budget=%.4f streak=%v step=%.4f",
+		modules.ProductID, modules.ActiveIDs(), cfg.Sub2API.BaseURL, rt.HardCap, rt.DailyBudget, rt.StreakEnabled, rt.StreakStep)
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		log.Fatalf("server: %v", err)
+	}
+}
+
+func spaFallback(next http.Handler, fsys fs.FS) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(fsys, path); err != nil {
+			r2 := r.Clone(r.Context())
+			r2.URL.Path = "/"
+			next.ServeHTTP(w, r2)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+
+
+func envOr(k, d string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return d
+}
+
+
+func withCORS(cfg config.Config, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if !cfg.OriginAllowed(origin) {
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-User-Token, x-api-key")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+		w.Header().Set("Vary", "Origin")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func withEmbedHeaders(cfg config.Config, next http.Handler) http.Handler {
+	csp := cfg.CSPFrameAncestors()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", csp)
+		w.Header().Del("X-Frame-Options")
+		next.ServeHTTP(w, r)
+	})
+}
+

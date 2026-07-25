@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>扩展管理台 · 签到</title>
+  <style>
+    :root {
+      --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.9); --text:#eef3ff; --muted:#93a0b8;
+      --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+      --border:rgba(255,255,255,.09); --soft:rgba(127,127,127,.07); --soft2:rgba(127,127,127,.12);
+      --shadow:0 14px 34px rgba(0,0,0,.26); --radius:16px; --radius-sm:10px;
+    }
+    html.light {
+      --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.95); --text:#0f172a; --muted:#64748b;
+      --border:rgba(15,23,42,.08); --soft:rgba(15,23,42,.04); --soft2:rgba(15,23,42,.07);
+      --shadow:0 10px 28px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; color:var(--text); padding:14px 12px 88px;
+      font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+      background:
+        radial-gradient(900px 400px at 8% -12%, rgba(91,140,255,.26), transparent 58%),
+        radial-gradient(700px 320px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+        linear-gradient(180deg,var(--bg0),var(--bg1));
+      display:flex; justify-content:center;
+    }
+    .wrap{width:min(860px,100%); display:flex; flex-direction:column; gap:10px}
+    a{color:var(--primary); text-decoration:none}
+    .top{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:2px 0}
+    .top h1{margin:0; font-size:1.15rem}
+    .top .sub{margin:2px 0 0; font-size:.78rem}
+    .top-meta{display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .chip{
+      display:inline-flex; align-items:center; font-size:.72rem; font-weight:650;
+      padding:4px 9px; border-radius:999px; border:1px solid var(--border);
+      background:var(--soft); color:var(--muted); white-space:nowrap;
+    }
+    .card{
+      background:var(--card); backdrop-filter:blur(14px); border:1px solid var(--border);
+      border-radius:var(--radius); padding:14px; box-shadow:var(--shadow);
+    }
+    .card-head{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      margin:0 0 10px;
+    }
+    .card-head h2{margin:0; font-size:.95rem; font-weight:700}
+    .sub{color:var(--muted); font-size:.8rem; line-height:1.4; margin:0 0 8px}
+    .hint{font-size:.72rem; color:var(--muted); margin-top:6px; line-height:1.4}
+    label{display:block; font-size:.76rem; color:var(--muted); margin:0 0 4px; font-weight:500}
+    .field{margin-top:8px}
+    input[type=number], input[type=text], input[type=password], select{
+      width:100%; padding:8px 10px; border-radius:var(--radius-sm); border:1px solid var(--border);
+      background:var(--soft); color:var(--text); font-size:.9rem; outline:none;
+    }
+    input:focus, select:focus{border-color:rgba(91,140,255,.5); box-shadow:0 0 0 2px rgba(91,140,255,.12)}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+    .auth-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    @media (max-width:720px){
+      .grid2,.grid3,.auth-grid{grid-template-columns:1fr}
+      .top{align-items:flex-start; flex-direction:column}
+      .top-meta{justify-content:flex-start}
+    }
+    .stat{
+      border:1px solid var(--border); border-radius:12px; padding:10px;
+      background:linear-gradient(180deg, rgba(91,140,255,.08), var(--soft));
+    }
+    .stat .k{font-size:.7rem; color:var(--muted)}
+    .stat .v{margin-top:3px; font-size:1.05rem; font-weight:750}
+    .modes{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+    .mode{
+      border:1px solid var(--border); border-radius:12px; padding:10px; cursor:pointer; background:var(--soft);
+    }
+    .mode.active{border-color:var(--primary); background:rgba(91,140,255,.14)}
+    .mode strong{display:block; margin-bottom:2px; font-size:.88rem}
+    .mode span{font-size:.74rem; color:var(--muted); line-height:1.3}
+    .panel.hidden,.hidden{display:none !important}
+    .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+    .switch{
+      display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none;
+      padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:var(--soft);
+    }
+    .switch input{width:auto; accent-color:var(--primary)}
+    .switch span{font-size:.84rem; font-weight:650}
+    .tabs{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0 10px}
+    .tabs button{
+      background:var(--soft2); color:var(--text); box-shadow:none; padding:7px 12px; font-size:.8rem;
+    }
+    .tabs button.active{
+      background:linear-gradient(135deg,var(--primary),var(--primary2)); color:#fff;
+    }
+    .tpl-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px}
+    button{
+      border:0; border-radius:var(--radius-sm); padding:9px 12px; cursor:pointer; font-weight:650;
+      background:linear-gradient(135deg,var(--primary),var(--primary2)); color:#fff; font-size:.86rem;
+    }
+    button.secondary{background:var(--soft2); color:var(--text)}
+    button.danger{background:rgba(244,63,94,.16); color:var(--danger)}
+    button:disabled{opacity:.45; cursor:not-allowed}
+    button.dirty{box-shadow:0 0 0 2px rgba(91,140,255,.4)}
+    button.block{width:100%}
+    button.sm{padding:6px 10px; font-size:.78rem}
+    .msg{margin-top:8px; padding:8px 10px; border-radius:var(--radius-sm); display:none; font-size:.84rem}
+    .msg.show{display:block}
+    .msg.ok{background:rgba(34,197,94,.12); color:var(--ok)}
+    .msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
+    .msg.warn{background:rgba(245,158,11,.12); color:var(--warn)}
+    .summary{
+      border-radius:12px; padding:10px 12px; font-size:.82rem; line-height:1.45;
+      background:rgba(91,140,255,.08); border:1px solid rgba(91,140,255,.18);
+    }
+    .bar{height:7px; border-radius:999px; background:rgba(127,127,127,.15); overflow:hidden; margin-top:8px}
+    .bar>i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--primary),var(--primary2)); transition:width .3s}
+    .bars{display:flex; align-items:flex-end; gap:5px; height:56px; margin-top:10px; padding-bottom:14px}
+    .bars .b{
+      flex:1; background:linear-gradient(180deg, rgba(91,140,255,.4), rgba(91,140,255,.15));
+      border-radius:5px 5px 2px 2px; min-height:3px; position:relative;
+    }
+    .bars .b span{position:absolute; bottom:-14px; left:50%; transform:translateX(-50%); font-size:.6rem; color:var(--muted); white-space:nowrap}
+    .auth-box{border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--soft)}
+    .auth-box.accent{border-style:dashed; border-color:rgba(91,140,255,.35); background:rgba(91,140,255,.05)}
+    .auth-box .box-title{font-size:.84rem; font-weight:700; margin:0 0 6px}
+    .auth-status{font-size:.78rem; color:var(--muted); line-height:1.35}
+    .auth-status.ok{color:var(--ok)} .auth-status.err{color:var(--danger)}
+    .table-wrap{overflow:auto; border:1px solid var(--border); border-radius:12px; max-height:220px}
+    .table{width:100%; border-collapse:collapse; font-size:.78rem}
+    .table th,.table td{padding:7px 8px; border-bottom:1px solid var(--border); text-align:left}
+    .table th{color:var(--muted); font-weight:600; background:var(--soft); position:sticky; top:0}
+    .table td.mono{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.72rem; color:var(--muted)}
+    .warnbox{
+      background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.28); color:var(--warn);
+      border-radius:10px; padding:8px 10px; font-size:.8rem; margin-bottom:8px; display:none;
+    }
+    .warnbox.show{display:block}
+    details.fold{border:1px solid var(--border); border-radius:12px; background:var(--soft); overflow:hidden}
+    details.fold > summary{
+      list-style:none; cursor:pointer; padding:10px 12px; font-size:.88rem; font-weight:700;
+      display:flex; justify-content:space-between; align-items:center;
+    }
+    details.fold > summary::-webkit-details-marker{display:none}
+    details.fold > summary::after{content:"▾"; color:var(--muted); font-size:.75rem}
+    details.fold[open] > summary::after{content:"▴"}
+    details.fold .fold-body{padding:0 12px 12px}
+    .audit-item{border-top:1px solid var(--border); padding:10px 0}
+    .audit-item:first-child{border-top:0; padding-top:0}
+    .audit-meta{font-size:.72rem; color:var(--muted); margin-bottom:4px}
+    .audit-sum{font-size:.82rem; line-height:1.4}
+    .audit-actions{margin-top:6px}
+    .audit-diff{
+      display:none; margin-top:8px; padding:8px; border-radius:8px; background:rgba(127,127,127,.08);
+      font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.68rem; white-space:pre-wrap;
+      color:var(--muted); max-height:160px; overflow:auto;
+    }
+    .audit-diff.show{display:block}
+    .save-dock{
+      position:fixed; left:0; right:0; bottom:0; z-index:40;
+      padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+      background:linear-gradient(180deg, transparent, rgba(7,11,22,.92) 28%);
+      display:flex; justify-content:center; pointer-events:none;
+    }
+    html.light .save-dock{background:linear-gradient(180deg, transparent, rgba(248,250,252,.94) 28%)}
+    .save-dock .inner{
+      width:min(860px,100%); pointer-events:auto;
+      display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center;
+      padding:10px 12px; border-radius:14px; border:1px solid rgba(91,140,255,.28);
+      background:rgba(18,26,43,.94); backdrop-filter:blur(12px);
+      box-shadow:0 -8px 28px rgba(0,0,0,.28);
+    }
+    html.light .save-dock .inner{background:rgba(255,255,255,.96)}
+    .save-dock .summary{border:0; background:transparent; padding:0; font-size:.78rem}
+    .save-dock #btn{min-width:120px}
+    .live-line{margin-bottom:8px}
+  
+    .card{box-shadow:0 10px 30px rgba(15,23,42,.06)}
+    .tabs{
+      display:flex; gap:0; margin:10px 0; padding:3px; border-radius:12px;
+      background:#eef2ff; border:1px solid rgba(15,23,42,.06);
+    }
+    .tabs button{
+      flex:1; border:0; border-radius:10px; padding:8px 10px; font-size:.8rem; font-weight:700;
+      background:transparent; color:#64748b; box-shadow:none;
+    }
+    .tabs button.active{
+      background:#fff; color:#0f172a; box-shadow:0 1px 4px rgba(15,23,42,.06);
+      background-image:none;
+    }
+    .save-dock{
+      background:linear-gradient(180deg, transparent, rgba(243,246,255,.95) 40%);
+    }
+    .save-dock .inner{
+      padding:8px 10px; border-radius:14px; border:1px solid rgba(15,23,42,.08);
+      background:rgba(255,255,255,.96); box-shadow:0 8px 24px rgba(15,23,42,.08);
+    }
+    .save-dock .summary{font-size:.74rem; color:#64748b}
+    button.danger{background:rgba(244,63,94,.08); color:#e11d48; border:1px solid rgba(244,63,94,.14)}
+    details.fold{box-shadow:0 8px 24px rgba(15,23,42,.05)}
+    .stat{background:linear-gradient(180deg, rgba(91,124,250,.06), #f8fafc)}
+    .chip{background:#fff}
+
+  
+    .sum-label{font-size:.72rem; color:var(--muted); font-weight:700; margin-bottom:6px}
+    .sum-chips{display:flex; flex-wrap:wrap; gap:6px}
+    .sum-chip{
+      display:inline-flex; align-items:center; gap:4px;
+      font-size:.74rem; font-weight:700; padding:5px 9px; border-radius:999px;
+      background:#f8fafc; border:1px solid rgba(15,23,42,.08); color:#0f172a;
+    }
+    .sum-chip i{font-style:normal; font-weight:600; color:#64748b; font-size:.68rem}
+    .sum-chip.ok{background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.18); color:#059669}
+    .sum-chip.soft{background:#fff; color:#64748b}
+    .summary{background:transparent; border:1px solid rgba(15,23,42,.08); padding:10px}
+    .tpl-row .tpl{
+      background:#f8fafc; color:#334155; border:1px solid rgba(15,23,42,.08);
+      box-shadow:none; font-weight:650;
+    }
+    .tpl-row .tpl:hover{background:#eef2ff}
+    .tpl-row .tpl-off{color:#be123c; border-color:rgba(244,63,94,.18); background:rgba(244,63,94,.04)}
+    .modes .mode{padding:10px 12px}
+    .modes .mode strong{font-size:.84rem}
+
+    .topnav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+    .topnav a{
+      text-decoration:none; color:inherit; font-size:.75rem; font-weight:650;
+      border:1px solid var(--border, rgba(15,23,42,.08)); border-radius:999px; padding:5px 9px;
+      background:rgba(127,127,127,.06);
+    }
+    .topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#4f46e5}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="topnav">
+          <a href="./home.html">扩展中心</a>
+          <a href="./">每日签到</a>
+          <a class="active" href="./admin.html">管理台</a>
+        </div>
+        <h1>扩展管理台</h1>
+        <p class="sub" style="margin:4px 0 0">Sub2API 扩展 · 当前模块：每日签到 · 保存后立刻生效</p>
+      </div>
+      <div class="top-meta">
+        <span class="chip" id="todayChip">日期 —</span>
+        <div id="authStatus" class="auth-status">检测中…</div>
+      </div>
+    </header>
+
+    <details class="fold" id="authDetails" open>
+      <summary>鉴权与密钥</summary>
+      <div class="fold-body">
+        <div class="auth-grid">
+          <div class="auth-box">
+            <div class="box-title">本页登录凭证</div>
+            <div class="field">
+              <label for="cred">API Key / JWT</label>
+              <input id="cred" type="password" placeholder="留空用当前管理员登录态" autocomplete="off" />
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button type="button" class="secondary sm" id="btnUseCred">使用</button>
+              <button type="button" class="secondary sm" id="btnClearCred">清除</button>
+              <button type="button" class="secondary sm" id="btnReload">刷新</button>
+            </div>
+          </div>
+          <div class="auth-box accent">
+            <div class="box-title">服务端 Admin API Key</div>
+            <div class="sub" id="serverKeyStatus" style="margin:0 0 6px">加载中…</div>
+            <div class="field">
+              <label for="serverAdminKey">加款用 Key</label>
+              <input id="serverAdminKey" type="password" placeholder="粘贴后保存到服务端" autocomplete="off" />
+            </div>
+            <div class="row" style="margin-top:8px">
+              <button type="button" class="sm" id="btnSaveServerKey">保存</button>
+              <button type="button" class="secondary sm" id="btnUseServerKeyAsCred">用作本页凭证</button>
+              <button type="button" class="secondary sm" id="btnClearServerKey">清除覆盖</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="card-head"><h2>今日概览</h2></div>
+      <div class="grid3" id="statsGrid">
+        <div class="stat"><div class="k">签到人数</div><div class="v" id="stCount">—</div></div>
+        <div class="stat"><div class="k">发放总额</div><div class="v" id="stTotal">—</div></div>
+        <div class="stat"><div class="k">预算剩余</div><div class="v" id="stRemain">—</div></div>
+      </div>
+      <div class="bar"><i id="stBar"></i></div>
+      <div class="sub" id="stMeta" style="margin:8px 0 0">—</div>
+      <div class="bars" id="stBars"></div>
+    </div>
+
+    <details class="fold">
+      <summary>当日明细</summary>
+      <div class="fold-body">
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>用户</th><th>金额</th><th>时间</th><th>幂等 Key</th></tr></thead>
+            <tbody id="checkinBody"><tr><td colspan="4" class="sub">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="card-head"><h2>运行配置</h2></div>
+      <div id="clampWarn" class="warnbox">额度超过硬顶，已自动收敛显示。</div>
+      <div class="summary live-line" id="liveSummary">当前生效：加载中…</div>
+      <div class="tpl-row">
+        <button type="button" class="tpl sm" id="tplDaily">日常</button>
+        <button type="button" class="tpl sm" id="tplPromo">活动</button>
+        <button type="button" class="tpl sm tpl-off" id="tplOff">关闭</button>
+      </div>
+      <p class="hint">模板立刻写入并记审计。日常=$0.1；活动=随机 0.1~1。</p>
+
+      <div class="tabs">
+        <button type="button" class="active" id="tab-reward">奖励</button>
+        <button type="button" id="tab-budget">预算</button>
+        <button type="button" id="tab-streak">连签</button>
+        <button type="button" id="tab-advanced">高级</button>
+      </div>
+
+      <div id="pane-reward">
+        <label class="switch">
+          <input id="enabled" type="checkbox" />
+          <span>启用签到</span>
+        </label>
+        <div class="field">
+          <label>奖励模式</label>
+          <div class="modes">
+            <div class="mode active" id="modeFixed"><strong>固定额度</strong><span>每次相同</span></div>
+            <div class="mode" id="modeRandom"><strong>区间随机</strong><span>最小~最大</span></div>
+          </div>
+        </div>
+        <div class="panel field" id="panelFixed">
+          <label for="rewardAmount">固定额度 $</label>
+          <input id="rewardAmount" type="number" min="0.0001" step="0.0001" />
+        </div>
+        <div class="panel hidden field" id="panelRandom">
+          <div class="grid2">
+            <div><label for="rewardMin">最小 $</label><input id="rewardMin" type="number" min="0.0001" step="0.0001" /></div>
+            <div><label for="rewardMax">最大 $</label><input id="rewardMax" type="number" min="0.0001" step="0.0001" /></div>
+          </div>
+          <button type="button" class="secondary sm" id="btnSim" style="margin-top:8px">模拟 10 次</button>
+          <div id="simResult" class="hint"></div>
+        </div>
+      </div>
+
+      <div id="pane-budget" class="hidden">
+        <div class="grid2">
+          <div>
+            <label for="hardCap">单次硬顶 $</label>
+            <input id="hardCap" type="number" min="0.0001" max="100" step="0.01" />
+          </div>
+          <div>
+            <label for="dailyBudget">日预算 $（0=不限）</label>
+            <input id="dailyBudget" type="number" min="0" step="0.01" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="budgetAction">预算用尽时</label>
+          <select id="budgetAction">
+            <option value="block">拒绝签到</option>
+            <option value="disable">自动关闭签到</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="pane-streak" class="hidden">
+        <label class="switch">
+          <input id="streakEnabled" type="checkbox" />
+          <span>启用连续签到加成</span>
+        </label>
+        <div class="grid2 field">
+          <div>
+            <label for="streakStep">每日加成 $</label>
+            <input id="streakStep" type="number" min="0" step="0.01" />
+          </div>
+          <div>
+            <label for="streakMaxDays">计入天数上限</label>
+            <input id="streakMaxDays" type="number" min="1" max="365" step="1" />
+          </div>
+        </div>
+        <div class="grid2 field">
+          <div>
+            <label for="mile3">第 3 天额外 $</label>
+            <input id="mile3" type="number" min="0" step="0.01" />
+          </div>
+          <div>
+            <label for="mile7">第 7 天额外 $</label>
+            <input id="mile7" type="number" min="0" step="0.01" />
+          </div>
+        </div>
+      </div>
+
+      <div id="pane-advanced" class="hidden">
+        <div class="field">
+          <label for="timezonePreset">时区</label>
+          <select id="timezonePreset">
+            <option value="Asia/Shanghai">Asia/Shanghai</option>
+            <option value="UTC">UTC</option>
+            <option value="Asia/Tokyo">Asia/Tokyo</option>
+            <option value="America/New_York">America/New_York</option>
+            <option value="Europe/London">Europe/London</option>
+            <option value="__custom">自定义…</option>
+          </select>
+        </div>
+        <div id="tzCustomWrap" class="hidden field">
+          <label for="timezone">自定义时区</label>
+          <input id="timezone" type="text" placeholder="Asia/Shanghai" />
+        </div>
+        <div class="field">
+          <label for="notes">调账备注前缀</label>
+          <input id="notes" type="text" placeholder="daily-checkin" />
+        </div>
+      </div>
+
+      <div id="msg" class="msg"></div>
+      <p class="sub" style="margin:10px 0 0"><a href="./">← 返回签到页</a> · <a href="./home.html">扩展中心</a></p>
+    </div>
+
+    <details class="fold">
+      <summary>最近变更（审计，最近 5 条）</summary>
+      <div class="fold-body">
+        <p class="sub">只回配置，不回退已发奖励。</p>
+        <div id="auditList">加载中…</div>
+      </div>
+    </details>
+  </div>
+
+  <div class="save-dock">
+    <div class="inner">
+      <div class="summary" id="draftSummary">即将保存：—</div>
+      <button id="btn" disabled>保存设置</button>
+    </div>
+  </div>
+
+  <!-- keep liveSummary duplicate target? no, single liveSummary in card -->
+<script>
+    const HIGH_AMOUNT=10, SS_KEY='checkin_admin_cred';
+    const params=new URLSearchParams(location.search);
+    if((params.get('theme')||'').toLowerCase()==='light') document.documentElement.classList.add('light');
+    const el=id=>document.getElementById(id);
+    const msg=el('msg');
+    let rewardMode='fixed', savedSnapshot=null, accessToken='', authMode='none';
+
+    function show(text,type){ msg.textContent=text; msg.className='msg show '+type; }
+    function isSensitiveAuthError(err){
+      const m=String(err&&err.message?err.message:err||'');
+      return /敏感配置|x-api-key|server admin API key|admin API Key/i.test(m);
+    }
+    function handleSensitiveError(err){
+      const m=String(err&&err.message?err.message:err||'');
+      const det=el('authDetails'); if(det) det.open=true;
+      setAuthStatus('敏感改动需要 x-api-key：请粘贴服务端 Admin API Key 后点「使用」','err');
+      show(m,'err');
+      try{ el('cred').focus(); }catch{}
+    }
+    function clean(t){ t=(t||'').trim(); if(/^bearer\s+/i.test(t)) t=t.replace(/^bearer\s+/i,''); return t; }
+    function looksLikeJWT(t){ const p=(t||'').split('.'); return p.length===3 && p.every(x=>x.length>0); }
+    function readLS(k){ try{return localStorage.getItem(k)||''}catch{return ''} }
+    function loadStoredCred(){ try{return sessionStorage.getItem(SS_KEY)||''}catch{return ''} }
+    function saveStoredCred(v){ try{ if(v) sessionStorage.setItem(SS_KEY,v); else sessionStorage.removeItem(SS_KEY);}catch{} }
+    function money(n){ const x=Number(n); if(!Number.isFinite(x)) return '—'; return '$'+x.toFixed(4).replace(/\.?0+$/,m=>m.includes('.')?m.replace(/0+$/,'').replace(/\.$/,''):m); }
+    function num(v){ const n=Number(v); if(!Number.isFinite(n)) return '-'; return n.toFixed(4).replace(/\.?0+$/,m=>m.includes('.')?m.replace(/0+$/,'').replace(/\.$/,''):m); }
+
+    function detectAutoToken(){
+      let t=clean(readLS('auth_token'));
+      try{ if(window.parent&&window.parent!==window){ const p=clean(window.parent.localStorage.getItem('auth_token')||''); if(p) t=p; } }catch{}
+      const q=clean(params.get('token')||''); if(q) t=q;
+      return t;
+    }
+    function resolveAuth(){
+      const manual=clean(loadStoredCred()||el('cred').value||'');
+      if(manual){ accessToken=manual; authMode=looksLikeJWT(manual)?'jwt':'api_key'; return; }
+      const auto=detectAutoToken();
+      if(auto){ accessToken=auto; authMode=looksLikeJWT(auto)?'jwt':'api_key'; return; }
+      accessToken=''; authMode='none';
+    }
+    function setAuthStatus(text,cls){ const n=el('authStatus'); n.textContent=text; n.className='auth-status'+(cls?' '+cls:''); }
+    function authHeaders(){
+      const headers={'Accept':'application/json','Content-Type':'application/json'};
+      if(!accessToken) return headers;
+      if(authMode==='api_key') headers['x-api-key']=accessToken;
+      else { headers['Authorization']='Bearer '+accessToken; headers['X-User-Token']=accessToken; }
+      return headers;
+    }
+    async function api(path, opts={}){
+      resolveAuth();
+      const res=await fetch(path,{...opts, headers:Object.assign(authHeaders(), opts.headers||{})});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||data.message||('HTTP '+res.status));
+      return data;
+    }
+
+    function setMode(mode){
+      rewardMode=mode==='random'?'random':'fixed';
+      el('modeFixed').classList.toggle('active', rewardMode==='fixed');
+      el('modeRandom').classList.toggle('active', rewardMode==='random');
+      el('panelFixed').classList.toggle('hidden', rewardMode!=='fixed');
+      el('panelRandom').classList.toggle('hidden', rewardMode!=='random');
+      markDirty();
+    }
+    function currentForm(){
+      const tzPreset=el('timezonePreset').value;
+      const timezone=tzPreset==='__custom'?el('timezone').value.trim():tzPreset;
+      const body={
+        enabled:el('enabled').checked,
+        reward_mode:rewardMode,
+        timezone,
+        notes_prefix:el('notes').value.trim()||'daily-checkin',
+        hard_cap:Number(el('hardCap').value),
+        daily_budget:Number(el('dailyBudget').value),
+        budget_action:el('budgetAction').value||'block',
+        streak_enabled:el('streakEnabled').checked,
+        streak_step:Number(el('streakStep').value),
+        streak_max_days:Number(el('streakMaxDays').value),
+        streak_milestones:{
+          3: Number(el('mile3').value)||0,
+          7: Number(el('mile7').value)||0,
+        },
+      };
+      if(rewardMode==='random'){
+        body.reward_min=Number(el('rewardMin').value);
+        body.reward_max=Number(el('rewardMax').value);
+      } else body.reward_amount=Number(el('rewardAmount').value);
+      return body;
+    }
+    function formatSummary(s){
+      if(!s) return '—';
+      const on=s.enabled?'启用':'关闭';
+      const reward=((s.reward_mode||'')==='random'||s.random_reward)
+        ?('随机 '+money(s.reward_min)+'~'+money(s.reward_max))
+        :('固定 '+money(s.reward_amount));
+      const bud=Number(s.daily_budget)>0?money(s.daily_budget):'不限';
+      const streak=s.streak_enabled?('连签+'+money(s.streak_step||0)+'/'+(s.streak_max_days||7)+'天'):'连签关';
+      const tags=[
+        ['状态', on, s.enabled?'ok':''],
+        ['奖励', reward, ''],
+        ['硬顶', money(s.hard_cap), ''],
+        ['预算', bud, ''],
+        ['连签', streak, ''],
+      ];
+      if(s.timezone) tags.push(['时区', s.timezone, 'soft']);
+      if(s.today) tags.push(['今日', s.today, 'soft']);
+      return tags.map(t=>`<span class="sum-chip ${t[2]||''}"><i>${t[0]}</i>${t[1]}</span>`).join('');
+    }
+    function formEqualsSaved(){
+      if(!savedSnapshot) return false;
+      const f=currentForm(), s=savedSnapshot;
+      const sMode=s.reward_mode||(s.random_reward?'random':'fixed');
+      if(!!f.enabled!==!!s.enabled) return false;
+      if(f.reward_mode!==sMode) return false;
+      if((f.timezone||'')!==(s.timezone||'')) return false;
+      if((f.notes_prefix||'')!==(s.notes_prefix||'daily-checkin')) return false;
+      if(Number(f.hard_cap)!==Number(s.hard_cap||0)) return false;
+      if(Number(f.daily_budget)!==Number(s.daily_budget||0)) return false;
+      if((f.budget_action||'block')!==(s.budget_action||'block')) return false;
+      if(!!f.streak_enabled!==!!s.streak_enabled) return false;
+      if(Number(f.streak_step)!==Number(s.streak_step||0)) return false;
+      if(Number(f.streak_max_days)!==Number(s.streak_max_days||7)) return false;
+      const sm=s.streak_milestones||{};
+      if(Number(f.streak_milestones[3]||0)!==Number(sm[3]||sm['3']||0)) return false;
+      if(Number(f.streak_milestones[7]||0)!==Number(sm[7]||sm['7']||0)) return false;
+      if(f.reward_mode==='random') return Number(f.reward_min)===Number(s.reward_min)&&Number(f.reward_max)===Number(s.reward_max);
+      return Number(f.reward_amount)===Number(s.reward_amount);
+    }
+    function markDirty(){
+      const dirty=savedSnapshot?!formEqualsSaved():true;
+      el('btn').disabled=!dirty||authMode==='none';
+      el('btn').classList.toggle('dirty', dirty&&authMode!=='none');
+      el('btn').textContent=dirty?'保存设置':'已是最新';
+      const draft=currentForm(); draft.today=savedSnapshot?savedSnapshot.today:'-';
+      el('draftSummary').innerHTML='<div class="sum-chips">'+formatSummary(draft)+'</div>';
+    }
+    function applyTimezoneUI(tz){
+      const known=['Asia/Shanghai','UTC','Asia/Tokyo','America/New_York','Europe/London'];
+      if(known.includes(tz)){ el('timezonePreset').value=tz; el('tzCustomWrap').classList.add('hidden'); el('timezone').value=tz; }
+      else { el('timezonePreset').value='__custom'; el('tzCustomWrap').classList.remove('hidden'); el('timezone').value=tz||'Asia/Shanghai'; }
+    }
+    function fillForm(s){
+      savedSnapshot=s;
+      el('enabled').checked=!!s.enabled;
+      setMode(s.reward_mode||(s.random_reward?'random':'fixed'));
+      el('rewardAmount').value=s.reward_amount!=null?s.reward_amount:(s.reward_min||0.1);
+      el('rewardMin').value=s.reward_min!=null?s.reward_min:el('rewardAmount').value;
+      el('rewardMax').value=s.reward_max!=null?s.reward_max:el('rewardAmount').value;
+      el('hardCap').value=s.hard_cap!=null?s.hard_cap:5;
+      el('dailyBudget').value=s.daily_budget!=null?s.daily_budget:50;
+      el('budgetAction').value=s.budget_action||'block';
+      el('streakEnabled').checked=s.streak_enabled!==false;
+      el('streakStep').value=s.streak_step!=null?s.streak_step:0.01;
+      el('streakMaxDays').value=s.streak_max_days!=null?s.streak_max_days:7;
+      const sm=s.streak_milestones||{};
+      el('mile3').value=sm[3]!=null?sm[3]:(sm['3']!=null?sm['3']:0.05);
+      el('mile7').value=sm[7]!=null?sm[7]:(sm['7']!=null?sm['7']:0.2);
+      applyTimezoneUI(s.timezone||'Asia/Shanghai');
+      el('notes').value=s.notes_prefix||'daily-checkin';
+      el('liveSummary').innerHTML='<div class="sum-label">当前生效</div><div class="sum-chips">'+formatSummary(s)+'</div>';
+      el('clampWarn').classList.toggle('show', !!s.clamped);
+      renderServerKeyStatus(s);
+      if(el('todayChip')&&s.today) el('todayChip').textContent='今日 '+s.today;
+      markDirty();
+    }
+
+    function renderServerKeyStatus(s){
+      const conf=!!s.admin_api_key_configured;
+      const src=s.admin_api_key_source||'none';
+      const mask=s.admin_api_key_masked||'';
+      const srcLabel={ui:'管理页覆盖',env:'环境变量',none:'未配置'}[src]||src;
+      const n=el('serverKeyStatus');
+      if(!conf){
+        n.innerHTML='<span style="color:var(--danger)">未配置</span> · 签到加款将失败，请保存 Admin API Key 或配置 env';
+        n.className='sub';
+      } else {
+        n.innerHTML=`<span style="color:var(--ok)">已配置</span> · 来源：${srcLabel}`+(mask?` · ${mask}`:'');
+        n.className='sub';
+      }
+    }
+
+    function renderStats(st){
+      el('stCount').textContent=st.checkin_count!=null?String(st.checkin_count):'—';
+      el('stTotal').textContent=money(st.total_amount||0);
+      if(st.daily_budget>0){
+        el('stRemain').textContent=money(st.daily_remaining||0);
+        const pct=Math.max(0,Math.min(100, ((st.total_amount||0)/st.daily_budget)*100));
+        el('stBar').style.width=pct+'%';
+        el('stMeta').textContent=`预算 ${money(st.total_amount||0)} / ${money(st.daily_budget)} · 硬顶 ${money(st.hard_cap)} · 均额 ${money(st.avg_amount||0)}`;
+      } else {
+        el('stRemain').textContent='不限';
+        el('stBar').style.width='0%';
+        el('stMeta').textContent=`无日预算限制 · 硬顶 ${money(st.hard_cap)} · 均额 ${money(st.avg_amount||0)}`;
+      }
+      const box=el('stBars'); box.innerHTML='';
+      const days=st.recent_days||[];
+      const max=Math.max(1, ...days.map(d=>Number(d.total_amount||0)));
+      days.forEach(d=>{
+        const h=Math.max(4, Math.round((Number(d.total_amount||0)/max)*68));
+        const div=document.createElement('div');
+        div.className='b'; div.style.height=h+'px';
+        div.title=`${d.date}: ${d.count}人 / ${money(d.total_amount)}`;
+        div.innerHTML=`<span>${String(d.date||'').slice(5)}</span>`;
+        box.appendChild(div);
+      });
+    }
+
+    function renderCheckins(r){
+      const body=el('checkinBody');
+      const items=r.items||[];
+      if(!items.length){ body.innerHTML='<tr><td colspan="4" class="sub">今日暂无签到</td></tr>'; return; }
+      body.innerHTML='';
+      items.forEach(it=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${it.user_id}</td><td>${money(it.amount)}</td><td>${(it.created_at||'').replace('T',' ').replace('Z','')}</td><td class="mono">${it.idempotency_key||''}</td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    function auditSummary(oldObj,newObj){
+      const keys=['enabled','reward_mode','reward_amount','reward_min','reward_max','hard_cap','daily_budget','budget_action','timezone','notes_prefix'];
+      const parts=[];
+      for(const k of keys){
+        const a=oldObj?oldObj[k]:undefined, b=newObj?newObj[k]:undefined;
+        if(String(a)!==String(b)) parts.push(`${k}: ${a} → ${b}`);
+      }
+      return parts.length?parts.join('；'):'（无字段差异）';
+    }
+
+    function renderAudit(items){
+      const box=el('auditList');
+      if(!items||!items.length){ box.innerHTML='<div class="sub" style="margin:0">暂无变更记录</div>'; return; }
+      box.innerHTML='';
+      items.forEach((it,idx)=>{
+        let oldObj={}, newObj={};
+        try{oldObj=JSON.parse(it.old_json||'{}')}catch{}
+        try{newObj=JSON.parse(it.new_json||'{}')}catch{}
+        const div=document.createElement('div'); div.className='audit-item';
+        div.innerHTML=`
+          <div class="audit-meta">#${it.id||idx} · ${it.created_at||''} · ${it.actor_name||'-'} · ${it.source||''}</div>
+          <div class="audit-sum">${auditSummary(oldObj,newObj)}</div>
+          <div class="audit-actions">
+            <button type="button" class="secondary" data-act="json">查看 JSON</button>
+            <button type="button" class="danger" data-act="rollback">回滚到此变更前</button>
+          </div>
+          <div class="audit-diff"></div>`;
+        const diff=div.querySelector('.audit-diff');
+        diff.textContent='old: '+(it.old_json||'')+'\nnew: '+(it.new_json||'');
+        div.querySelector('[data-act="json"]').onclick=()=>{
+          const open=diff.classList.toggle('show');
+          div.querySelector('[data-act="json"]').textContent=open?'收起 JSON':'查看 JSON';
+        };
+        div.querySelector('[data-act="rollback"]').onclick=async()=>{
+          if(!confirm('确认回滚到该条变更之前的配置？不会撤销已发放奖励。')) return;
+          try{
+            const r=await api('./api/admin/settings/rollback',{method:'POST', body:JSON.stringify({audit_id:it.id})});
+            fillForm(r);
+            show('已回滚并立即生效','ok');
+            await refreshAll();
+          }catch(e){ show(e.message||String(e),'err'); }
+        };
+        box.appendChild(div);
+      });
+    }
+
+    async function refreshAll(){
+      const [s, st, ck, au] = await Promise.all([
+        api('./api/admin/settings'),
+        api('./api/admin/stats'),
+        api('./api/admin/checkins?limit=15'),
+        api('./api/admin/settings/audit?limit=5'),
+      ]);
+      fillForm(s); renderStats(st); renderCheckins(ck); renderAudit(au.items||[]);
+    }
+
+    async function load(){
+      resolveAuth();
+      if(authMode==='none'){
+        setAuthStatus('未检测到凭证。请管理员登录后打开，或粘贴 Admin API Key。','err');
+        el('btn').disabled=true; return;
+      }
+      setAuthStatus(authMode==='api_key'?'将使用 x-api-key':'将使用管理员 JWT','ok');
+      try{
+        await refreshAll();
+        const det=el('authDetails'); if(det) det.open=false;
+      }catch(e){
+        setAuthStatus('鉴权失败：'+(e.message||e),'err');
+        show('加载失败：'+(e.message||e),'err');
+        el('btn').disabled=true;
+        const det=el('authDetails'); if(det) det.open=true;
+      }
+    }
+
+    function validateForm(body){
+      if(!body.timezone) throw new Error('时区不能为空');
+      if(!(body.hard_cap>0)) throw new Error('硬顶必须大于 0');
+      if(body.hard_cap>100) throw new Error('硬顶不能超过 100');
+      if(body.daily_budget<0) throw new Error('日预算不能为负');
+      if(body.reward_mode==='random'){
+        if(!(body.reward_min>0)||!(body.reward_max>0)) throw new Error('区间额度必须大于 0');
+        if(body.reward_max<body.reward_min) throw new Error('最大不能小于最小');
+        if(body.reward_max>body.hard_cap) throw new Error('最大额度不能超过硬顶');
+      } else {
+        if(!(body.reward_amount>0)) throw new Error('固定额度必须大于 0');
+        if(body.reward_amount>body.hard_cap) throw new Error('固定额度不能超过硬顶');
+      }
+    }
+    function needsHighConfirm(body){
+      return body.reward_amount>HIGH_AMOUNT || body.reward_min>HIGH_AMOUNT || body.reward_max>HIGH_AMOUNT || body.hard_cap>HIGH_AMOUNT;
+    }
+
+
+    function setConfigTab(name){
+      const tabs=['reward','budget','streak','advanced'];
+      tabs.forEach(t=>{
+        const btn=el('tab-'+t); const pan=el('pane-'+t);
+        if(btn) btn.classList.toggle('active', t===name);
+        if(pan) pan.classList.toggle('hidden', t!==name);
+      });
+    }
+
+    el('modeFixed').onclick=()=>setMode('fixed');
+    el('modeRandom').onclick=()=>setMode('random');
+    ['enabled','rewardAmount','rewardMin','rewardMax','notes','timezone','hardCap','dailyBudget','budgetAction','streakEnabled','streakStep','streakMaxDays','mile3','mile7'].forEach(id=>{
+      el(id).addEventListener('input', markDirty); el(id).addEventListener('change', markDirty);
+    });
+    el('timezonePreset').addEventListener('change',()=>{
+      if(el('timezonePreset').value==='__custom') el('tzCustomWrap').classList.remove('hidden');
+      else { el('tzCustomWrap').classList.add('hidden'); el('timezone').value=el('timezonePreset').value; }
+      markDirty();
+    });
+    el('btnUseCred').onclick=()=>{ const v=clean(el('cred').value); if(!v){show('请输入凭证','err');return;} saveStoredCred(v); show('已使用手动凭证','ok'); load(); };
+    el('btnClearCred').onclick=()=>{ el('cred').value=''; saveStoredCred(''); show('已清除','ok'); load(); };
+    el('btnReload').onclick=()=>load();
+    el('btnSaveServerKey').onclick=async()=>{
+      const k=clean(el('serverAdminKey').value);
+      if(!k){ show('请输入 Admin API Key','err'); return; }
+      if(!confirm('确认把 Admin API Key 保存到服务端？将立即用于签到加款。')) return;
+      el('btnSaveServerKey').disabled=true;
+      try{
+        const r=await api('./api/admin/settings',{method:'PUT', body:JSON.stringify({admin_api_key:k, source:'ui'})});
+        el('serverAdminKey').value='';
+        renderServerKeyStatus(r);
+        savedSnapshot=Object.assign({}, savedSnapshot||{}, {
+          admin_api_key_configured:r.admin_api_key_configured,
+          admin_api_key_masked:r.admin_api_key_masked,
+          admin_api_key_source:r.admin_api_key_source
+        });
+        show('服务端 Admin API Key 已保存并立刻生效','ok');
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ el('btnSaveServerKey').disabled=false; }
+    };
+    el('btnUseServerKeyAsCred').onclick=()=>{
+      const k=clean(el('serverAdminKey').value);
+      if(!k){ show('请先在上方输入框粘贴 Key，再用作本页凭证','err'); return; }
+      el('cred').value=k; saveStoredCred(k); show('已用作本页凭证','ok'); load();
+    };
+    el('btnClearServerKey').onclick=async()=>{
+      if(!confirm('清除管理页覆盖的 Admin API Key，回退到环境变量？')) return;
+      el('btnClearServerKey').disabled=true;
+      try{
+        const r=await api('./api/admin/settings',{method:'PUT', body:JSON.stringify({admin_api_key_clear:true, source:'ui'})});
+        el('serverAdminKey').value='';
+        renderServerKeyStatus(r);
+        show('已清除覆盖，当前来源：'+(r.admin_api_key_source||'none'),'ok');
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ el('btnClearServerKey').disabled=false; }
+    };
+    el('btnSim').onclick=()=>{
+      try{
+        const minV=Number(el('rewardMin').value), maxV=Number(el('rewardMax').value);
+        if(!(minV>0)||!(maxV>0)||maxV<minV) throw new Error('请填写合法区间');
+        const samples=[]; for(let i=0;i<10;i++){ const x=minV+Math.random()*(maxV-minV); samples.push(Math.round(x*10000)/10000); }
+        const avg=samples.reduce((a,b)=>a+b,0)/samples.length;
+        el('simResult').textContent=`[${samples.map(n=>n.toFixed(4)).join(', ')}] min=${Math.min(...samples).toFixed(4)} max=${Math.max(...samples).toFixed(4)} avg=${avg.toFixed(4)}`;
+      }catch(e){ el('simResult').textContent=e.message||String(e); }
+    };
+    el('btn').onclick=async()=>{
+      el('btn').disabled=true;
+      try{
+        const body=currentForm(); validateForm(body); body.source='ui';
+        if(savedSnapshot&&savedSnapshot.enabled&&!body.enabled && !confirm('确认关闭签到？立即生效。')) return;
+        if(savedSnapshot&&savedSnapshot.timezone!==body.timezone && !confirm('确认修改时区？只影响自然日切分。')) return;
+        if(needsHighConfirm(body)){
+          if(!confirm('存在超过 $10 的额度/硬顶，确认保存？')) return;
+          body.confirm_high_amount=true;
+        }
+        const r=await api('./api/admin/settings',{method:'PUT', body:JSON.stringify(body)});
+        fillForm(r);
+        show('已保存并立即生效'+(r.clamped?'（部分额度已按硬顶收敛）':''), r.clamped?'warn':'ok');
+        await refreshAll();
+      }catch(e){
+        if(isSensitiveAuthError(e)) handleSensitiveError(e);
+        else show(e.message||String(e),'err');
+      }
+      finally{ markDirty(); }
+    };
+
+    async function applyTpl(name){
+      if(!confirm('应用模板「'+name+'」并立即生效？')) return;
+      try{
+        const r=await api('./api/admin/settings/template',{method:'POST', body:JSON.stringify({name})});
+        fillForm(r); show('已应用模板 '+name,'ok'); await refreshAll();
+      }catch(e){
+        if(isSensitiveAuthError(e)) handleSensitiveError(e);
+        else show(e.message||String(e),'err');
+      }
+    }
+    el('tplDaily').onclick=()=>applyTpl('daily');
+    el('tplPromo').onclick=()=>applyTpl('promo');
+    el('tplOff').onclick=()=>applyTpl('off');
+
+    ['reward','budget','streak','advanced'].forEach(t=>{
+      const b=el('tab-'+t); if(b) b.onclick=()=>setConfigTab(t);
+    });
+    setConfigTab('reward');
+    const stored=loadStoredCred(); if(stored) el('cred').value=stored;
+    load();
+  </script>
+</body>
+</html>
