@@ -11,6 +11,7 @@ param(
     [string]$HostName = "your-vps",
     [int]$SshPort = 22,
     [string]$RemoteDir = "/opt/sub2api-ext",
+    # Legacy names only used for one-time migration from old project.
     [string]$LegacyRemoteDir = "/opt/sub2api-checkin",
     [string]$LegacyContainerName = "sub2api-checkin",
     [string]$ContainerName = "sub2api-ext",
@@ -73,13 +74,6 @@ if [ -n "$OLD_CTN" ] && docker ps -a --format '{{.Names}}' | grep -qx "$OLD_CTN"
   echo "removing legacy container $OLD_CTN"
   docker stop "$OLD_CTN" >/dev/null 2>&1 || true
   docker rm -f "$OLD_CTN" >/dev/null 2>&1 || true
-fi
-if [ -n "sub2api-checkin" ] && docker ps -a --format '{{.Names}}' | grep -qx "sub2api-checkin"; then
-  if [ "sub2api-checkin" != "$OLD_CTN" ]; then
-    echo "removing legacy container sub2api-checkin"
-    docker stop sub2api-checkin >/dev/null 2>&1 || true
-    docker rm -f sub2api-checkin >/dev/null 2>&1 || true
-  fi
 fi
 if [ -d "$OLD_DIR" ]; then
   if [ -f "$OLD_DIR/.env" ]; then
