@@ -62,19 +62,25 @@ Write-Host "==> ensure remote dir"
 Invoke-SSH "mkdir -p $RemoteDir/data $RemoteDir/configs $RemoteDir/deploy"
 
 Write-Host "==> migrate from legacy project name if needed"
-Invoke-SSH @"
+# Use single-quoted here-string so bash $vars are not eaten by PowerShell.
+# Inject only known PowerShell values via string replace.
+$migrate = @'
 set -e
-NEW_DIR="$RemoteDir"
-OLD_DIR="$LegacyRemoteDir"
-OLD_CTN="$LegacyContainerName"
-NEW_CTN="$ContainerName"
-for ctn in "$OLD_CTN" sub2api-checkin; do
-  if [ -n "$ctn" ] && docker ps -a --format '{{.Names}}' | grep -qx "$ctn"; then
-    echo "removing legacy container $ctn"
-    docker stop "$ctn" >/dev/null 2>&1 || true
-    docker rm -f "$ctn" >/dev/null 2>&1 || true
+NEW_DIR="__REMOTE_DIR__"
+OLD_DIR="__LEGACY_DIR__"
+OLD_CTN="__LEGACY_CTN__"
+if [ -n "$OLD_CTN" ] && docker ps -a --format '{{.Names}}' | grep -qx "$OLD_CTN"; then
+  echo "removing legacy container $OLD_CTN"
+  docker stop "$OLD_CTN" >/dev/null 2>&1 || true
+  docker rm -f "$OLD_CTN" >/dev/null 2>&1 || true
+fi
+if [ -n "sub2api-checkin" ] && docker ps -a --format '{{.Names}}' | grep -qx "sub2api-checkin"; then
+  if [ "sub2api-checkin" != "$OLD_CTN" ]; then
+    echo "removing legacy container sub2api-checkin"
+    docker stop sub2api-checkin >/dev/null 2>&1 || true
+    docker rm -f sub2api-checkin >/dev/null 2>&1 || true
   fi
-done
+fi
 if [ -d "$OLD_DIR" ]; then
   if [ -f "$OLD_DIR/.env" ]; then
     if [ ! -f "$NEW_DIR/.env" ] || ! grep -q 'SUB2API_ADMIN' "$NEW_DIR/.env" 2>/dev/null; then
@@ -90,60 +96,64 @@ if [ -d "$OLD_DIR" ]; then
     fi
   fi
 fi
-"@
+'@
+$migrate = $migrate.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__LEGACY_DIR__", $LegacyRemoteDir).Replace("__LEGACY_CTN__", $LegacyContainerName)
+Invoke-SSH $migrate
 
 Write-Host "==> upload compose/config"
 Invoke-SCP @(
     (Join-Path $ProjectRoot "docker-compose.yml"),
     (Join-Path $ProjectRoot ".env.example")
 ) "$RemoteDir/"
-if (Test-Path (Join-Path $ProjectRoot "deploy\nginx-checkin.snippet.conf")) {
-    Invoke-SCP @((Join-Path $ProjectRoot "deploy\nginx-checkin.snippet.conf")) "$RemoteDir/deploy/"
+$snippet = Join-Path $ProjectRoot "deploy\nginx-checkin.snippet.conf"
+if (Test-Path $snippet) {
+    Invoke-SCP @($snippet) "$RemoteDir/deploy/"
 }
 
-Invoke-SSH @"
+Write-Host "==> prepare remote .env and pin IMAGE=$Image"
+$prep = @'
 set -e
-cd $RemoteDir
+cd "__REMOTE_DIR__"
 if [ ! -f .env ]; then
   cp .env.example .env
   echo CREATED_DEFAULT_ENV=1
 else
   echo KEEP_EXISTING_ENV=1
 fi
-# pin image for this deploy
 if grep -q '^IMAGE=' .env 2>/dev/null; then
-  sed -i 's|^IMAGE=.*|IMAGE=$Image|' .env
+  sed -i "s|^IMAGE=.*|IMAGE=__IMAGE__|" .env
 else
-  printf '\nIMAGE=$Image\n' >> .env
+  printf "\nIMAGE=__IMAGE__\n" >> .env
 fi
 mkdir -p data
 chmod 777 data || true
-"@
+'@
+$prep = $prep.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $Image)
+Invoke-SSH $prep
 
 Write-Host "==> remote pull image and recreate: $Image"
-Invoke-SSH @"
+$up = @'
 set -e
-cd $RemoteDir
-export IMAGE='$Image'
+cd "__REMOTE_DIR__"
+export IMAGE="__IMAGE__"
 echo "pulling $IMAGE"
 docker pull "$IMAGE"
-docker compose up -d --force-recreate --no-deps $ServiceName
+docker compose up -d --force-recreate --no-deps __SERVICE__
 sleep 2
-echo '--- image ---'
-docker image inspect "$IMAGE" --format '{{.Id}} {{.RepoTags}}' || true
-echo '--- health ---'
-curl -sS -o /tmp/ext_health.out -w 'health_http=%{http_code}\n' http://127.0.0.1:$WebPort/checkin/healthz || true
-cat /tmp/ext_health.out 2>/dev/null || true
-echo '--- ready ---'
-curl -sS -o /tmp/ext_ready.out -w 'ready_http=%{http_code}\n' http://127.0.0.1:$WebPort/checkin/readyz || true
-cat /tmp/ext_ready.out 2>/dev/null || true
-echo '--- home ---'
-curl -sS -o /dev/null -w 'home_http=%{http_code}\n' http://127.0.0.1:$WebPort/checkin/home.html || true
-echo '--- ps ---'
-docker ps --filter name=$ContainerName --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}'
-echo '--- logs ---'
-docker logs --tail 40 $ContainerName || true
-"@
+set +e
+echo "--- health ---"
+curl -sS -w "\nhealth_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/healthz"
+echo "--- ready ---"
+curl -sS -w "\nready_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/readyz"
+echo "--- home ---"
+curl -sS -o /dev/null -w "home_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/home.html"
+echo "--- ps ---"
+docker ps --filter "name=__CONTAINER__"
+echo "--- logs ---"
+docker logs --tail 40 "__CONTAINER__" || true
+'@
+$up = $up.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $Image).Replace("__SERVICE__", $ServiceName).Replace("__WEBPORT__", "$WebPort").Replace("__CONTAINER__", $ContainerName)
+Invoke-SSH $up
 
 Write-Host ""
 Write-Host "==> deploy done (image pull mode)"
