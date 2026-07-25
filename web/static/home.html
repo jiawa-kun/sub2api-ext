@@ -3,186 +3,288 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sub2API 扩展</title>
+  <title>扩展中心 · Sub2API</title>
   <style>
-    :root {
-      --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.88); --text:#eef3ff; --muted:#93a0b8;
-      --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
-      --border:rgba(255,255,255,.09); --glow:rgba(91,140,255,.32);
-    }
-    html.light {
-      --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.94); --text:#0f172a; --muted:#64748b;
-      --border:rgba(15,23,42,.08); --glow:rgba(59,130,246,.18);
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; min-height:100vh; color:var(--text);
-      font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
-      background:
-        radial-gradient(800px 360px at 12% -10%, var(--glow), transparent 58%),
-        radial-gradient(600px 300px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
-        linear-gradient(180deg, var(--bg0), var(--bg1));
-      display:flex; justify-content:center; align-items:flex-start; padding:14px 12px 24px;
-    }
-    .shell{width:min(560px,100%)}
-    .card{
-      background:var(--card); backdrop-filter:blur(14px);
-      border:1px solid var(--border); border-radius:18px;
-      box-shadow:0 16px 40px rgba(0,0,0,.26); padding:16px;
-    }
-    .head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:8px}
-    h1{margin:0; font-size:1.18rem; letter-spacing:.2px}
-    .sub{color:var(--muted); font-size:.82rem; line-height:1.45; margin:6px 0 0}
-    .nav{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 14px}
-    .nav a{
-      text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
-      border:1px solid var(--border); border-radius:999px; padding:6px 10px;
-      background:rgba(127,127,127,.06);
-    }
-    .nav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
-    .hero{
-      border-radius:14px; padding:12px 14px; margin-bottom:12px;
-      background:linear-gradient(135deg, rgba(91,140,255,.15), rgba(124,92,255,.08));
-      border:1px solid rgba(91,140,255,.2);
-    }
-    .hero .k{font-size:.75rem; color:var(--muted)}
-    .hero .v{margin-top:4px; font-size:1.05rem; font-weight:750}
-    .list{display:grid; gap:10px}
-    .mod{
-      border:1px solid var(--border); border-radius:14px; padding:12px 13px;
-      background:linear-gradient(180deg, rgba(91,140,255,.07), rgba(127,127,127,.03));
-      display:grid; gap:8px;
-    }
-    .mod .row{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
-    .mod h2{margin:0; font-size:.98rem}
-    .mod p{margin:0; color:var(--muted); font-size:.8rem; line-height:1.45}
-    .badge{
-      font-size:.7rem; padding:3px 8px; border-radius:999px; border:1px solid var(--border);
-      color:var(--muted); white-space:nowrap; font-weight:650;
-    }
-    .badge.on{color:var(--ok); border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.1)}
-    .badge.off{color:var(--danger); border-color:rgba(244,63,94,.35); background:rgba(244,63,94,.1)}
-    .actions{display:flex; flex-wrap:wrap; gap:8px}
-    .actions a{
-      text-decoration:none; font-size:.8rem; font-weight:700; border-radius:10px; padding:8px 11px;
-    }
-    .actions a.primary{color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary2))}
-    .actions a.ghost{color:var(--text); border:1px solid var(--border); background:rgba(127,127,127,.05)}
-    .tags{display:flex; flex-wrap:wrap; gap:6px}
-    .tag{font-size:.68rem; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 7px}
-    .foot{margin-top:12px; color:var(--muted); font-size:.74rem; line-height:1.4}
-    .msg{margin-top:8px; padding:8px 10px; border-radius:10px; display:none; font-size:.84rem}
-    .msg.show{display:block}
-    .msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
-    .theme{
-      border:1px solid var(--border); background:transparent; color:var(--muted);
-      border-radius:999px; padding:4px 8px; cursor:pointer; font-size:.72rem;
-    }
+:root {
+  --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
+  --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+  --border:rgba(255,255,255,.09); --soft:rgba(255,255,255,.04); --soft2:rgba(255,255,255,.07);
+  --shadow:0 16px 40px rgba(0,0,0,.28); --glow:rgba(91,140,255,.28);
+  --radius:18px; --radius-sm:12px; --line:rgba(255,255,255,.06);
+}
+html.light {
+  --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.96); --text:#0f172a; --muted:#64748b;
+  --border:rgba(15,23,42,.08); --soft:rgba(15,23,42,.03); --soft2:rgba(15,23,42,.06);
+  --shadow:0 12px 30px rgba(15,23,42,.08); --glow:rgba(59,130,246,.16);
+  --line:rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:
+    radial-gradient(900px 420px at 10% -12%, var(--glow), transparent 58%),
+    radial-gradient(720px 340px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+    linear-gradient(180deg,var(--bg0),var(--bg1));
+  display:flex; justify-content:center; padding:16px 14px 40px;
+}
+.wrap{width:min(720px,100%); display:flex; flex-direction:column; gap:12px}
+a{color:var(--primary); text-decoration:none}
+.top{
+  display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px 16px 14px;
+}
+.topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
+.topnav a{
+  text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
+  border:1px solid var(--border); border-radius:999px; padding:6px 10px; background:var(--soft);
+}
+.topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+html.light .topnav a.active{color:#4f46e5}
+h1{margin:0; font-size:1.28rem; letter-spacing:.2px}
+.lead{margin:6px 0 0; color:var(--muted); font-size:.84rem; line-height:1.45}
+.top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
+.theme-btn,.chip{
+  border:1px solid var(--border); background:var(--soft2); color:var(--text);
+  border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:650; cursor:pointer;
+}
+.chip{cursor:default; color:var(--muted)}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px;
+}
+.card-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom:12px}
+.card-head h2{margin:0; font-size:1rem}
+.card-head .desc{margin:4px 0 0; color:var(--muted); font-size:.8rem}
+.hero{
+  border-radius:14px; padding:12px 14px; margin-bottom:12px;
+  background:linear-gradient(135deg, rgba(91,140,255,.15), rgba(124,92,255,.08));
+  border:1px solid rgba(91,140,255,.18);
+}
+.hero .k{font-size:.72rem; color:var(--muted)}
+.hero .v{margin-top:4px; font-size:1.05rem; font-weight:750}
+.list{display:flex; flex-direction:column; gap:10px}
+.mod{
+  border:1px solid var(--border); border-radius:14px; padding:12px 13px; background:var(--soft);
+}
+.mod .row{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+.mod h3{margin:0; font-size:.95rem}
+.mod p{margin:8px 0 0; color:var(--muted); font-size:.82rem; line-height:1.45}
+.badge{
+  flex:none; font-size:.68rem; font-weight:700; border-radius:999px; padding:3px 8px;
+  border:1px solid var(--border); color:var(--muted); background:rgba(127,127,127,.08);
+}
+.badge.on{color:var(--ok); border-color:rgba(34,197,94,.28); background:rgba(34,197,94,.1)}
+.badge.off{color:var(--warn); border-color:rgba(245,158,11,.28); background:rgba(245,158,11,.1)}
+.tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px}
+.tag{font-size:.68rem; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:2px 7px}
+.actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px}
+.actions a{
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius:10px; padding:8px 12px; font-size:.8rem; font-weight:700;
+  border:1px solid var(--border); color:var(--text); background:var(--soft2);
+}
+.actions a.primary{
+  color:#fff; border:0;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  box-shadow:0 8px 18px rgba(91,140,255,.22);
+}
+.actions a.ghost{opacity:.95}
+.msg{margin-top:10px; padding:8px 10px; border-radius:10px; display:none; font-size:.84rem}
+.msg.show{display:block}
+.msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
+.msg.ok{background:rgba(34,197,94,.12); color:var(--ok)}
+.foot{margin-top:4px; color:var(--muted); font-size:.74rem; line-height:1.45}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.78em}
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="card">
-      <div class="head">
-        <div>
-          <h1>Sub2API 扩展</h1>
-          <p class="sub">独立于官方镜像的扩展服务。当前内置「每日签到」，后续可继续挂载更多运营能力。</p>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="topnav">
+          <a class="active" href="./home.html" data-nav>扩展中心</a>
+          <a href="./" data-nav>每日签到</a>
+          <a href="./admin.html" data-nav>管理台</a>
         </div>
-        <button class="theme" id="themeBtn" type="button">主题</button>
+        <h1>扩展中心</h1>
+        <p class="lead">模块入口总览 · 进入业务页或跳转管理配置</p>
       </div>
-
-      <div class="nav">
-        <a class="active" href="./home.html">扩展中心</a>
-        <a href="./">每日签到</a>
-        <a href="./admin.html">管理台</a>
+      <div class="top-meta">
+        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
+        <span class="chip">模块列表</span>
       </div>
+    </header>
 
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>已启用模块</h2>
+          <p class="desc">中心页只负责导航；配置请到管理台</p>
+        </div>
+      </div>
       <div class="hero">
         <div class="k">产品标识</div>
         <div class="v" id="product">sub2api-ext</div>
-        <div class="sub" id="compat" style="margin-top:6px">项目名：sub2api-ext · 路径前缀保持 /checkin</div>
+        <div class="desc" id="compat" style="margin-top:6px">项目名：sub2api-ext · 路径前缀保持 /checkin</div>
       </div>
-
       <div class="list" id="list">
         <div class="mod">
           <div class="row">
-            <h2>每日签到</h2>
-            <span class="badge on">加载中</span>
+            <h3>加载中</h3>
+            <span class="badge">…</span>
           </div>
           <p>正在读取模块列表…</p>
         </div>
       </div>
-
       <div class="msg" id="msg"></div>
       <p class="foot">
-        自定义菜单可继续指向 <code>/checkin/</code> 直接打开签到页（兼容旧入口）。
-        若希望侧栏进入扩展总览，可改为 <code>/checkin/home.html</code>。
+        自定义菜单可继续指向 <code>/checkin/</code> 打开签到页。
+        若希望侧栏先看模块总览，可改为 <code>/checkin/home.html</code>。
       </p>
-    </div>
+    </section>
   </div>
   <script>
+    const params = new URLSearchParams(location.search);
     const el = (id) => document.getElementById(id);
-    const themeKey = 'sub2api_ext_theme';
-    function applyTheme() {
-      const t = localStorage.getItem(themeKey) || 'dark';
-      document.documentElement.classList.toggle('light', t === 'light');
-    }
-    el('themeBtn').onclick = () => {
-      const next = document.documentElement.classList.contains('light') ? 'dark' : 'light';
-      localStorage.setItem(themeKey, next);
-      applyTheme();
-    };
-    applyTheme();
+    const THEME_KEY = 'sub2api_ext_theme';
+    const THEME_KEY_LEGACY = 'sub2api_admin_theme';
+    const AUTH_KEYS = ['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
 
-    function showMsg(text, type) {
+    function cleanToken(raw){
+      let t=(raw||'').trim();
+      if(/^bearer\s+/i.test(t)) t=t.replace(/^bearer\s+/i,'');
+      return t.replace(/^["']|["']$/g,'');
+    }
+    function storageSet(key, val){
+      try{ localStorage.setItem(key, val); }catch{}
+      try{
+        if(window.parent && window.parent!==window){
+          window.parent.localStorage.setItem(key, val);
+        }
+      }catch{}
+    }
+    function storageGetAll(key){
+      const out=[];
+      try{ const v=localStorage.getItem(key); if(v) out.push(v); }catch{}
+      try{
+        if(window.parent && window.parent!==window){
+          const v=window.parent.localStorage.getItem(key);
+          if(v) out.push(v);
+        }
+      }catch{}
+      try{ const v=sessionStorage.getItem(key); if(v) out.push(v); }catch{}
+      return out;
+    }
+    function persistAuthFromContext(){
+      const cands=[];
+      const q=cleanToken(params.get('token')||'');
+      if(q) cands.push(q);
+      for(const k of AUTH_KEYS){
+        for(const raw of storageGetAll(k)){
+          const t=cleanToken(raw);
+          if(t) cands.push(t);
+        }
+      }
+      const best = cands.find(Boolean) || '';
+      if(best) storageSet('auth_token', best);
+      return best;
+    }
+    function keepQuery(href){
+      try{
+        const u = new URL(href, location.href);
+        if(u.origin !== location.origin) return href;
+        for(const k of ['token','theme']){
+          const v = params.get(k);
+          if(v && !u.searchParams.get(k)) u.searchParams.set(k, v);
+        }
+        const curDir = location.pathname.replace(/[^/]*$/, '');
+        let rel;
+        if(u.pathname.startsWith(curDir)){
+          const rest = u.pathname.slice(curDir.length);
+          rel = rest ? './' + rest : './';
+        } else {
+          rel = u.pathname;
+        }
+        return rel + u.search + u.hash;
+      }catch{ return href; }
+    }
+    function wireInternalNav(){
+      document.querySelectorAll('a[href]').forEach(a=>{
+        const href = a.getAttribute('href');
+        if(!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+        if(/^https?:/i.test(href)) return;
+        a.setAttribute('href', keepQuery(href));
+      });
+    }
+    function initTheme(){
+      const q=(params.get('theme')||'').toLowerCase();
+      let saved='';
+      try{ saved=localStorage.getItem(THEME_KEY)||localStorage.getItem(THEME_KEY_LEGACY)||''; }catch{}
+      const light = q==='light' || (!q && saved==='light');
+      document.documentElement.classList.toggle('light', !!light);
+      const b=el('themeBtn');
+      if(b) b.textContent = light ? '深色' : '浅色';
+    }
+    function toggleTheme(){
+      const light = !document.documentElement.classList.contains('light');
+      document.documentElement.classList.toggle('light', light);
+      try{
+        localStorage.setItem(THEME_KEY, light?'light':'dark');
+        localStorage.setItem(THEME_KEY_LEGACY, light?'light':'dark');
+      }catch{}
+      const b=el('themeBtn');
+      if(b) b.textContent = light ? '深色' : '浅色';
+    }
+
+    function showMsg(text, type){
       const m = el('msg');
       m.textContent = text;
-      m.className = 'msg show ' + (type || '');
+      m.className = 'msg show ' + (type||'');
     }
 
-    function renderModules(payload) {
-      const list = payload.modules || [];
-      el('product').textContent = (payload.product_name || 'Sub2API 扩展') + ' · ' + (payload.product || 'sub2api-ext');
-      el('compat').textContent = '项目名：' + (payload.compat_name || 'sub2api-ext') +
-        ' · 路径前缀 ' + (payload.base_path || '/checkin');
-      if (!list.length) {
-        el('list').innerHTML = '<div class="mod"><p>暂无可用扩展模块</p></div>';
+    function renderModules(data){
+      const product = data.product_name || data.product || 'Sub2API 扩展';
+      el('product').textContent = data.product || product;
+      el('compat').textContent = '项目名：' + (data.compat_name || data.product || 'sub2api-ext') +
+        ' · 路径前缀 ' + (data.base_path || '/checkin');
+      const list = Array.isArray(data.modules) ? data.modules : [];
+      if(!list.length){
+        el('list').innerHTML = '<div class="mod"><div class="row"><h3>暂无模块</h3><span class="badge off">空</span></div><p>服务未返回可用模块。</p></div>';
         return;
       }
-      el('list').innerHTML = list.map(m => {
-        const on = !!m.enabled;
-        const badge = on
-          ? '<span class="badge on">已启用</span>'
-          : '<span class="badge off">已关闭</span>';
-        const tags = (m.tags || []).map(t => `<span class="tag">${t}</span>`).join('');
-        const admin = m.admin_path
-          ? `<a class="ghost" href="${m.admin_path}">管理</a>`
+      el('list').innerHTML = list.map(m=>{
+        const on = !!(m.enabled !== false && (m.status||'active') !== 'planned');
+        const badge = `<span class="badge ${on?'on':'off'}">${on?'已启用':'未启用'}</span>`;
+        const tags = (m.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('');
+        const userHref = m.user_path ? keepQuery(m.user_path) : '';
+        const adminHref = m.admin_path ? keepQuery(m.admin_path) : '';
+        const enter = userHref
+          ? `<a class="primary" href="${userHref}">进入</a>`
+          : (adminHref ? `<a class="primary" href="${adminHref}">打开配置</a>` : '');
+        const admin = adminHref
+          ? `<a class="ghost" href="${adminHref}">管理</a>`
           : '';
         return `<div class="mod">
           <div class="row">
-            <div>
-              <h2>${m.name || m.id}</h2>
-            </div>
+            <h3>${m.name || m.id || '未命名模块'}</h3>
             ${badge}
           </div>
           <p>${m.description || ''}</p>
           <div class="tags">${tags}</div>
-          <div class="actions">
-            <a class="primary" href="${m.user_path || './'}">进入</a>
-            ${admin}
-          </div>
+          <div class="actions">${enter}${admin}</div>
         </div>`;
       }).join('');
     }
 
-    async function load() {
-      try {
-        const r = await fetch('./api/modules', { credentials: 'same-origin' });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
+    async function load(){
+      try{
+        const r = await fetch('./api/modules', { credentials:'same-origin' });
+        if(!r.ok) throw new Error('HTTP ' + r.status);
         const data = await r.json();
         renderModules(data);
-      } catch (e) {
-        // offline fallback: still expose check-in card
+      }catch(e){
         renderModules({
           product: 'sub2api-ext',
           product_name: 'Sub2API 扩展',
@@ -196,11 +298,24 @@
             admin_path: './admin.html',
             enabled: true,
             tags: ['余额', '运营']
+          },{
+            id: 'account-patrol',
+            name: '账号模型巡检',
+            description: '按分组定时测活账号模型（离线兜底卡片）。',
+            user_path: '',
+            admin_path: './admin.html#patrol',
+            enabled: true,
+            tags: ['账号', '巡检']
           }]
         });
         showMsg('模块列表读取失败，已显示本地兜底入口：' + e.message, 'err');
       }
     }
+
+    persistAuthFromContext();
+    initTheme();
+    wireInternalNav();
+    el('themeBtn').onclick = toggleTheme;
     load();
   </script>
 </body>

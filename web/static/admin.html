@@ -215,7 +215,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <a class="active" href="./admin.html">管理台</a>
         </div>
         <h1>扩展管理台</h1>
-        <p class="lead">Sub2API 扩展配置中心 · 签到与账号巡检 · 保存后立即生效</p>
+        <p class="lead">配置与运维中心 · 签到 / 巡检 · 模块入口见扩展中心</p>
       </div>
       <div class="top-meta">
         <button type="button" class="theme-btn" id="themeBtn">浅色</button>
@@ -558,10 +558,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         try{ if((location.hash||'').toLowerCase()==='#patrol') history.replaceState(null,'',location.pathname+location.search); }catch{}
       }
     }
+    const THEME_KEY='sub2api_ext_theme';
+    const THEME_KEY_LEGACY='sub2api_admin_theme';
     function initTheme(){
       const q=(params.get('theme')||'').toLowerCase();
       let saved='';
-      try{ saved=localStorage.getItem('sub2api_admin_theme')||''; }catch{}
+      try{ saved=localStorage.getItem(THEME_KEY)||localStorage.getItem(THEME_KEY_LEGACY)||''; }catch{}
       const light=q==='light' || (!q && saved==='light');
       document.documentElement.classList.toggle('light', !!light);
       const b=el('themeBtn');
@@ -570,11 +572,42 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function toggleTheme(){
       const light=!document.documentElement.classList.contains('light');
       document.documentElement.classList.toggle('light', light);
-      try{ localStorage.setItem('sub2api_admin_theme', light?'light':'dark'); }catch{}
+      try{
+        localStorage.setItem(THEME_KEY, light?'light':'dark');
+        localStorage.setItem(THEME_KEY_LEGACY, light?'light':'dark');
+      }catch{}
       const b=el('themeBtn');
       if(b) b.textContent=light?'深色':'浅色';
     }
+    function keepQuery(href){
+      try{
+        const u=new URL(href, location.href);
+        if(u.origin!==location.origin) return href;
+        for(const k of ['token','theme']){
+          const v=params.get(k);
+          if(v && !u.searchParams.get(k)) u.searchParams.set(k,v);
+        }
+        const curDir=location.pathname.replace(/[^/]*$/,'');
+        let rel;
+        if(u.pathname.startsWith(curDir)){
+          const rest=u.pathname.slice(curDir.length);
+          rel=rest?('./'+rest):'./';
+        }else{
+          rel=u.pathname;
+        }
+        return rel+u.search+u.hash;
+      }catch{ return href; }
+    }
+    function wireInternalNav(){
+      document.querySelectorAll('a[href]').forEach(a=>{
+        const href=a.getAttribute('href');
+        if(!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+        if(/^https?:/i.test(href)) return;
+        a.setAttribute('href', keepQuery(href));
+      });
+    }
     initTheme();
+    wireInternalNav();
 
     const msg=el('msg');
     let rewardMode='fixed', savedSnapshot=null, accessToken='', authMode='none';
@@ -600,16 +633,49 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function num(v){ const n=Number(v); if(!Number.isFinite(n)) return '-'; return n.toFixed(4).replace(/\.?0+$/,m=>m.includes('.')?m.replace(/0+$/,'').replace(/\.$/,''):m); }
 
     function detectAutoToken(){
-      let t=clean(readLS('auth_token'));
-      try{ if(window.parent&&window.parent!==window){ const p=clean(window.parent.localStorage.getItem('auth_token')||''); if(p) t=p; } }catch{}
-      const q=clean(params.get('token')||''); if(q) t=q;
-      return t;
+      const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      const cands=[];
+      const q=clean(params.get('token')||'');
+      if(q) cands.push(q);
+      for(const k of keys){
+        try{ const v=clean(readLS(k)); if(v) cands.push(v); }catch{}
+        try{
+          if(window.parent&&window.parent!==window){
+            const p=clean(window.parent.localStorage.getItem(k)||'');
+            if(p) cands.push(p);
+          }
+        }catch{}
+        try{ const s=clean(sessionStorage.getItem(k)||''); if(s) cands.push(s); }catch{}
+      }
+      // Prefer JWT-looking tokens for user pages compatibility.
+      const jwt = cands.find(x=>looksLikeJWT(x));
+      return jwt || cands[0] || '';
+    }
+    function persistUserToken(t){
+      t=clean(t||'');
+      if(!t || !looksLikeJWT(t)) return;
+      try{ localStorage.setItem('auth_token', t); }catch{}
+      try{
+        if(window.parent&&window.parent!==window){
+          window.parent.localStorage.setItem('auth_token', t);
+        }
+      }catch{}
     }
     function resolveAuth(){
       const manual=clean(loadStoredCred()||el('cred').value||'');
-      if(manual){ accessToken=manual; authMode=looksLikeJWT(manual)?'jwt':'api_key'; return; }
+      if(manual){
+        accessToken=manual;
+        authMode=looksLikeJWT(manual)?'jwt':'api_key';
+        if(authMode==='jwt') persistUserToken(manual);
+        return;
+      }
       const auto=detectAutoToken();
-      if(auto){ accessToken=auto; authMode=looksLikeJWT(auto)?'jwt':'api_key'; return; }
+      if(auto){
+        accessToken=auto;
+        authMode=looksLikeJWT(auto)?'jwt':'api_key';
+        if(authMode==='jwt') persistUserToken(auto);
+        return;
+      }
       accessToken=''; authMode='none';
     }
     function setAuthStatus(text,cls){ const n=el('authStatus'); n.textContent=text; n.className='auth-status'+(cls?' '+cls:''); }
