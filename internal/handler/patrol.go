@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 
 	"sub2api-ext/internal/patrol"
 )
@@ -161,5 +163,140 @@ func (h *Handler) AdminPatrolStop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"stopped": ok,
 		"status":  h.patrol.Snapshot(),
+	})
+}
+
+
+// AdminPatrolOptions GET /api/admin/patrol/options
+// Returns group dropdown options (and models for selected groups if ?groups=a,b provided).
+func (h *Handler) AdminPatrolOptions(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminRead.Allow("AdminPatrolOptions:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+
+	ctx := r.Context()
+	rt := h.patrol.Settings().Get()
+	platform := strings.TrimSpace(r.URL.Query().Get("platform"))
+	if platform == "" {
+		platform = "openai"
+	}
+
+	groups, err := h.client.ListGroups(ctx, platform)
+	if err != nil {
+		// fallback without platform filter
+		groups, err = h.client.ListGroups(ctx, "")
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, "list groups: "+err.Error())
+			return
+		}
+	}
+
+	// selected groups for model aggregation
+	selected := []string{}
+	if raw := strings.TrimSpace(r.URL.Query().Get("groups")); raw != "" {
+		for _, p := range strings.Split(raw, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				selected = append(selected, p)
+			}
+		}
+	}
+	if len(selected) == 0 {
+		selected = append([]string{}, rt.Groups...)
+	}
+
+	modelSet := map[string]struct{}{}
+	modelErrs := []string{}
+	for _, g := range selected {
+		models, err := h.client.CollectGroupModelsLimited(ctx, g, rt.Timezone, 5)
+		if err != nil {
+			modelErrs = append(modelErrs, g+": "+err.Error())
+			continue
+		}
+		for _, m := range models {
+			modelSet[m] = struct{}{}
+		}
+	}
+	models := make([]string, 0, len(modelSet))
+	for m := range modelSet {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"groups":          groups,
+		"models":          models,
+		"selected_groups": selected,
+		"model_errors":    modelErrs,
+		"settings":        rt,
+	})
+}
+
+// AdminPatrolModels GET /api/admin/patrol/models?group=xxx
+func (h *Handler) AdminPatrolModels(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminRead.Allow("AdminPatrolModels:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	group := strings.TrimSpace(r.URL.Query().Get("group"))
+	if group == "" {
+		// allow groups=a,b
+		group = strings.TrimSpace(r.URL.Query().Get("groups"))
+	}
+	if group == "" {
+		writeErr(w, http.StatusBadRequest, "group is required")
+		return
+	}
+	rt := h.patrol.Settings().Get()
+	parts := strings.Split(group, ",")
+	modelSet := map[string]struct{}{}
+	for _, g := range parts {
+		g = strings.TrimSpace(g)
+		if g == "" {
+			continue
+		}
+		models, err := h.client.CollectGroupModelsLimited(r.Context(), g, rt.Timezone, 10)
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, "list models for group "+g+": "+err.Error())
+			return
+		}
+		for _, m := range models {
+			modelSet[m] = struct{}{}
+		}
+	}
+	models := make([]string, 0, len(modelSet))
+	for m := range modelSet {
+		models = append(models, m)
+	}
+	sort.Strings(models)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"group":  group,
+		"models": models,
+		"count":  len(models),
 	})
 }

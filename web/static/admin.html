@@ -460,12 +460,14 @@ html.light .patrol-log .l-info{color:#334155}
         <input id="patrolCron" type="text" placeholder="0 */6 * * *" />
       </div>
       <div class="field" style="grid-column:1/-1">
-        <label for="patrolGroups">巡检分组（逗号分隔）</label>
-        <input id="patrolGroups" type="text" placeholder="例如：default,vip" />
+        <label for="patrolGroups">巡检分组（可多选）</label>
+        <select id="patrolGroups" multiple size="6" style="min-height:120px"></select>
+        <div class="hint" id="patrolGroupsHint">加载分组中…</div>
       </div>
       <div class="field">
-        <label for="patrolTestModel">测试模型</label>
-        <input id="patrolTestModel" type="text" placeholder="gpt-5.4" />
+        <label for="patrolTestModel">测试模型（来自所选分组）</label>
+        <select id="patrolTestModel"></select>
+        <div class="hint" id="patrolModelsHint">先选择分组后自动拉取模型</div>
       </div>
       <div class="field">
         <label for="patrolAction">失败动作</label>
@@ -506,6 +508,7 @@ html.light .patrol-log .l-info{color:#334155}
       <button type="button" class="secondary sm" id="btnPatrolRun">立即巡检</button>
       <button type="button" class="secondary sm" id="btnPatrolStop">停止</button>
       <button type="button" class="secondary sm" id="btnPatrolRefresh">刷新状态</button>
+      <button type="button" class="secondary sm" id="btnPatrolOptions">刷新分组/模型</button>
     </div>
     <div class="patrol-log" id="patrolLog"><div class="l-info">暂无日志</div></div>
     <div class="sub" id="patrolRunsMeta" style="margin-top:8px">最近运行：—</div>
@@ -795,14 +798,18 @@ html.light .patrol-log .l-info{color:#334155}
     }
 
 
-    let patrolSaved=null, patrolTimer=null;
+    let patrolSaved=null, patrolTimer=null, patrolOptionsLoading=false, patrolGroupOptions=[], patrolModelOptions=[];
+
+    function selectedPatrolGroups(){
+      const sel=el('patrolGroups');
+      return Array.from(sel.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+    }
 
     function patrolForm(){
-      const groups=String(el('patrolGroups').value||'').split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);
       return {
         enabled: !!el('patrolEnabled').checked,
         cron: (el('patrolCron').value||'').trim(),
-        groups,
+        groups: selectedPatrolGroups(),
         test_model: (el('patrolTestModel').value||'').trim(),
         action_on_fail: el('patrolAction').value,
         concurrency: Number(el('patrolConcurrency').value||8),
@@ -815,13 +822,57 @@ html.light .patrol-log .l-info{color:#334155}
       };
     }
 
+    function setSelectOptions(selectEl, items, opts){
+      opts=opts||{};
+      const selected=new Set((opts.selected||[]).map(String));
+      const keepValue=opts.keepValue;
+      const placeholder=opts.placeholder||'';
+      const prev=keepValue!=null?String(keepValue):(selectEl.value||'');
+      selectEl.innerHTML='';
+      if(placeholder){
+        const o=document.createElement('option');
+        o.value=''; o.textContent=placeholder;
+        selectEl.appendChild(o);
+      }
+      (items||[]).forEach(it=>{
+        const value=String(it.value!=null?it.value:it.id!=null?it.id:it);
+        const label=String(it.label!=null?it.label:it.name!=null?it.name:value);
+        const o=document.createElement('option');
+        o.value=value; o.textContent=label;
+        if(selected.has(value) || (!selectEl.multiple && value===prev)) o.selected=true;
+        selectEl.appendChild(o);
+      });
+      if(!selectEl.multiple && prev && !Array.from(selectEl.options).some(o=>o.value===prev)){
+        const o=document.createElement('option');
+        o.value=prev; o.textContent=prev+'（当前配置）'; o.selected=true;
+        selectEl.appendChild(o);
+      }
+      if(selectEl.multiple){
+        (opts.selected||[]).forEach(v=>{
+          v=String(v);
+          if(!v) return;
+          if(!Array.from(selectEl.options).some(o=>o.value===v)){
+            const o=document.createElement('option');
+            o.value=v; o.textContent=v+'（当前配置）'; o.selected=true;
+            selectEl.appendChild(o);
+          } else {
+            Array.from(selectEl.options).forEach(o=>{ if(o.value===v) o.selected=true; });
+          }
+        });
+      }
+    }
+
     function fillPatrol(s){
       if(!s) return;
       patrolSaved=s;
       el('patrolEnabled').checked=!!s.enabled;
       el('patrolCron').value=s.cron||'0 */6 * * *';
-      el('patrolGroups').value=(s.groups||[]).join(',');
-      el('patrolTestModel').value=s.test_model||'';
+      setSelectOptions(el('patrolGroups'), patrolGroupOptions.length?patrolGroupOptions:(s.groups||[]).map(g=>({value:g,label:g})), {selected:s.groups||[]});
+      setSelectOptions(el('patrolTestModel'), patrolModelOptions.length?patrolModelOptions.map(m=>({value:m,label:m})):[], {
+        placeholder: '（可选）自动按账号 model_mapping',
+        keepValue: s.test_model||'',
+        selected: s.test_model?[s.test_model]:[]
+      });
       el('patrolAction').value=s.action_on_fail||'disable';
       el('patrolConcurrency').value=String(s.concurrency||8);
       el('patrolTimeout').value=String(Math.max(1, Math.round((s.timeout_ms||45000)/1000)));
@@ -869,16 +920,81 @@ html.light .patrol-log .l-info{color:#334155}
       return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
     }
 
+    async function loadPatrolOptions(preferredGroups){
+      if(patrolOptionsLoading) return;
+      patrolOptionsLoading=true;
+      const groupsHint=el('patrolGroupsHint');
+      const modelsHint=el('patrolModelsHint');
+      try{
+        groupsHint.textContent='加载分组中…';
+        const groupsSel=preferredGroups!=null?preferredGroups:selectedPatrolGroups();
+        const q=groupsSel.length?('?groups='+encodeURIComponent(groupsSel.join(','))):'';
+        const data=await api('./api/admin/patrol/options'+q);
+        patrolGroupOptions=(data.groups||[]).map(g=>({value:String(g.id||g.name||''), label: g.name&&g.id&&g.name!==g.id?`${g.name} (${g.id})`:`${g.name||g.id}`})).filter(x=>x.value);
+        const selected=groupsSel.length?groupsSel:(data.selected_groups||data.settings?.groups||[]);
+        setSelectOptions(el('patrolGroups'), patrolGroupOptions, {selected});
+        groupsHint.textContent=patrolGroupOptions.length?(`共 ${patrolGroupOptions.length} 个分组，按住 Ctrl/Command 可多选`):'未获取到分组（请确认 Admin API Key）';
+
+        patrolModelOptions=data.models||[];
+        const curModel=(el('patrolTestModel').value||data.settings?.test_model||'');
+        setSelectOptions(el('patrolTestModel'), patrolModelOptions.map(m=>({value:m,label:m})), {
+          placeholder: '（可选）自动按账号 model_mapping',
+          keepValue: curModel,
+          selected: curModel?[curModel]:[]
+        });
+        if(data.model_errors && data.model_errors.length){
+          modelsHint.textContent='模型拉取部分失败：'+data.model_errors.join('；');
+        } else if(!selected.length){
+          modelsHint.textContent='先选择分组后自动拉取模型';
+        } else {
+          modelsHint.textContent=patrolModelOptions.length?(`所选分组共 ${patrolModelOptions.length} 个模型`):'所选分组暂无 model_mapping 模型';
+        }
+      }catch(e){
+        groupsHint.textContent='分组加载失败：'+(e.message||e);
+        modelsHint.textContent='模型加载失败';
+        throw e;
+      }finally{
+        patrolOptionsLoading=false;
+      }
+    }
+
+    async function reloadPatrolModels(){
+      const groups=selectedPatrolGroups();
+      const modelsHint=el('patrolModelsHint');
+      if(!groups.length){
+        patrolModelOptions=[];
+        setSelectOptions(el('patrolTestModel'), [], {placeholder:'（可选）自动按账号 model_mapping'});
+        modelsHint.textContent='先选择分组后自动拉取模型';
+        return;
+      }
+      modelsHint.textContent='加载模型中…';
+      try{
+        const data=await api('./api/admin/patrol/models?groups='+encodeURIComponent(groups.join(',')));
+        patrolModelOptions=data.models||[];
+        const cur=el('patrolTestModel').value||'';
+        setSelectOptions(el('patrolTestModel'), patrolModelOptions.map(m=>({value:m,label:m})), {
+          placeholder:'（可选）自动按账号 model_mapping',
+          keepValue:cur,
+          selected:cur?[cur]:[]
+        });
+        modelsHint.textContent=patrolModelOptions.length?(`所选分组共 ${patrolModelOptions.length} 个模型`):'所选分组暂无 model_mapping 模型';
+      }catch(e){
+        modelsHint.textContent='模型加载失败：'+(e.message||e);
+      }
+    }
+
     async function refreshPatrol(withRuns=true){
       if(withRuns){
         const data=await api('./api/admin/patrol/status?limit=5');
-        if(data.status && data.status.config) fillPatrol(data.status.config);
+        const cfg=(data.status&&data.status.config)||null;
+        if(cfg) fillPatrol(cfg);
         else {
           const s=await api('./api/admin/patrol/settings');
           fillPatrol(s.settings||{});
           renderPatrolStatus(s.status||data.status);
         }
         renderPatrolStatus(data.status||{});
+        try{ await loadPatrolOptions(cfg&&cfg.groups?cfg.groups:selectedPatrolGroups()); }catch(_){ /* options best-effort */ }
         const runs=data.runs||[];
         if(!runs.length) el('patrolRunsMeta').textContent='最近运行：无';
         else {
@@ -892,6 +1008,7 @@ html.light .patrol-log .l-info{color:#334155}
         renderPatrolStatus(s.status||{});
       }
     }
+
 
 
     async function refreshAll(){
@@ -1077,6 +1194,8 @@ html.light .patrol-log .l-info{color:#334155}
       }catch(e){ show(e.message||String(e),'err'); }
     };
     el('btnPatrolRefresh').onclick=()=>refreshPatrol(true).catch(e=>show(e.message||String(e),'err'));
+    el('btnPatrolOptions').onclick=()=>loadPatrolOptions(selectedPatrolGroups()).then(()=>show('分组/模型已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
+    el('patrolGroups').onchange=()=>{ reloadPatrolModels(); };
 
     // deep link #patrol
     if((location.hash||'').toLowerCase()==='#patrol'){

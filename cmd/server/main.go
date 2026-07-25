@@ -82,6 +82,8 @@ func main() {
 		}
 	})
 	mux.HandleFunc(base+"/api/admin/patrol/status", h.AdminPatrolStatus)
+	mux.HandleFunc(base+"/api/admin/patrol/options", h.AdminPatrolOptions)
+	mux.HandleFunc(base+"/api/admin/patrol/models", h.AdminPatrolModels)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 
