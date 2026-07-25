@@ -23,7 +23,20 @@ type Account struct {
 	Type        string          `json:"type"`
 	Status      string          `json:"status"`
 	Group       string          `json:"group"`
+	GroupName   string          `json:"group_name"`
+	GroupID     string          `json:"group_id"`
 	Credentials json.RawMessage `json:"credentials"`
+}
+
+// EffectiveGroup returns best-effort group identifier.
+func (a Account) EffectiveGroup() string {
+	for _, v := range []string{a.Group, a.GroupID, a.GroupName} {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // AccountListResult is one page of admin accounts.

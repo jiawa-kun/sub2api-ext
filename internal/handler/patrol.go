@@ -189,19 +189,12 @@ func (h *Handler) AdminPatrolOptions(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	rt := h.patrol.Settings().Get()
+	// empty platform => merge common platforms inside client
 	platform := strings.TrimSpace(r.URL.Query().Get("platform"))
-	if platform == "" {
-		platform = "openai"
-	}
-
 	groups, err := h.client.ListGroups(ctx, platform)
 	if err != nil {
-		// fallback without platform filter
-		groups, err = h.client.ListGroups(ctx, "")
-		if err != nil {
-			writeErr(w, http.StatusBadGateway, "list groups: "+err.Error())
-			return
-		}
+		writeErr(w, http.StatusBadGateway, "list groups: "+err.Error())
+		return
 	}
 
 	// selected groups for model aggregation
@@ -217,11 +210,15 @@ func (h *Handler) AdminPatrolOptions(w http.ResponseWriter, r *http.Request) {
 	if len(selected) == 0 {
 		selected = append([]string{}, rt.Groups...)
 	}
+	// models are group-specific: only use the first selected group
+	if len(selected) > 1 {
+		selected = selected[:1]
+	}
 
 	modelSet := map[string]struct{}{}
 	modelErrs := []string{}
 	for _, g := range selected {
-		models, err := h.client.CollectGroupModelsLimited(ctx, g, rt.Timezone, 5)
+		models, err := h.client.CollectGroupModelsLimited(ctx, g, rt.Timezone, 8)
 		if err != nil {
 			modelErrs = append(modelErrs, g+": "+err.Error())
 			continue

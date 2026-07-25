@@ -110,8 +110,18 @@ input:focus, select:focus, textarea:focus{border-color:rgba(91,140,255,.55); box
 html.light .metric.soft .v{color:#2563eb}
 .bar{height:7px; border-radius:999px; background:rgba(127,127,127,.14); overflow:hidden; margin-top:10px}
 .bar > i{display:block; height:100%; width:0; border-radius:999px; background:linear-gradient(90deg,var(--primary),var(--primary2)); transition:width .35s ease}
-.bars{display:flex; gap:4px; align-items:flex-end; height:42px; margin-top:10px}
-.bars span{flex:1; border-radius:4px 4px 2px 2px; background:rgba(91,140,255,.35); min-height:3px}
+.bars-wrap{margin-top:12px; padding-bottom:22px}
+.bars{display:flex; gap:8px; align-items:flex-end; height:72px}
+.bars .b{
+  flex:1; min-width:0; border-radius:8px 8px 3px 3px; position:relative;
+  background:linear-gradient(180deg, rgba(91,140,255,.65), rgba(124,92,255,.22));
+  box-shadow:inset 0 0 0 1px rgba(91,140,255,.12);
+}
+.bars .b span{
+  position:absolute; left:50%; bottom:-18px; transform:translateX(-50%);
+  font-size:.68rem; color:var(--muted); white-space:nowrap; line-height:1;
+  background:transparent; border:0; padding:0; flex:none; min-height:0; border-radius:0;
+}
 .modes{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .mode{border:1px solid var(--border); border-radius:14px; padding:12px; cursor:pointer; background:var(--panel); transition:border-color .12s, background .12s, transform .12s}
 .mode:hover{transform:translateY(-1px)}
@@ -267,7 +277,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
         <div class="bar"><i id="stBar"></i></div>
         <div class="sub" id="stMeta" style="margin:10px 0 0">—</div>
-        <div class="bars" id="stBars"></div>
+        <div class="bars-wrap"><div class="bars" id="stBars"></div></div>
       </div>
 
       <details class="fold">
@@ -452,14 +462,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <div class="section-title"><h3>巡检范围</h3></div>
             <label class="switch"><input id="patrolEnabled" type="checkbox" /><span>启用定时巡检</span></label>
             <div class="field">
-              <label for="patrolGroups">巡检分组（可多选）</label>
-              <select id="patrolGroups" multiple size="8"></select>
+              <label for="patrolGroups">巡检分组</label>
+              <select id="patrolGroups"></select>
               <div class="hint" id="patrolGroupsHint">加载分组中…</div>
             </div>
             <div class="field">
-              <label for="patrolTestModel">测试模型（来自所选分组）</label>
+              <label for="patrolTestModel">测试模型（该分组）</label>
               <select id="patrolTestModel"></select>
-              <div class="hint" id="patrolModelsHint">先选择分组后自动拉取模型</div>
+              <div class="hint" id="patrolModelsHint">选择分组后自动拉取该分组模型</div>
             </div>
           </div>
           <div>
@@ -760,7 +770,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const days=st.recent_days||[];
       const max=Math.max(1, ...days.map(d=>Number(d.total_amount||0)));
       days.forEach(d=>{
-        const h=Math.max(4, Math.round((Number(d.total_amount||0)/max)*68));
+        const h=Math.max(6, Math.round((Number(d.total_amount||0)/max)*64));
         const div=document.createElement('div');
         div.className='b'; div.style.height=h+'px';
         div.title=`${d.date}: ${d.count}人 / ${money(d.total_amount)}`;
@@ -832,7 +842,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
     function selectedPatrolGroups(){
       const sel=el('patrolGroups');
-      return Array.from(sel.selectedOptions||[]).map(o=>o.value).filter(Boolean);
+      if(!sel) return [];
+      // single-select: one group only (models differ by group)
+      const v=(sel.value||'').trim();
+      return v?[v]:[];
     }
 
     function patrolForm(){
@@ -897,7 +910,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       patrolSaved=s;
       el('patrolEnabled').checked=!!s.enabled;
       el('patrolCron').value=s.cron||'0 */6 * * *';
-      setSelectOptions(el('patrolGroups'), patrolGroupOptions.length?patrolGroupOptions:(s.groups||[]).map(g=>({value:g,label:g})), {selected:s.groups||[]});
+      setSelectOptions(el('patrolGroups'), [{value:'',label:'请选择分组'}].concat(patrolGroupOptions.length?patrolGroupOptions:(s.groups||[]).map(g=>({value:g,label:g}))), {keepValue:(s.groups&&s.groups[0])||'', selected:s.groups&&s.groups[0]?[s.groups[0]]:[]});
       setSelectOptions(el('patrolTestModel'), patrolModelOptions.length?patrolModelOptions.map(m=>({value:m,label:m})):[], {
         placeholder: '（可选）自动按账号 model_mapping',
         keepValue: s.test_model||'',
@@ -965,10 +978,21 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         const groupsSel=preferredGroups!=null?preferredGroups:selectedPatrolGroups();
         const q=groupsSel.length?('?groups='+encodeURIComponent(groupsSel.join(','))):'';
         const data=await api('./api/admin/patrol/options'+q);
-        patrolGroupOptions=(data.groups||[]).map(g=>({value:String(g.id||g.name||''), label: g.name&&g.id&&g.name!==g.id?`${g.name} (${g.id})`:`${g.name||g.id}`})).filter(x=>x.value);
+        patrolGroupOptions=(data.groups||[]).map(g=>{
+          const id=String(g.id||g.name||'');
+          const name=String(g.name||g.id||'');
+          const platform=g.platform?String(g.platform):'';
+          const count=(g.account_count!=null?g.account_count:g.count);
+          let label=name;
+          if(platform && name!==platform) label += ` · ${platform}`;
+          if(count!=null && count!=='' && !Number.isNaN(Number(count))) label += ` (${count})`;
+          else if(g.id && g.name && g.id!==g.name) label += ` (${g.id})`;
+          return {value:id, label};
+        }).filter(x=>x.value);
         const selected=groupsSel.length?groupsSel:(data.selected_groups||data.settings?.groups||[]);
-        setSelectOptions(el('patrolGroups'), patrolGroupOptions, {selected});
-        groupsHint.textContent=patrolGroupOptions.length?(`共 ${patrolGroupOptions.length} 个分组，按住 Ctrl/Command 可多选`):'未获取到分组（请确认 Admin API Key）';
+        const selectedOne=(selected[0]||'');
+        setSelectOptions(el('patrolGroups'), [{value:'',label:'请选择分组'}].concat(patrolGroupOptions), {keepValue:selectedOne, selected:selectedOne?[selectedOne]:[]});
+        groupsHint.textContent=patrolGroupOptions.length?(`共 ${patrolGroupOptions.length} 个分组（单选；模型按分组加载）`):'未获取到分组（请确认 Admin API Key / 刷新分组）';
 
         patrolModelOptions=data.models||[];
         const curModel=(el('patrolTestModel').value||data.settings?.test_model||'');
@@ -980,9 +1004,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(data.model_errors && data.model_errors.length){
           modelsHint.textContent='模型拉取部分失败：'+data.model_errors.join('；');
         } else if(!selected.length){
-          modelsHint.textContent='先选择分组后自动拉取模型';
+          modelsHint.textContent='请先选择一个巡检分组';
         } else {
-          modelsHint.textContent=patrolModelOptions.length?(`所选分组共 ${patrolModelOptions.length} 个模型`):'所选分组暂无 model_mapping 模型';
+          modelsHint.textContent=patrolModelOptions.length?(`该分组共 ${patrolModelOptions.length} 个模型`):'该分组暂无 model_mapping 模型';
         }
       }catch(e){
         groupsHint.textContent='分组加载失败：'+(e.message||e);
@@ -999,7 +1023,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!groups.length){
         patrolModelOptions=[];
         setSelectOptions(el('patrolTestModel'), [], {placeholder:'（可选）自动按账号 model_mapping'});
-        modelsHint.textContent='先选择分组后自动拉取模型';
+        modelsHint.textContent='请先选择一个巡检分组';
         return;
       }
       modelsHint.textContent='加载模型中…';
@@ -1012,7 +1036,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           keepValue:cur,
           selected:cur?[cur]:[]
         });
-        modelsHint.textContent=patrolModelOptions.length?(`所选分组共 ${patrolModelOptions.length} 个模型`):'所选分组暂无 model_mapping 模型';
+        modelsHint.textContent=patrolModelOptions.length?(`该分组共 ${patrolModelOptions.length} 个模型`):'该分组暂无 model_mapping 模型';
       }catch(e){
         modelsHint.textContent='模型加载失败：'+(e.message||e);
       }
@@ -1203,7 +1227,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('btnPatrolSave').disabled=true;
       try{
         const body=patrolForm();
-        if(body.enabled && !body.groups.length) throw new Error('启用巡检前请至少配置一个分组');
+        if(!body.groups.length) throw new Error('请选择一个巡检分组');
+        if(body.groups.length>1) body.groups=body.groups.slice(0,1);
+        if(body.enabled && !body.groups.length) throw new Error('启用巡检前请选择巡检分组');
         if(body.action_on_fail==='delete' && !confirm('失败动作=删除账号，确认保存？')) return;
         const r=await api('./api/admin/patrol/settings',{method:'PUT', body:JSON.stringify(body)});
         fillPatrol(r.settings||body);
