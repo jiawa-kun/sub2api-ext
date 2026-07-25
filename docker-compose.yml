@@ -12,7 +12,7 @@ services:
       - "127.0.0.1:8090:8090"
     environment:
       SERVER_ADDR: ":8090"
-      SERVER_BASE_PATH: "/checkin"
+      SERVER_BASE_PATH: "/ext"
       CHECKIN_ENABLED: "${CHECKIN_ENABLED:-true}"
       CHECKIN_REWARD_AMOUNT: "${CHECKIN_REWARD_AMOUNT:-0.1}"
       CHECKIN_TIMEZONE: "${CHECKIN_TIMEZONE:-Asia/Shanghai}"

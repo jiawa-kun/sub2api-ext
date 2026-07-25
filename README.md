@@ -4,7 +4,7 @@
 
 > 项目名 / 镜像 / 容器名：**`sub2api-ext`**  
 > 产品标识：**`sub2api-ext`**（Sub2API 扩展）  
-> 对外 HTTP 路径仍为 **`/checkin`**，兼容现有 Sub2API 自定义菜单。  
+> 对外 HTTP 路径前缀为 **`/ext`**（不再使用 `/checkin`）。  
 > **每日签到**是当前内置的第一个扩展模块；**账号模型巡检**为第二个内置模块（可配置定时任务）。
 
 ## 定位
@@ -14,19 +14,19 @@
 - 按模块扩展：现在是签到，后续可继续加兑换、邀请、公告等
 - Sub2API 继续 `docker pull` 官方镜像；本服务单独升级
 
-### 入口（兼容策略 H2）
+### 入口
 
 | 入口 | URL | 说明 |
 |---|---|---|
-| 签到（默认菜单） | `/checkin/` | **保持不变**，侧栏可继续直达签到 |
-| 扩展中心 | `/checkin/home.html` | 模块总览（新） |
-| 管理台 | `/checkin/admin.html` | 扩展管理（签到 + 账号巡检） |
-| 巡检锚点 | `/checkin/admin.html#patrol` | 直达账号模型巡检配置 |
-| 健康检查 | `/checkin/healthz` | 含 `product` / `modules` 字段 |
-| 模块列表 API | `/checkin/api/modules` | 公开，供首页渲染 |
+| 签到（默认菜单） | `/ext/` | 默认签到页（自定义菜单请改到此路径） |
+| 扩展中心 | `/ext/home.html` | 模块总览（新） |
+| 管理台 | `/ext/admin.html` | 扩展管理（签到 + 账号巡检） |
+| 巡检锚点 | `/ext/admin.html#patrol` | 直达账号模型巡检配置 |
+| 健康检查 | `/ext/healthz` | 含 `product` / `modules` 字段 |
+| 模块列表 API | `/ext/api/modules` | 公开，供首页渲染 |
 
-自定义菜单 URL 必须带尾斜杠：`https://your-sub2api.example.com/checkin/`  
-若希望侧栏先看扩展总览，可改为：`https://your-sub2api.example.com/checkin/home.html`
+自定义菜单 URL 必须带尾斜杠：`https://your-sub2api.example.com/ext/`  
+若希望侧栏先看扩展总览，可改为：`https://your-sub2api.example.com/ext/home.html`
 
 
 ## 目录结构
@@ -60,7 +60,7 @@ Dockerfile                 多阶段构建（GHCR 发布用）
 
 ### 扩展平台
 
-1. 打开 `/checkin/home.html` 查看已启用模块
+1. 打开 `/ext/home.html` 查看已启用模块
 2. `GET /api/modules` 返回产品标识与模块列表
 3. 默认菜单仍可直达签到页，不强制经过扩展中心
 
@@ -75,7 +75,7 @@ Dockerfile                 多阶段构建（GHCR 发布用）
 
 把原油猴「账号模型巡检并自动下线」做成服务端可配置定时任务：
 
-1. 管理页 `/checkin/admin.html#patrol` 配置：
+1. 管理页 `/ext/admin.html#patrol` 配置：
    - 是否启用定时巡检（默认关闭）
    - Cron（5 段，默认 `0 */6 * * *` 每 6 小时）
    - 分组列表（必填，逗号分隔）
@@ -111,7 +111,7 @@ PATROL_TIMEOUT_MS=45000
 
 ### 管理员
 
-1. 打开 `/checkin/admin.html`（需管理员登录）
+1. 打开 `/ext/admin.html`（需管理员登录）
 2. 配置：
    - 是否启用签到
    - **奖励模式** `reward_mode`：
@@ -143,7 +143,7 @@ cp configs/config.example.yaml configs/config.yaml
 | `CHECKIN_REWARD_AMOUNT` | 启动默认额度（可被管理页覆盖） |
 | `CHECKIN_TIMEZONE` | 启动默认时区 |
 | `SERVER_ADDR` | 默认 `:8090` |
-| `SERVER_BASE_PATH` | 反代前缀，生产为 `/checkin` |
+| `SERVER_BASE_PATH` | 反代前缀，生产为 `/ext` |
 | `SQLITE_PATH` | 默认 `/data/checkin.db` 或 `./data/checkin.db` |
 
 > 管理页改过的额度/开关保存在 SQLite `app_settings`，优先于启动时的环境变量默认值。
@@ -175,7 +175,7 @@ SUB2API_ADMIN_TOKEN=<auth_token>
 ### 模块列表（平台）
 
 ```http
-GET /checkin/api/modules
+GET /ext/api/modules
 ```
 
 返回示例字段：`product`、`product_name`、`compat_name`、`base_path`、`modules[]`。
@@ -183,13 +183,13 @@ GET /checkin/api/modules
 ### 健康检查（平台）
 
 ```http
-GET /checkin/healthz
+GET /ext/healthz
 ```
 
 除 `ok` 外包含 `product` / `modules`。
 
 
-基础路径生产为 `/checkin`，本地无前缀时为 `/`。
+基础路径生产为 `/ext`，本地无前缀时为 `/`。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -219,13 +219,13 @@ GET /checkin/healthz
 
 ```bash
 # 固定模式
-curl -X PUT https://your-sub2api.example.com/checkin/api/admin/settings \
+curl -X PUT https://your-sub2api.example.com/ext/api/admin/settings \
   -H "x-api-key: 你的管理员API_Key" \
   -H "Content-Type: application/json" \
   -d '{"enabled":true,"reward_mode":"fixed","reward_amount":0.5,"timezone":"Asia/Shanghai"}'
 
 # 随机模式：每次签到 $0.1 ~ $1.0
-curl -X PUT https://your-sub2api.example.com/checkin/api/admin/settings \
+curl -X PUT https://your-sub2api.example.com/ext/api/admin/settings \
   -H "x-api-key: 你的管理员API_Key" \
   -H "Content-Type: application/json" \
   -d '{"enabled":true,"reward_mode":"random","reward_min":0.1,"reward_max":1.0,"timezone":"Asia/Shanghai"}'
@@ -255,7 +255,7 @@ cd /opt/sub2api-ext
 # export IMAGE=ghcr.io/jiawa-kun/sub2api-ext:latest
 docker compose pull
 docker compose up -d
-curl -sS http://127.0.0.1:8090/checkin/healthz
+curl -sS http://127.0.0.1:8090/ext/healthz
 ```
 
 Windows 一键部署（上传 compose 后远程 pull）：
@@ -310,7 +310,7 @@ cd E:\Projects\GoProjects\sub2api-ext
 
 生产配置见 `deploy/nginx-full-sub2api.conf`，要点：
 
-- `location /checkin/` 在 `location /` 之前
+- `location /ext/` 在 `location /` 之前
 - 转发 `Authorization`、`X-User-Token`
 - 隐藏上游可能带来的 `X-Frame-Options: DENY`，并设置 `frame-ancestors`
 
@@ -333,7 +333,7 @@ Admin → 自定义菜单：
 | 项 | 值 |
 |---|---|
 | 名称 | 每日签到 |
-| URL | `https://your-sub2api.example.com/checkin/` |
+| URL | `https://your-sub2api.example.com/ext/` |
 | visibility | user |
 
 ## 架构与鉴权说明
@@ -357,7 +357,7 @@ Admin → 自定义菜单：
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| iframe「内容被屏蔽」 | 请求落到主站 SPA，`X-Frame-Options: DENY` | 确认 Nginx `/checkin/` 反代正确 |
+| iframe「内容被屏蔽」 | 请求落到主站 SPA，`X-Frame-Options: DENY` | 确认 Nginx `/ext/` 反代正确 |
 | invalid token / 登录失效 | access 过期或会话指纹 | 重新登录；已支持 refresh + Admin 兜底 |
 | `IDEMPOTENCY_KEY_INVALID` | Key 含空格 | 已修复（清洗 notes） |
 | `server missing SUB2API_ADMIN_API_KEY` | 未配置 Admin 凭证 | 写入 `.env` 并 recreate |
@@ -419,11 +419,11 @@ Admin → 自定义菜单：
 
 ```bash
 # 读审计
-curl -sS "https://your-sub2api.example.com/checkin/api/admin/settings/audit?limit=10" \
+curl -sS "https://your-sub2api.example.com/ext/api/admin/settings/audit?limit=10" \
   -H "x-api-key: 你的管理员API_Key"
 
 # 大额修改（需确认）
-curl -X PUT "https://your-sub2api.example.com/checkin/api/admin/settings" \
+curl -X PUT "https://your-sub2api.example.com/ext/api/admin/settings" \
   -H "x-api-key: 你的管理员API_Key" \
   -H "Content-Type: application/json" \
   -d "{\"enabled\":true,\"reward_mode\":\"fixed\",\"reward_amount\":12,\"confirm_high_amount\":true,\"source\":\"api\"}"

@@ -99,7 +99,7 @@ Invoke-SCP @(
     (Join-Path $ProjectRoot "docker-compose.yml"),
     (Join-Path $ProjectRoot ".env.example")
 ) "$RemoteDir/"
-$snippet = Join-Path $ProjectRoot "deploy\nginx-checkin.snippet.conf"
+$snippet = Join-Path $ProjectRoot "deploy\nginx-ext.snippet.conf"
 if (Test-Path $snippet) {
     Invoke-SCP @($snippet) "$RemoteDir/deploy/"
 }
@@ -136,11 +136,11 @@ docker compose up -d --force-recreate --no-deps __SERVICE__
 sleep 2
 set +e
 echo "--- health ---"
-curl -sS -w "\nhealth_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/healthz"
+curl -sS -w "\nhealth_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/ext/healthz"
 echo "--- ready ---"
-curl -sS -w "\nready_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/readyz"
+curl -sS -w "\nready_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/ext/readyz"
 echo "--- home ---"
-curl -sS -o /dev/null -w "home_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/checkin/home.html"
+curl -sS -o /dev/null -w "home_http=%{http_code}\n" "http://127.0.0.1:__WEBPORT__/ext/home.html"
 echo "--- ps ---"
 docker ps --filter "name=__CONTAINER__"
 echo "--- logs ---"
@@ -155,4 +155,4 @@ Write-Host "Image: $Image"
 Write-Host "Tips:"
 Write-Host "  1) ensure GHCR package is public, or docker login ghcr.io on server"
 Write-Host "  2) first time: edit remote .env (SUB2API_ADMIN_API_KEY / SUB2API_PUBLIC_HOST)"
-Write-Host "  3) custom menu URL example: https://your-sub2api.example.com/checkin/"
+Write-Host "  3) custom menu URL example: https://your-sub2api.example.com/ext/"

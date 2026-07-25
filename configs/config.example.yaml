@@ -2,7 +2,7 @@
 server:
   # 监听地址
   addr: ":8090"
-  # 对外访问前缀（若反代到 /checkin，可设 base_path: /checkin）
+  # 对外访问前缀（生产反代到 /ext 时设 base_path: /ext 或 SERVER_BASE_PATH=/ext）
   base_path: ""
 
 checkin:

@@ -127,7 +127,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
       <div class="hero">
         <div class="k">产品标识</div>
         <div class="v" id="product">sub2api-ext</div>
-        <div class="desc" id="compat" style="margin-top:6px">项目名：sub2api-ext · 路径前缀保持 /checkin</div>
+        <div class="desc" id="compat" style="margin-top:6px">项目名：sub2api-ext · 路径前缀 /ext</div>
       </div>
       <div class="list" id="list">
         <div class="mod">
@@ -140,8 +140,8 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
       </div>
       <div class="msg" id="msg"></div>
       <p class="foot">
-        自定义菜单可继续指向 <code>/checkin/</code> 打开签到页。
-        若希望侧栏先看模块总览，可改为 <code>/checkin/home.html</code>。
+        自定义菜单请指向 <code>/ext/</code> 打开签到页。
+        若希望侧栏先看模块总览，请用 <code>/ext/home.html</code>。
       </p>
     </section>
   </div>
@@ -248,7 +248,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
       const product = data.product_name || data.product || 'Sub2API 扩展';
       el('product').textContent = data.product || product;
       el('compat').textContent = '项目名：' + (data.compat_name || data.product || 'sub2api-ext') +
-        ' · 路径前缀 ' + (data.base_path || '/checkin');
+        ' · 路径前缀 ' + (data.base_path || '/ext');
       const list = Array.isArray(data.modules) ? data.modules : [];
       if(!list.length){
         el('list').innerHTML = '<div class="mod"><div class="row"><h3>暂无模块</h3><span class="badge off">空</span></div><p>服务未返回可用模块。</p></div>';
@@ -289,7 +289,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
           product: 'sub2api-ext',
           product_name: 'Sub2API 扩展',
           compat_name: 'sub2api-ext',
-          base_path: '/checkin',
+          base_path: '/ext',
           modules: [{
             id: 'checkin',
             name: '每日签到',
