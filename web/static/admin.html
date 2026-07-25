@@ -532,7 +532,6 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 <script>
     const HIGH_AMOUNT=10, SS_KEY='checkin_admin_cred';
     const params=new URLSearchParams(location.search);
-    initTheme();
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
       const secs=['checkin','patrol'];
@@ -565,6 +564,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const b=el('themeBtn');
       if(b) b.textContent=light?'深色':'浅色';
     }
+    initTheme();
 
     const msg=el('msg');
     let rewardMode='fixed', savedSnapshot=null, accessToken='', authMode='none';
@@ -1240,7 +1240,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     else setAdminSection('checkin');
 
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;
-    load();
+    try { load(); } catch (e) {
+      console.error(e);
+      setAuthStatus('页面初始化失败：'+(e.message||e), 'err');
+      try { show('页面初始化失败：'+(e.message||e), 'err'); } catch {}
+    }
   </script>
 </body>
 </html>
