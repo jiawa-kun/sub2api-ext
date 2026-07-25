@@ -112,6 +112,24 @@ CREATE INDEX IF NOT EXISTS idx_settings_audit_created
 	// best-effort column upgrades for older DBs
 	_, _ = s.db.Exec(`ALTER TABLE settings_audit ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''`)
 	_, _ = s.db.Exec(`ALTER TABLE settings_audit ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''`)
+
+	_, err = s.db.Exec(`
+CREATE TABLE IF NOT EXISTS patrol_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  trigger_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  started_at TEXT NOT NULL,
+  finished_at TEXT NOT NULL DEFAULT '',
+  stats_json TEXT NOT NULL DEFAULT '{}',
+  error TEXT NOT NULL DEFAULT '',
+  log_json TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS idx_patrol_runs_started
+  ON patrol_runs(started_at DESC);
+`)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

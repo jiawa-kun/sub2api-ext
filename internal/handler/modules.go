@@ -20,6 +20,9 @@ func (h *Handler) Modules(w http.ResponseWriter, r *http.Request) {
 		if list[i].ID == "checkin" {
 			list[i].Enabled = rt.Enabled
 		}
+		if list[i].ID == "account-patrol" && h.patrol != nil {
+			list[i].Enabled = h.patrol.Settings().Get().Enabled
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"product":      modules.ProductID,

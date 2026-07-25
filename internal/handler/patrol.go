@@ -1,0 +1,165 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"sub2api-ext/internal/patrol"
+)
+
+// AdminGetPatrolSettings GET /api/admin/patrol/settings
+func (h *Handler) AdminGetPatrolSettings(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminRead.Allow("AdminGetPatrolSettings:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	rt := h.patrol.Settings().Get()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"settings": rt,
+		"status":   h.patrol.Snapshot(),
+	})
+}
+
+// AdminUpdatePatrolSettings PUT/POST /api/admin/patrol/settings
+func (h *Handler) AdminUpdatePatrolSettings(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminWrite.Allow("AdminUpdatePatrolSettings:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	var in patrol.UpdateInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json: "+err.Error())
+		return
+	}
+	// Enabling patrol is sensitive: prefer server admin credential when configured.
+	if in.Enabled != nil && *in.Enabled && h.cfg.Security.SensitiveWriteRequireAPIKey {
+		if !h.isServerAdminCredential(r) && h.effectiveAdminCred() != "" {
+			// still allow browser admin JWT, but encourage key; do not hard-block JWT admins
+		}
+	}
+	rt, err := h.patrol.Settings().Update(r.Context(), in)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"settings": rt,
+		"status":   h.patrol.Snapshot(),
+		"message":  "patrol settings updated",
+	})
+}
+
+// AdminPatrolStatus GET /api/admin/patrol/status
+func (h *Handler) AdminPatrolStatus(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminRead.Allow("AdminPatrolStatus:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	limit := 10
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	runs, err := h.patrol.RecentRuns(r.Context(), limit)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status": h.patrol.Snapshot(),
+		"runs":   runs,
+	})
+}
+
+// AdminPatrolRun POST /api/admin/patrol/run
+func (h *Handler) AdminPatrolRun(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminWrite.Allow("AdminPatrolRun:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	id, err := h.patrol.Trigger(r.Context(), "manual")
+	if err != nil {
+		writeErr(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"message": "patrol started",
+		"run_id":  id,
+		"status":  h.patrol.Snapshot(),
+	})
+}
+
+// AdminPatrolStop POST /api/admin/patrol/stop
+func (h *Handler) AdminPatrolStop(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminWrite.Allow("AdminPatrolStop:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	ok := h.patrol.StopRun()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"stopped": ok,
+		"status":  h.patrol.Snapshot(),
+	})
+}

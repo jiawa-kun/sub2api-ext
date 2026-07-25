@@ -42,6 +42,18 @@ func Builtin() []Module {
 			Status:      "active",
 			Tags:        []string{"余额", "运营", "iframe"},
 		},
+		{
+			ID:          "account-patrol",
+			Name:        "账号模型巡检",
+			Description: "按分组定时测活账号模型，失败自动下线/删除，支持管理页配置与手动触发。",
+			UserPath:    "",
+			AdminPath:   "./admin.html#patrol",
+			APIBase:     "./api/admin/patrol",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"账号", "巡检", "定时任务"},
+		},
 	}
 }
 

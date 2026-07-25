@@ -17,6 +17,7 @@ import (
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/ratelimit"
 	"sub2api-ext/internal/settings"
+	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
 )
@@ -29,6 +30,7 @@ type Handler struct {
 	store    *store.Store
 	client   *sub2api.Client
 	settings *settings.Service
+	patrol   *patrol.Service
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -36,13 +38,14 @@ type Handler struct {
 	limitAdminRead  *ratelimit.Limiter
 }
 
-func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settings.Service) *Handler {
+func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settings.Service, patrolSvc *patrol.Service) *Handler {
 	sec := cfg.Security
 	h := &Handler{
 		cfg:             cfg,
 		store:           st,
 		client:          client,
 		settings:        stg,
+		patrol:          patrolSvc,
 		limitCheckin:    ratelimit.New(sec.RateCheckinPerMin, time.Minute),
 		limitStatus:     ratelimit.New(sec.RateStatusPerMin, time.Minute),
 		limitAdminWrite: ratelimit.New(sec.RateAdminWritePerMin, time.Minute),

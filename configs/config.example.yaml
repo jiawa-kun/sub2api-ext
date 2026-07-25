@@ -15,6 +15,26 @@ checkin:
   # 写到 sub2api 调账备注里的前缀
   notes_prefix: "daily-checkin"
 
+patrol:
+  # 是否启用定时巡检（也可在管理页热更新）
+  enabled: false
+  # 5 段 cron：分 时 日 月 周
+  cron: "0 */6 * * *"
+  # 要巡检的账号分组（必填才会实际跑）
+  groups: []
+  # 固定测试模型；留空则测账号 model_mapping 全部 key
+  test_model: "gpt-5.4"
+  concurrency: 8
+  timeout_ms: 45000
+  # disable | delete | none
+  action_on_fail: "disable"
+  only_schedulable: false
+  stop_on_first_model_failure: true
+  prompt: "hi"
+  auto_enable_on_success: true
+  timezone: "Asia/Shanghai"
+  keep_runs: 50
+
 sub2api:
   # sub2api 根地址，不要带尾斜杠
   base_url: "https://sub2api.example.com"

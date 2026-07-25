@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Checkin  CheckinConfig  `yaml:"checkin"`
+	Patrol   PatrolConfig   `yaml:"patrol"`
 	Sub2API  Sub2APIConfig  `yaml:"sub2api"`
 	Store    StoreConfig    `yaml:"store"`
 	Security SecurityConfig `yaml:"security"`
@@ -36,6 +37,36 @@ type Sub2APIConfig struct {
 	// PublicHost optional external host when BaseURL is an internal docker name.
 	PublicHost     string `yaml:"public_host"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
+}
+
+
+type PatrolConfig struct {
+	// Enabled controls whether the cron scheduler is active. Default false.
+	Enabled bool `yaml:"enabled"`
+	// Cron is a 5-field expression (min hour dom month dow). Default: every 6 hours.
+	Cron string `yaml:"cron"`
+	// Groups are Sub2API account groups to inspect. Empty means no accounts.
+	Groups []string `yaml:"groups"`
+	// TestModel is the fixed model id to probe. Empty falls back to account model_mapping.
+	TestModel string `yaml:"test_model"`
+	// Concurrency is account-level worker count.
+	Concurrency int `yaml:"concurrency"`
+	// TimeoutMs is idle timeout per model test stream.
+	TimeoutMs int `yaml:"timeout_ms"`
+	// ActionOnFail: disable | delete | none
+	ActionOnFail string `yaml:"action_on_fail"`
+	// OnlySchedulable skips accounts already off the scheduler.
+	OnlySchedulable bool `yaml:"only_schedulable"`
+	// StopOnFirstModelFailure stops testing more models for one account after first fail.
+	StopOnFirstModelFailure bool `yaml:"stop_on_first_model_failure"`
+	// Prompt used by account test API.
+	Prompt string `yaml:"prompt"`
+	// AutoEnableOnSuccess re-enables schedulable when all models pass.
+	AutoEnableOnSuccess bool `yaml:"auto_enable_on_success"`
+	// Timezone used when listing accounts (and cron evaluation location).
+	Timezone string `yaml:"timezone"`
+	// KeepRuns is how many historical run summaries to retain.
+	KeepRuns int `yaml:"keep_runs"`
 }
 
 type StoreConfig struct {
@@ -71,6 +102,21 @@ func Default() Config {
 		Sub2API: Sub2APIConfig{
 			BaseURL:        "http://127.0.0.1:8080",
 			TimeoutSeconds: 15,
+		},
+		Patrol: PatrolConfig{
+			Enabled:                 false,
+			Cron:                    "0 */6 * * *",
+			Groups:                  []string{},
+			TestModel:               "gpt-5.4",
+			Concurrency:            8,
+			TimeoutMs:               45000,
+			ActionOnFail:            "disable",
+			OnlySchedulable:         false,
+			StopOnFirstModelFailure: true,
+			Prompt:                  "hi",
+			AutoEnableOnSuccess:     true,
+			Timezone:                "Asia/Shanghai",
+			KeepRuns:                50,
 		},
 		Store: StoreConfig{
 			SQLitePath: "./data/checkin.db",
@@ -145,6 +191,51 @@ func applyEnv(cfg *Config) {
 			cfg.Sub2API.TimeoutSeconds = n
 		}
 	}
+	if v := os.Getenv("PATROL_ENABLED"); v != "" {
+		cfg.Patrol.Enabled = parseBool(v, cfg.Patrol.Enabled)
+	}
+	if v := os.Getenv("PATROL_CRON"); v != "" {
+		cfg.Patrol.Cron = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("PATROL_GROUPS"); v != "" {
+		cfg.Patrol.Groups = splitCSV(v)
+	}
+	if v := os.Getenv("PATROL_TEST_MODEL"); v != "" {
+		cfg.Patrol.TestModel = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("PATROL_CONCURRENCY"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Patrol.Concurrency = n
+		}
+	}
+	if v := os.Getenv("PATROL_TIMEOUT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Patrol.TimeoutMs = n
+		}
+	}
+	if v := os.Getenv("PATROL_ACTION_ON_FAIL"); v != "" {
+		cfg.Patrol.ActionOnFail = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("PATROL_ONLY_SCHEDULABLE"); v != "" {
+		cfg.Patrol.OnlySchedulable = parseBool(v, cfg.Patrol.OnlySchedulable)
+	}
+	if v := os.Getenv("PATROL_STOP_ON_FIRST_FAILURE"); v != "" {
+		cfg.Patrol.StopOnFirstModelFailure = parseBool(v, cfg.Patrol.StopOnFirstModelFailure)
+	}
+	if v := os.Getenv("PATROL_PROMPT"); v != "" {
+		cfg.Patrol.Prompt = v
+	}
+	if v := os.Getenv("PATROL_AUTO_ENABLE_ON_SUCCESS"); v != "" {
+		cfg.Patrol.AutoEnableOnSuccess = parseBool(v, cfg.Patrol.AutoEnableOnSuccess)
+	}
+	if v := os.Getenv("PATROL_TIMEZONE"); v != "" {
+		cfg.Patrol.Timezone = v
+	}
+	if v := os.Getenv("PATROL_KEEP_RUNS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Patrol.KeepRuns = n
+		}
+	}
 	if v := os.Getenv("SQLITE_PATH"); v != "" {
 		cfg.Store.SQLitePath = v
 	}
@@ -198,7 +289,37 @@ func applyEnv(cfg *Config) {
 	if cfg.Security.RateAdminReadPerMin <= 0 {
 		cfg.Security.RateAdminReadPerMin = 60
 	}
+
+	// patrol defaults / clamps
+	if strings.TrimSpace(cfg.Patrol.Cron) == "" {
+		cfg.Patrol.Cron = "0 */6 * * *"
+	}
+	if cfg.Patrol.Concurrency <= 0 {
+		cfg.Patrol.Concurrency = 8
+	}
+	if cfg.Patrol.Concurrency > 50 {
+		cfg.Patrol.Concurrency = 50
+	}
+	if cfg.Patrol.TimeoutMs < 1000 {
+		cfg.Patrol.TimeoutMs = 45000
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Patrol.ActionOnFail)) {
+	case "disable", "delete", "none":
+		cfg.Patrol.ActionOnFail = strings.ToLower(strings.TrimSpace(cfg.Patrol.ActionOnFail))
+	default:
+		cfg.Patrol.ActionOnFail = "disable"
+	}
+	if strings.TrimSpace(cfg.Patrol.Prompt) == "" {
+		cfg.Patrol.Prompt = "hi"
+	}
+	if strings.TrimSpace(cfg.Patrol.Timezone) == "" {
+		cfg.Patrol.Timezone = cfg.Checkin.Timezone
+	}
+	if cfg.Patrol.KeepRuns <= 0 {
+		cfg.Patrol.KeepRuns = 50
+	}
 }
+
 
 func (c Config) Validate() error {
 	if c.Server.Addr == "" {
@@ -209,6 +330,11 @@ func (c Config) Validate() error {
 	}
 	if _, err := time.LoadLocation(c.Checkin.Timezone); err != nil {
 		return fmt.Errorf("invalid checkin.timezone: %w", err)
+	}
+	if c.Patrol.Timezone != "" {
+		if _, err := time.LoadLocation(c.Patrol.Timezone); err != nil {
+			return fmt.Errorf("invalid patrol.timezone: %w", err)
+		}
 	}
 	if c.Sub2API.BaseURL == "" {
 		return fmt.Errorf("sub2api.base_url is required")

@@ -194,6 +194,21 @@
       background:rgba(255,255,255,.96); box-shadow:0 8px 24px rgba(15,23,42,.08);
     }
     .save-dock .summary{font-size:.74rem; color:#64748b}
+.patrol-log{
+  max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:12px;
+  background:rgba(2,6,23,.55); padding:8px 10px; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:.72rem; line-height:1.45;
+}
+html.light .patrol-log{background:#0f172a0d}
+.patrol-log .l-error{color:#ff7875}
+.patrol-log .l-warn{color:#ffd666}
+.patrol-log .l-success{color:#95de64}
+.patrol-log .l-info{color:#d9d9d9}
+html.light .patrol-log .l-info{color:#334155}
+.stat-row{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0}
+.stat-pill{border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-size:.75rem; color:var(--muted)}
+.stat-pill b{color:var(--text); margin-left:4px}
+
     button.danger{background:rgba(244,63,94,.08); color:#e11d48; border:1px solid rgba(244,63,94,.14)}
     details.fold{box-shadow:0 8px 24px rgba(15,23,42,.05)}
     .stat{background:linear-gradient(180deg, rgba(91,124,250,.06), #f8fafc)}
@@ -420,6 +435,81 @@
       <div id="msg" class="msg"></div>
       <p class="sub" style="margin:10px 0 0"><a href="./">← 返回签到页</a> · <a href="./home.html">扩展中心</a></p>
     </div>
+
+
+  <div class="card" id="patrolCard">
+    <div class="card-head"><h2>账号模型巡检</h2></div>
+    <p class="sub" style="margin-top:0">按分组定时测活模型；失败可自动关闭调度或删除账号。默认关闭，配好分组后再启用。</p>
+    <div class="summary live-line" id="patrolLive">状态：加载中…</div>
+    <div class="stat-row" id="patrolStats">
+      <span class="stat-pill">总数<b id="pTotal">0</b></span>
+      <span class="stat-pill">已检<b id="pChecked">0</b></span>
+      <span class="stat-pill">成功<b id="pOk">0</b></span>
+      <span class="stat-pill">失败<b id="pFailed">0</b></span>
+      <span class="stat-pill">跳过<b id="pSkipped">0</b></span>
+      <span class="stat-pill">启用<b id="pEnabled">0</b></span>
+      <span class="stat-pill">下线<b id="pDisabled">0</b></span>
+      <span class="stat-pill">删除<b id="pDeleted">0</b></span>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label><input id="patrolEnabled" type="checkbox" /> 启用定时巡检</label>
+      </div>
+      <div class="field">
+        <label for="patrolCron">Cron（5 段）</label>
+        <input id="patrolCron" type="text" placeholder="0 */6 * * *" />
+      </div>
+      <div class="field" style="grid-column:1/-1">
+        <label for="patrolGroups">巡检分组（逗号分隔）</label>
+        <input id="patrolGroups" type="text" placeholder="例如：default,vip" />
+      </div>
+      <div class="field">
+        <label for="patrolTestModel">测试模型</label>
+        <input id="patrolTestModel" type="text" placeholder="gpt-5.4" />
+      </div>
+      <div class="field">
+        <label for="patrolAction">失败动作</label>
+        <select id="patrolAction">
+          <option value="disable">关闭 schedulable</option>
+          <option value="delete">删除账号</option>
+          <option value="none">仅记录</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="patrolConcurrency">并发</label>
+        <input id="patrolConcurrency" type="number" min="1" max="50" step="1" />
+      </div>
+      <div class="field">
+        <label for="patrolTimeout">超时秒数</label>
+        <input id="patrolTimeout" type="number" min="1" step="1" />
+      </div>
+      <div class="field">
+        <label for="patrolTimezone">时区</label>
+        <input id="patrolTimezone" type="text" placeholder="Asia/Shanghai" />
+      </div>
+      <div class="field">
+        <label for="patrolPrompt">测试 Prompt</label>
+        <input id="patrolPrompt" type="text" placeholder="hi" />
+      </div>
+      <div class="field">
+        <label><input id="patrolOnlySched" type="checkbox" /> 仅检查可调度账号</label>
+      </div>
+      <div class="field">
+        <label><input id="patrolStopFirst" type="checkbox" /> 首个模型失败即停</label>
+      </div>
+      <div class="field">
+        <label><input id="patrolAutoEnable" type="checkbox" /> 成功后自动重新启用</label>
+      </div>
+    </div>
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap; margin:10px 0">
+      <button type="button" class="sm" id="btnPatrolSave">保存巡检配置</button>
+      <button type="button" class="secondary sm" id="btnPatrolRun">立即巡检</button>
+      <button type="button" class="secondary sm" id="btnPatrolStop">停止</button>
+      <button type="button" class="secondary sm" id="btnPatrolRefresh">刷新状态</button>
+    </div>
+    <div class="patrol-log" id="patrolLog"><div class="l-info">暂无日志</div></div>
+    <div class="sub" id="patrolRunsMeta" style="margin-top:8px">最近运行：—</div>
+  </div>
 
     <details class="fold">
       <summary>最近变更（审计，最近 5 条）</summary>
@@ -704,6 +794,106 @@
       });
     }
 
+
+    let patrolSaved=null, patrolTimer=null;
+
+    function patrolForm(){
+      const groups=String(el('patrolGroups').value||'').split(/[,;\n]/).map(s=>s.trim()).filter(Boolean);
+      return {
+        enabled: !!el('patrolEnabled').checked,
+        cron: (el('patrolCron').value||'').trim(),
+        groups,
+        test_model: (el('patrolTestModel').value||'').trim(),
+        action_on_fail: el('patrolAction').value,
+        concurrency: Number(el('patrolConcurrency').value||8),
+        timeout_ms: Math.round(Number(el('patrolTimeout').value||45)*1000),
+        timezone: (el('patrolTimezone').value||'').trim() || 'Asia/Shanghai',
+        prompt: (el('patrolPrompt').value||'hi').trim() || 'hi',
+        only_schedulable: !!el('patrolOnlySched').checked,
+        stop_on_first_model_failure: !!el('patrolStopFirst').checked,
+        auto_enable_on_success: !!el('patrolAutoEnable').checked,
+      };
+    }
+
+    function fillPatrol(s){
+      if(!s) return;
+      patrolSaved=s;
+      el('patrolEnabled').checked=!!s.enabled;
+      el('patrolCron').value=s.cron||'0 */6 * * *';
+      el('patrolGroups').value=(s.groups||[]).join(',');
+      el('patrolTestModel').value=s.test_model||'';
+      el('patrolAction').value=s.action_on_fail||'disable';
+      el('patrolConcurrency').value=String(s.concurrency||8);
+      el('patrolTimeout').value=String(Math.max(1, Math.round((s.timeout_ms||45000)/1000)));
+      el('patrolTimezone').value=s.timezone||'Asia/Shanghai';
+      el('patrolPrompt').value=s.prompt||'hi';
+      el('patrolOnlySched').checked=!!s.only_schedulable;
+      el('patrolStopFirst').checked=s.stop_on_first_model_failure!==false;
+      el('patrolAutoEnable').checked=s.auto_enable_on_success!==false;
+    }
+
+    function renderPatrolStatus(st){
+      if(!st) return;
+      const stats=st.stats||{};
+      el('pTotal').textContent=stats.total||0;
+      el('pChecked').textContent=stats.checked||0;
+      el('pOk').textContent=stats.ok||0;
+      el('pFailed').textContent=stats.failed||0;
+      el('pSkipped').textContent=stats.skipped||0;
+      el('pEnabled').textContent=stats.enabled||0;
+      el('pDisabled').textContent=stats.disabled||0;
+      el('pDeleted').textContent=stats.deleted||0;
+      const runFlag=st.running?'运行中':'空闲';
+      const status=st.status||'-';
+      const trig=st.trigger||'-';
+      el('patrolLive').textContent=`状态：${runFlag} · ${status} · trigger=${trig}` + (st.error?(' · err='+st.error):'');
+      const box=el('patrolLog');
+      const logs=st.recent_logs||[];
+      if(!logs.length){
+        box.innerHTML='<div class="l-info">暂无日志</div>';
+      } else {
+        box.innerHTML=logs.slice(-120).map(l=>{
+          const lv=l.level||'info';
+          return `<div class="l-${lv}">[${l.time||''}] ${escapeHtml(l.message||'')}</div>`;
+        }).join('');
+        box.scrollTop=box.scrollHeight;
+      }
+      if(st.running){
+        if(!patrolTimer) patrolTimer=setInterval(()=>{ refreshPatrol(false).catch(()=>{}); }, 2000);
+      } else if(patrolTimer){
+        clearInterval(patrolTimer); patrolTimer=null;
+      }
+    }
+
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+
+    async function refreshPatrol(withRuns=true){
+      if(withRuns){
+        const data=await api('./api/admin/patrol/status?limit=5');
+        if(data.status && data.status.config) fillPatrol(data.status.config);
+        else {
+          const s=await api('./api/admin/patrol/settings');
+          fillPatrol(s.settings||{});
+          renderPatrolStatus(s.status||data.status);
+        }
+        renderPatrolStatus(data.status||{});
+        const runs=data.runs||[];
+        if(!runs.length) el('patrolRunsMeta').textContent='最近运行：无';
+        else {
+          el('patrolRunsMeta').textContent='最近运行：'+runs.map(r=>{
+            const st=r.stats||{};
+            return `#${r.id} ${r.status} ok=${st.ok||0}/fail=${st.failed||0}`;
+          }).join(' · ');
+        }
+      } else {
+        const s=await api('./api/admin/patrol/settings');
+        renderPatrolStatus(s.status||{});
+      }
+    }
+
+
     async function refreshAll(){
       const [s, st, ck, au] = await Promise.all([
         api('./api/admin/settings'),
@@ -712,6 +902,7 @@
         api('./api/admin/settings/audit?limit=5'),
       ]);
       fillForm(s); renderStats(st); renderCheckins(ck); renderAudit(au.items||[]);
+      try{ await refreshPatrol(true); }catch(e){ /* patrol optional */ el('patrolLive').textContent='巡检加载失败：'+(e.message||e); }
     }
 
     async function load(){
@@ -855,6 +1046,43 @@
       const b=el('tab-'+t); if(b) b.onclick=()=>setConfigTab(t);
     });
     setConfigTab('reward');
+
+    el('btnPatrolSave').onclick=async()=>{
+      el('btnPatrolSave').disabled=true;
+      try{
+        const body=patrolForm();
+        if(body.enabled && !body.groups.length) throw new Error('启用巡检前请至少配置一个分组');
+        if(body.action_on_fail==='delete' && !confirm('失败动作=删除账号，确认保存？')) return;
+        const r=await api('./api/admin/patrol/settings',{method:'PUT', body:JSON.stringify(body)});
+        fillPatrol(r.settings||body);
+        renderPatrolStatus(r.status||{});
+        show('巡检配置已保存并立即生效','ok');
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ el('btnPatrolSave').disabled=false; }
+    };
+    el('btnPatrolRun').onclick=async()=>{
+      if(!confirm('确认立即执行一次账号巡检？')) return;
+      try{
+        const r=await api('./api/admin/patrol/run',{method:'POST', body:'{}'});
+        renderPatrolStatus(r.status||{});
+        show('已开始巡检 run_id='+r.run_id,'ok');
+        await refreshPatrol(true);
+      }catch(e){ show(e.message||String(e),'err'); }
+    };
+    el('btnPatrolStop').onclick=async()=>{
+      try{
+        const r=await api('./api/admin/patrol/stop',{method:'POST', body:'{}'});
+        renderPatrolStatus(r.status||{});
+        show(r.stopped?'已发送停止请求':'当前没有运行中的任务', r.stopped?'ok':'warn');
+      }catch(e){ show(e.message||String(e),'err'); }
+    };
+    el('btnPatrolRefresh').onclick=()=>refreshPatrol(true).catch(e=>show(e.message||String(e),'err'));
+
+    // deep link #patrol
+    if((location.hash||'').toLowerCase()==='#patrol'){
+      setTimeout(()=>{ try{ el('patrolCard').scrollIntoView({behavior:'smooth', block:'start'}); }catch{} }, 300);
+    }
+
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;
     load();
   </script>

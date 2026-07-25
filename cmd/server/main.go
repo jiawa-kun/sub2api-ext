@@ -13,6 +13,7 @@ import (
 	"sub2api-ext/internal/config"
 	"sub2api-ext/internal/handler"
 	"sub2api-ext/internal/modules"
+	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
@@ -39,7 +40,11 @@ func main() {
 		log.Printf("persist clamped settings: %v", err)
 	}
 	client := sub2api.NewWithPublicHost(cfg.Sub2API.BaseURL, cfg.Sub2API.AdminToken, cfg.Sub2API.PublicHost, cfg.Timeout())
-	h := handler.New(cfg, st, client, stg)
+	patrolSettings := patrol.NewSettings(st, cfg.Patrol)
+	patrolSvc := patrol.NewService(client, st, patrolSettings)
+	patrolSvc.StartScheduler()
+	defer patrolSvc.StopScheduler()
+	h := handler.New(cfg, st, client, stg, patrolSvc)
 
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
@@ -66,6 +71,19 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/stats", h.AdminStats)
 	mux.HandleFunc(base+"/api/admin/checkins", h.AdminListCheckins)
 	mux.HandleFunc(base+"/api/admin/settings/template", h.AdminApplyTemplate)
+	mux.HandleFunc(base+"/api/admin/patrol/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetPatrolSettings(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminUpdatePatrolSettings(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc(base+"/api/admin/patrol/status", h.AdminPatrolStatus)
+	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
+	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 
 	staticRoot, err := fs.Sub(web.StaticFS, "static")
 	if err != nil {

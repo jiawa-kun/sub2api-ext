@@ -5,7 +5,7 @@
 > 项目名 / 镜像 / 容器名：**`sub2api-ext`**  
 > 产品标识：**`sub2api-ext`**（Sub2API 扩展）  
 > 对外 HTTP 路径仍为 **`/checkin`**，兼容现有 Sub2API 自定义菜单。  
-> **每日签到**是当前内置的第一个扩展模块。
+> **每日签到**是当前内置的第一个扩展模块；**账号模型巡检**为第二个内置模块（可配置定时任务）。
 
 ## 定位
 
@@ -20,7 +20,8 @@
 |---|---|---|
 | 签到（默认菜单） | `/checkin/` | **保持不变**，侧栏可继续直达签到 |
 | 扩展中心 | `/checkin/home.html` | 模块总览（新） |
-| 管理台 | `/checkin/admin.html` | 扩展管理（当前配置签到模块） |
+| 管理台 | `/checkin/admin.html` | 扩展管理（签到 + 账号巡检） |
+| 巡检锚点 | `/checkin/admin.html#patrol` | 直达账号模型巡检配置 |
 | 健康检查 | `/checkin/healthz` | 含 `product` / `modules` 字段 |
 | 模块列表 API | `/checkin/api/modules` | 公开，供首页渲染 |
 
@@ -35,14 +36,15 @@ cmd/server/                入口（注册平台路由 + 模块 API）
 internal/
   modules/                 扩展模块注册表（产品标识 / 模块元数据）
   config/                  配置加载（yaml + 环境变量）
-  store/                   SQLite（签到记录 + app_settings）
+  store/                   SQLite（签到记录 + app_settings + patrol_runs）
   settings/                运行时签到额度（可热更新）
-  sub2api/                 调 Sub2API（用户识别 / 加余额）
-  handler/                 HTTP API（平台 + 签到模块）
+  patrol/                  账号模型巡检（cron + runner + 配置）
+  sub2api/                 调 Sub2API（用户识别 / 加余额 / 账号测活）
+  handler/                 HTTP API（平台 + 签到 + 巡检）
 web/static/
   index.html               用户签到页（默认入口，兼容菜单）
   home.html                扩展中心（模块总览）
-  admin.html               扩展管理台（当前：签到配置）
+  admin.html               扩展管理台（签到 + 账号巡检）
 configs/                   配置示例
 deploy/                    Nginx 完整配置 / 片段
 scripts/deploy-server.ps1  一键部署脚本（参数可改）
@@ -68,6 +70,44 @@ Dockerfile                 多阶段构建（GHCR 发布用）
 2. 侧栏「每日签到」进入 iframe
 3. 查看余额 / 今日奖励，点击签到
 4. 同一自然日只能成功一次
+
+### 账号模型巡检
+
+把原油猴「账号模型巡检并自动下线」做成服务端可配置定时任务：
+
+1. 管理页 `/checkin/admin.html#patrol` 配置：
+   - 是否启用定时巡检（默认关闭）
+   - Cron（5 段，默认 `0 */6 * * *` 每 6 小时）
+   - 分组列表（必填，逗号分隔）
+   - 测试模型（默认 `gpt-5.4`）
+   - 失败动作：`disable` / `delete` / `none`
+   - 并发、超时、仅可调度、成功自动重新启用等
+2. 支持「立即巡检 / 停止 / 查看最近运行与日志」
+3. 鉴权复用服务端 Admin API Key（`SUB2API_ADMIN_API_KEY`）
+4. 运行摘要写入 SQLite `patrol_runs`（默认保留 50 次）
+
+管理 API：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET/PUT | `/api/admin/patrol/settings` | 读取/更新巡检配置 |
+| GET | `/api/admin/patrol/status` | 当前状态 + 最近运行 |
+| POST | `/api/admin/patrol/run` | 手动触发一次 |
+| POST | `/api/admin/patrol/stop` | 请求停止当前任务 |
+
+环境变量示例：
+
+```env
+PATROL_ENABLED=false
+PATROL_CRON=0 */6 * * *
+PATROL_GROUPS=group-a,group-b
+PATROL_TEST_MODEL=gpt-5.4
+PATROL_ACTION_ON_FAIL=disable
+PATROL_CONCURRENCY=8
+PATROL_TIMEOUT_MS=45000
+```
+
+> 注意：启用前请先配置分组与 Admin API Key。失败动作选 `delete` 会真实删除上游账号，请谨慎。
 
 ### 管理员
 
