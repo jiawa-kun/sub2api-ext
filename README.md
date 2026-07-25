@@ -47,7 +47,8 @@ configs/                   配置示例
 deploy/                    Nginx 完整配置 / 片段
 scripts/deploy-server.ps1  一键部署脚本（参数可改）
 docker-compose.yml
-Dockerfile.runtime         打包本地交叉编译的 Linux 二进制
+Dockerfile                 多阶段构建（GHCR 发布用）
+.github/workflows/          GitHub Actions 构建并推送镜像
 ```
 
 > 架构方向：`modules` 描述能力清单；签到业务仍在现有 handler/store/settings 中。  
@@ -189,6 +190,42 @@ curl -X PUT https://your-sub2api.example.com/checkin/api/admin/settings \
   -H "Content-Type: application/json" \
   -d '{"enabled":true,"reward_mode":"random","reward_min":0.1,"reward_max":1.0,"timezone":"Asia/Shanghai"}'
 ```
+
+
+## 镜像与部署（GHCR）
+
+本项目通过 GitHub Actions 构建并推送到 GitHub Container Registry：
+
+```text
+ghcr.io/jiawa-kun/sub2api-ext:latest
+ghcr.io/jiawa-kun/sub2api-ext:sha-<commit>
+```
+
+推送到 `master`/`main` 或打 `v*` tag 会自动构建。也可在 Actions 页手动 **Run workflow**。
+
+### 服务器部署（拉镜像）
+
+1. 准备目录与 `.env`（**不要提交真实密钥**）
+2. 使用仓库中的 `docker-compose.yml`
+3. 拉取并启动：
+
+```bash
+cd /opt/sub2api-ext
+# 可选：固定版本
+# export IMAGE=ghcr.io/jiawa-kun/sub2api-ext:latest
+docker compose pull
+docker compose up -d
+curl -sS http://127.0.0.1:8090/checkin/healthz
+```
+
+Windows 一键部署（上传 compose 后远程 pull）：
+
+```powershell
+.\scripts\deploy-server.ps1 -HostName your-vps -RemoteDir /opt/sub2api-ext
+.\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxx
+```
+
+> 若 GHCR 包为私有，服务器需先 `docker login ghcr.io`。公开仓库建议把 Package 设为 Public。
 
 ## 本地运行
 

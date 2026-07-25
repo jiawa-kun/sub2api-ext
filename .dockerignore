@@ -1,0 +1,11 @@
+.git
+bin
+data
+*.db
+*.log
+*.pid
+*.exe
+.env
+configs/config.yaml
+deploy-remote.ps1
+deploy-run.log
