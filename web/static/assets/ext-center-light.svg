@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Sub2API 扩展中心</title>
+  <desc id="desc">扩展中心品牌图标（浅色）</desc>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="36" x2="448" y2="476" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="96" y1="96" x2="416" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="core" x1="176" y1="168" x2="336" y2="344" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#60a5fa"/>
+      <stop offset="0.55" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="tileA" x1="72" y1="84" x2="168" y2="176" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93c5fd"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+    <linearGradient id="tileB" x1="344" y1="84" x2="440" y2="176" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="tileC" x1="72" y1="336" x2="168" y2="428" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6ee7b7"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="tileD" x1="344" y1="336" x2="440" y2="428" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fcd34d"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#64748b" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="rgba(15,23,42,.08)" stroke-width="2"/>
+  <circle cx="150" cy="126" r="78" fill="#3b82f6" opacity=".10"/>
+  <circle cx="372" cy="390" r="92" fill="#7c5cff" opacity=".10"/>
+  <g stroke="url(#ring)" stroke-width="8" stroke-linecap="round" opacity=".42" fill="none">
+    <path d="M176 176 L256 256"/><path d="M336 176 L256 256"/><path d="M176 336 L256 256"/><path d="M336 336 L256 256"/>
+  </g>
+  <circle cx="256" cy="256" r="148" fill="none" stroke="url(#ring)" stroke-width="2" stroke-dasharray="8 12" opacity=".35"/>
+  <g filter="url(#soft)">
+    <rect x="84" y="92" width="92" height="92" rx="24" fill="url(#tileA)"/>
+    <path d="M114 138h32a10 10 0 0 1 10 10v18a10 10 0 0 1-10 10h-32a10 10 0 0 1-10-10v-18a10 10 0 0 1 10-10z" fill="#fff" opacity=".95"/>
+    <path d="M130 128v10M130 128c0-8 12-8 12 0M130 128c0-8-12-8-12 0" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <path d="M130 138v38" stroke="#2563eb" stroke-width="4" stroke-linecap="round" opacity=".45"/>
+    <rect x="336" y="92" width="92" height="92" rx="24" fill="url(#tileB)"/>
+    <g fill="#fff"><rect x="356" y="112" width="22" height="22" rx="6"/><rect x="386" y="112" width="22" height="22" rx="6"/><rect x="356" y="142" width="22" height="22" rx="6"/><rect x="386" y="142" width="22" height="22" rx="6" opacity=".55"/></g>
+    <rect x="84" y="328" width="92" height="92" rx="24" fill="url(#tileC)"/>
+    <path d="M130 348c14 8 28 8 36 0v24c0 16-12 28-36 36-24-8-36-20-36-36v-24c8 8 22 8 36 0z" fill="#fff"/>
+    <path d="M118 378l10 10 16-18" fill="none" stroke="#16a34a" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" opacity=".8"/>
+    <rect x="336" y="328" width="92" height="92" rx="24" fill="url(#tileD)"/>
+    <circle cx="382" cy="374" r="16" fill="none" stroke="#fff" stroke-width="7"/>
+    <circle cx="382" cy="374" r="6" fill="#fff"/>
+    <g stroke="#fff" stroke-width="6" stroke-linecap="round"><path d="M382 348v8M382 392v8M356 374h8M400 374h8M363 355l6 6M395 387l6 6M363 393l6-6M395 361l6-6"/></g>
+  </g>
+  <circle cx="256" cy="256" r="70" fill="url(#core)"/>
+  <circle cx="256" cy="256" r="70" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="3"/>
+  <circle cx="256" cy="256" r="46" fill="rgba(255,255,255,.18)" stroke="rgba(255,255,255,.35)" stroke-width="2"/>
+  <g fill="#fff">
+    <circle cx="256" cy="256" r="10"/>
+    <rect x="250" y="214" width="12" height="26" rx="6"/><rect x="250" y="272" width="12" height="26" rx="6"/>
+    <rect x="214" y="250" width="26" height="12" rx="6"/><rect x="272" y="250" width="26" height="12" rx="6"/>
+    <circle cx="256" cy="220" r="7"/><circle cx="256" cy="292" r="7"/><circle cx="220" cy="256" r="7"/><circle cx="292" cy="256" r="7"/>
+  </g>
+</svg>

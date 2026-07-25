@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" role="img" aria-labelledby="t d">
+  <title id="t">扩展中心横幅</title>
+  <desc id="d">Sub2API 扩展中心 hero banner</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="960" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#070b16"/>
+      <stop offset=".5" stop-color="#121a2f"/>
+      <stop offset="1" stop-color="#0b1224"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="40" y1="40" x2="520" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(255,255,255,.08)"/>
+      <stop offset="1" stop-color="rgba(255,255,255,.03)"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="28"/></filter>
+  </defs>
+
+  <rect width="960" height="360" rx="28" fill="url(#bg)"/>
+  <circle cx="760" cy="60" r="140" fill="#5b8cff" opacity=".18" filter="url(#blur)"/>
+  <circle cx="880" cy="280" r="120" fill="#7c5cff" opacity=".16" filter="url(#blur)"/>
+  <circle cx="120" cy="300" r="90" fill="#22c55e" opacity=".08" filter="url(#blur)"/>
+
+  <!-- left copy block -->
+  <text x="56" y="118" fill="#9db7ff" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700" letter-spacing="2">SUB2API EXT</text>
+  <text x="56" y="176" fill="#eef3ff" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="48" font-weight="800">扩展中心</text>
+  <text x="56" y="220" fill="#93a0b8" font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="20">模块总览 · 签到 · 账号巡检 · 可继续扩展</text>
+
+  <g font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="14" font-weight="700">
+    <rect x="56" y="252" width="86" height="32" rx="16" fill="rgba(91,140,255,.16)" stroke="rgba(91,140,255,.35)"/>
+    <text x="99" y="273" text-anchor="middle" fill="#9db7ff">/ext</text>
+    <rect x="152" y="252" width="110" height="32" rx="16" fill="rgba(34,197,94,.12)" stroke="rgba(34,197,94,.28)"/>
+    <text x="207" y="273" text-anchor="middle" fill="#4ade80">modules</text>
+    <rect x="272" y="252" width="120" height="32" rx="16" fill="rgba(124,92,255,.12)" stroke="rgba(124,92,255,.3)"/>
+    <text x="332" y="273" text-anchor="middle" fill="#c4b5fd">sidecar</text>
+  </g>
+
+  <!-- right hub illustration -->
+  <g transform="translate(610,48)">
+    <circle cx="150" cy="132" r="108" fill="none" stroke="url(#accent)" stroke-width="2" stroke-dasharray="6 10" opacity=".45"/>
+    <g stroke="url(#accent)" stroke-width="5" stroke-linecap="round" opacity=".5">
+      <path d="M78 70 L150 132"/>
+      <path d="M222 70 L150 132"/>
+      <path d="M78 194 L150 132"/>
+      <path d="M222 194 L150 132"/>
+    </g>
+    <rect x="48" y="40" width="60" height="60" rx="16" fill="#5b8cff"/>
+    <rect x="192" y="40" width="60" height="60" rx="16" fill="#7c5cff"/>
+    <rect x="48" y="164" width="60" height="60" rx="16" fill="#22c55e"/>
+    <rect x="192" y="164" width="60" height="60" rx="16" fill="#f59e0b"/>
+    <!-- mini glyphs -->
+    <path d="M68 70h20a6 6 0 0 1 6 6v12a6 6 0 0 1-6 6H68a6 6 0 0 1-6-6V76a6 6 0 0 1 6-6z" fill="#fff" opacity=".92"/>
+    <g fill="#fff" opacity=".95">
+      <rect x="204" y="52" width="14" height="14" rx="3"/>
+      <rect x="224" y="52" width="14" height="14" rx="3"/>
+      <rect x="204" y="72" width="14" height="14" rx="3"/>
+      <rect x="224" y="72" width="14" height="14" rx="3" opacity=".5"/>
+    </g>
+    <path d="M78 182c8 5 16 5 20 0v14c0 10-7 16-20 20-13-4-20-10-20-20v-14c5 5 12 5 20 0z" fill="#fff" opacity=".92"/>
+    <circle cx="222" cy="194" r="11" fill="none" stroke="#fff" stroke-width="4"/>
+    <circle cx="222" cy="194" r="4" fill="#fff"/>
+    <circle cx="150" cy="132" r="42" fill="url(#accent)"/>
+    <circle cx="150" cy="132" r="26" fill="rgba(7,11,22,.25)" stroke="rgba(255,255,255,.2)"/>
+    <g fill="#fff">
+      <circle cx="150" cy="132" r="6"/>
+      <rect x="147" y="108" width="6" height="16" rx="3"/>
+      <rect x="147" y="140" width="6" height="16" rx="3"/>
+      <rect x="126" y="129" width="16" height="6" rx="3"/>
+      <rect x="158" y="129" width="16" height="6" rx="3"/>
+    </g>
+  </g>
+</svg>

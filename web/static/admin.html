@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>扩展管理台 · Sub2API</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
   <style>
 :root {
   --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
@@ -52,10 +55,22 @@ button.danger{background:rgba(244,63,94,.1); color:var(--danger); border:1px sol
 .topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
 .topnav a{
   text-decoration:none; color:var(--text); font-size:.75rem; font-weight:650;
-  border:1px solid var(--border); border-radius:999px; padding:5px 10px; background:rgba(127,127,127,.06);
+  border:1px solid var(--border); border-radius:999px; padding:5px 10px 5px 8px; background:rgba(127,127,127,.06);
+  display:inline-flex; align-items:center; gap:6px;
 }
 .topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
 html.light .topnav a.active{color:#4f46e5}
+.topnav a{display:inline-flex; align-items:center; gap:6px}
+.topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
+.brand-title{display:flex; align-items:center; gap:10px}
+.brand-title .logo{width:34px; height:34px; border-radius:10px; flex:none; box-shadow:0 6px 16px rgba(91,140,255,.18)}
+.brand-title .logo.dark{display:block}
+.brand-title .logo.light{display:none}
+html.light .brand-title .logo.dark{display:none}
+html.light .brand-title .logo.light{display:block}
+.brand-title h1{margin:0}
+.modnav button{display:inline-flex; align-items:center; gap:6px}
+.modnav button svg{width:14px; height:14px; flex:none; opacity:.9}
 .chip,.badge{
   display:inline-flex; align-items:center; gap:6px; font-size:.72rem; font-weight:700;
   padding:5px 10px; border-radius:999px; border:1px solid var(--border); background:var(--soft); color:var(--muted); white-space:nowrap;
@@ -210,11 +225,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     <header class="top">
       <div>
         <div class="topnav">
-          <a href="./home.html">扩展中心</a>
-          <a href="./">每日签到</a>
-          <a class="active" href="./admin.html">管理台</a>
+          <a href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>扩展中心</a>
+          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a class="active" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
-        <h1>扩展管理台</h1>
+        <div class="brand-title">
+          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <h1>扩展管理台</h1>
+        </div>
         <p class="lead">配置与运维中心 · 签到 / 巡检 · 模块入口见扩展中心</p>
       </div>
       <div class="top-meta">
@@ -225,8 +244,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     </header>
 
     <div class="modnav" role="tablist" aria-label="管理模块">
-      <button type="button" class="active" id="nav-checkin">每日签到</button>
-      <button type="button" id="nav-patrol">账号巡检</button>
+      <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
+      <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
     </div>
 
     <details class="fold" id="authDetails" open>
@@ -560,12 +579,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     }
     const THEME_KEY='sub2api_ext_theme';
     const THEME_KEY_LEGACY='sub2api_admin_theme';
+    function applyFavicon(light){
+      const link = document.getElementById('favicon');
+      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+    }
     function initTheme(){
       const q=(params.get('theme')||'').toLowerCase();
       let saved='';
       try{ saved=localStorage.getItem(THEME_KEY)||localStorage.getItem(THEME_KEY_LEGACY)||''; }catch{}
       const light=q==='light' || (!q && saved==='light');
       document.documentElement.classList.toggle('light', !!light);
+      applyFavicon(!!light);
       const b=el('themeBtn');
       if(b) b.textContent=light?'深色':'浅色';
     }

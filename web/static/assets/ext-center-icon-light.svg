@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="扩展中心">
+  <defs>
+    <linearGradient id="g" x1="18" y1="14" x2="110" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(15,23,42,.08)" stroke-width="1.5"/>
+  <circle cx="64" cy="64" r="38" fill="none" stroke="url(#g)" stroke-width="1.5" stroke-dasharray="3 5" opacity=".45"/>
+  <g fill="url(#g)">
+    <rect x="22" y="22" width="24" height="24" rx="7"/>
+    <rect x="82" y="22" width="24" height="24" rx="7"/>
+    <rect x="22" y="82" width="24" height="24" rx="7"/>
+    <rect x="82" y="82" width="24" height="24" rx="7"/>
+  </g>
+  <g stroke="#64748b" stroke-width="3" stroke-linecap="round" opacity=".35">
+    <path d="M46 46 L64 64"/><path d="M82 46 L64 64"/><path d="M46 82 L64 64"/><path d="M82 82 L64 64"/>
+  </g>
+  <circle cx="64" cy="64" r="18" fill="url(#g)"/>
+  <g fill="#fff">
+    <circle cx="64" cy="64" r="3.5"/>
+    <rect x="61.5" y="52" width="5" height="10" rx="2.5"/>
+    <rect x="61.5" y="66" width="5" height="10" rx="2.5"/>
+    <rect x="52" y="61.5" width="10" height="5" rx="2.5"/>
+    <rect x="66" y="61.5" width="10" height="5" rx="2.5"/>
+  </g>
+</svg>
