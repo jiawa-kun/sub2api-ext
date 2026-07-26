@@ -47,9 +47,9 @@ web/static/
   admin.html               扩展管理台（签到 + 账号巡检）
 configs/                   配置示例
 deploy/                    Nginx 完整配置 / 片段
-scripts/deploy-server.ps1  一键部署脚本（参数可改）
+scripts/deploy-server.ps1  一键部署/更新脚本（远程拉镜像）
 docker-compose.yml
-Dockerfile                 多阶段构建（GHCR 发布用）
+Dockerfile                 多阶段构建（仅 CI 发布 GHCR 镜像用）
 .github/workflows/          GitHub Actions 构建并推送镜像
 ```
 
@@ -251,8 +251,8 @@ ghcr.io/jiawa-kun/sub2api-ext:sha-<commit>
 
 ```bash
 cd /opt/sub2api-ext
-# 可选：固定版本
-# export IMAGE=ghcr.io/jiawa-kun/sub2api-ext:latest
+# 默认跟随 latest；仅回滚时才固定版本
+# export IMAGE=ghcr.io/jiawa-kun/sub2api-ext:sha-xxxxxxx
 docker compose pull
 docker compose up -d
 curl -sS http://127.0.0.1:8090/ext/healthz
@@ -262,7 +262,7 @@ Windows 一键部署（上传 compose 后远程 pull）：
 
 ```powershell
 .\scripts\deploy-server.ps1 -HostName your-vps -RemoteDir /opt/sub2api-ext
-.\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxx
+.\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxxxxx
 ```
 
 > 若 GHCR 包为私有，服务器需先 `docker login ghcr.io`。公开仓库建议把 Package 设为 Public。
@@ -288,22 +288,30 @@ go run ./cmd/server -config configs/config.yaml
 
 ## 部署到服务器
 
-### 一键部署（本机 Windows）
+### 一键部署 / 更新（本机 Windows）
 
 ```powershell
 cd E:\Projects\GoProjects\sub2api-ext
 .\scripts\deploy-server.ps1
 ```
 
-流程：交叉编译 Linux 二进制 → scp → 远端 `docker build` + `compose up`。  
+流程：上传 compose/`.env.example` → 远端 `docker pull` **最新镜像** → `compose up -d --force-recreate` → 健康检查 → 清理悬空镜像。  
 **不会覆盖** 远端已有 `.env`。
+
+> 已不再支持「本地交叉编译 + 远端 docker build」。镜像统一由 GitHub Actions 构建并发布到 GHCR，服务器只负责拉取。
 
 常用参数：
 
 ```powershell
-.\scripts\deploy-server.ps1 -Logs    # 看日志
-.\scripts\deploy-server.ps1 -Down    # 停容器
-.\scripts\deploy-server.ps1 -NoCache # 无缓存构建
+.\scripts\deploy-server.ps1 -Logs     # 看日志
+.\scripts\deploy-server.ps1 -Down     # 停容器
+.\scripts\deploy-server.ps1 -NoPrune  # 保留悬空镜像，不自动清理
+
+# 回滚/固定版本：会在远端 .env 写入 IMAGE=<指定版本>
+.\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxxxxx
+
+# 回到跟随 latest：不带 -Image 再跑一次，脚本会自动删掉 .env 里的 IMAGE 固定行
+.\scripts\deploy-server.ps1
 ```
 
 ### Nginx
@@ -321,7 +329,7 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Docker Compose 要点
 
-- 镜像：`sub2api-ext:local`
+- 镜像：`${IMAGE:-ghcr.io/jiawa-kun/sub2api-ext:latest}`（`.env` 未固定 `IMAGE` 时即为 latest）
 - 端口：`127.0.0.1:8090:8090`
 - 网络：加入 `sub2api-deploy_sub2api-network` 以便访问 `http://sub2api:8080`
 - 数据：`./data:/data`

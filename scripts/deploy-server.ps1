@@ -1,9 +1,14 @@
-# Deploy sub2api-ext by pulling image from GitHub Container Registry (GHCR).
-# Flow: upload compose/config -> remote docker pull -> compose up
+# Deploy sub2api-ext by pulling the published image from GitHub Container Registry (GHCR).
+# Flow: upload compose/config -> remote docker pull -> compose recreate -> health check -> prune
+#
+# Default behaviour is always "pull the latest remote image".
+# Local cross-compile + remote docker build is no longer supported.
 #
 # Usage:
+#   .\scripts\deploy-server.ps1                       # update to latest
 #   .\scripts\deploy-server.ps1 -HostName your-vps -RemoteDir /opt/sub2api-ext
-#   .\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:latest
+#   .\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxxxxx   # pin / rollback
+#   .\scripts\deploy-server.ps1 -NoPrune              # keep dangling images
 #   .\scripts\deploy-server.ps1 -Logs
 #   .\scripts\deploy-server.ps1 -Down
 
@@ -11,14 +16,18 @@ param(
     [string]$HostName = "your-vps",
     [int]$SshPort = 22,
     [string]$RemoteDir = "/opt/sub2api-ext",
-    # Legacy names only used for one-time migration from old project.
+    # Legacy names only used for one-time migration from the old project layout.
     [string]$LegacyRemoteDir = "/opt/sub2api-checkin",
     [string]$LegacyContainerName = "sub2api-checkin",
+    [string]$LegacyImageName = "sub2api-ext:local",
     [string]$ContainerName = "sub2api-ext",
-    [string]$Image = "ghcr.io/jiawa-kun/sub2api-ext:latest",
+    # Empty means: follow latest and keep remote .env unpinned.
+    [string]$Image = "",
+    [string]$LatestImage = "ghcr.io/jiawa-kun/sub2api-ext:latest",
     [string]$ServiceName = "ext",
     [int]$WebPort = 8090,
     [string]$IdentityFile = "",
+    [switch]$NoPrune,
     [switch]$Logs,
     [switch]$Down
 )
@@ -26,6 +35,11 @@ param(
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 Set-Location -LiteralPath $ProjectRoot
+
+$Pinned = -not [string]::IsNullOrWhiteSpace($Image)
+if ($Pinned) { $TargetImage = $Image.Trim() } else { $TargetImage = $LatestImage }
+if ($Pinned) { $PinFlag = "1" } else { $PinFlag = "0" }
+if ($NoPrune) { $PruneFlag = "0" } else { $PruneFlag = "1" }
 
 function Invoke-SSH([string]$RemoteCommand) {
     $RemoteCommand = $RemoteCommand -replace "`r`n", "`n" -replace "`r", "`n"
@@ -104,7 +118,11 @@ if (Test-Path $snippet) {
     Invoke-SCP @($snippet) "$RemoteDir/deploy/"
 }
 
-Write-Host "==> prepare remote .env and pin IMAGE=$Image"
+if ($Pinned) {
+    Write-Host "==> prepare remote .env and pin IMAGE=$TargetImage"
+} else {
+    Write-Host "==> prepare remote .env and unpin IMAGE (always follow latest)"
+}
 $prep = @'
 set -e
 cd "__REMOTE_DIR__"
@@ -114,24 +132,42 @@ if [ ! -f .env ]; then
 else
   echo KEEP_EXISTING_ENV=1
 fi
-if grep -q '^IMAGE=' .env 2>/dev/null; then
-  sed -i "s|^IMAGE=.*|IMAGE=__IMAGE__|" .env
+if [ "__PIN__" = "1" ]; then
+  if grep -q '^IMAGE=' .env 2>/dev/null; then
+    sed -i "s|^IMAGE=.*|IMAGE=__IMAGE__|" .env
+  else
+    printf "\nIMAGE=__IMAGE__\n" >> .env
+  fi
+  echo "PINNED_IMAGE=__IMAGE__"
 else
-  printf "\nIMAGE=__IMAGE__\n" >> .env
+  if grep -q '^IMAGE=' .env 2>/dev/null; then
+    sed -i "/^IMAGE=/d" .env
+    echo UNPINNED_IMAGE=1
+  else
+    echo NO_IMAGE_PIN=1
+  fi
 fi
 mkdir -p data
 chmod 777 data || true
 '@
-$prep = $prep.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $Image)
+$prep = $prep.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $TargetImage).Replace("__PIN__", $PinFlag)
 Invoke-SSH $prep
 
-Write-Host "==> remote pull image and recreate: $Image"
+Write-Host "==> remote pull and recreate: $TargetImage"
 $up = @'
 set -e
 cd "__REMOTE_DIR__"
 export IMAGE="__IMAGE__"
+OLD_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
 echo "pulling $IMAGE"
 docker pull "$IMAGE"
+NEW_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
+if [ -n "$OLD_ID" ] && [ "$OLD_ID" = "$NEW_ID" ]; then
+  echo "image_changed=0 (already up to date)"
+else
+  echo "image_changed=1"
+fi
+echo "image_id=$NEW_ID"
 docker compose up -d --force-recreate --no-deps __SERVICE__
 sleep 2
 set +e
@@ -146,12 +182,37 @@ docker ps --filter "name=__CONTAINER__"
 echo "--- logs ---"
 docker logs --tail 40 "__CONTAINER__" || true
 '@
-$up = $up.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $Image).Replace("__SERVICE__", $ServiceName).Replace("__WEBPORT__", "$WebPort").Replace("__CONTAINER__", $ContainerName)
+$up = $up.Replace("__REMOTE_DIR__", $RemoteDir).Replace("__IMAGE__", $TargetImage).Replace("__SERVICE__", $ServiceName).Replace("__WEBPORT__", "$WebPort").Replace("__CONTAINER__", $ContainerName)
 Invoke-SSH $up
 
+if ($PruneFlag -eq "1") {
+    Write-Host "==> cleanup old images"
+    $prune = @'
+set +e
+OLD_IMG="__LEGACY_IMAGE__"
+if [ -n "$OLD_IMG" ] && docker image inspect "$OLD_IMG" >/dev/null 2>&1; then
+  echo "removing legacy image $OLD_IMG"
+  docker image rm -f "$OLD_IMG" >/dev/null 2>&1 || true
+fi
+docker image prune -f
+echo "--- sub2api-ext images ---"
+docker images --filter "reference=*sub2api-ext*" --format '{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}'
+'@
+    $prune = $prune.Replace("__LEGACY_IMAGE__", $LegacyImageName)
+    Invoke-SSH $prune
+} else {
+    Write-Host "==> skip image cleanup (-NoPrune)"
+}
+
 Write-Host ""
-Write-Host "==> deploy done (image pull mode)"
-Write-Host "Image: $Image"
+Write-Host "==> deploy done (remote image pull mode)"
+Write-Host "Image: $TargetImage"
+if ($Pinned) {
+    Write-Host "Mode : pinned (remote .env IMAGE=$TargetImage)"
+    Write-Host "       run without -Image to go back to latest"
+} else {
+    Write-Host "Mode : latest (remote .env has no IMAGE pin)"
+}
 Write-Host "Tips:"
 Write-Host "  1) ensure GHCR package is public, or docker login ghcr.io on server"
 Write-Host "  2) first time: edit remote .env (SUB2API_ADMIN_API_KEY / SUB2API_PUBLIC_HOST)"
