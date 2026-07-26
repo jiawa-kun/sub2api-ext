@@ -22,6 +22,7 @@ const (
 	TypePatrolRunFinished  = "patrol.run_finished"
 	TypePatrolAccountAction = "patrol.account_action"
 	TypeCheckinBudget      = "checkin.budget_exhausted"
+	TypeLotteryBudget      = "lottery.budget_exhausted"
 	TypeSettingsChanged    = "settings.changed"
 	TypeTest               = "notify.test"
 )
@@ -32,6 +33,7 @@ func AllTypes() []string {
 		TypePatrolRunFinished,
 		TypePatrolAccountAction,
 		TypeCheckinBudget,
+		TypeLotteryBudget,
 		TypeSettingsChanged,
 	}
 }
@@ -45,6 +47,8 @@ func TypeLabel(t string) string {
 		return "账号被下线/删除"
 	case TypeCheckinBudget:
 		return "签到日预算耗尽"
+	case TypeLotteryBudget:
+		return "抽奖日预算耗尽"
 	case TypeSettingsChanged:
 		return "配置被修改"
 	case TypeTest:

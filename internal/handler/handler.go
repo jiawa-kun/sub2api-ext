@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/metrics"
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
@@ -33,6 +34,7 @@ type Handler struct {
 	settings *settings.Service
 	patrol   *patrol.Service
 	notifier *notify.Notifier
+	lottery  *lottery.Settings
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter

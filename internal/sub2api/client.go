@@ -225,7 +225,17 @@ func (c *Client) Ping(ctx context.Context) error {
 }
 
 // AddBalance calls admin balance API: POST /api/v1/admin/users/:id/balance
+// using the default "checkin" idempotency scope.
 func (c *Client) AddBalance(ctx context.Context, userID int64, amount float64, notes, checkinDate string) (*User, error) {
+	return c.AddBalanceScoped(ctx, IdempotencyScopeCheckin, userID, amount, notes, checkinDate)
+}
+
+// AddBalanceScoped credits a user with an explicit idempotency scope.
+//
+// The scope keeps concurrent grant sources apart: check-in and lottery may
+// credit the same user on the same day, and a shared key would make the
+// upstream swallow the second call as a duplicate.
+func (c *Client) AddBalanceScoped(ctx context.Context, scope string, userID int64, amount float64, notes, slot string) (*User, error) {
 	if amount <= 0 {
 		return nil, fmt.Errorf("amount must be > 0")
 	}
@@ -248,11 +258,7 @@ func (c *Client) AddBalance(ctx context.Context, userID int64, amount float64, n
 	req.Header.Set("Accept", "application/json")
 	// sub2api 要求 Idempotency-Key 为可打印 ASCII 且无空格，长度 <= 128
 	// notes 可能含空格，不能直接拼进 key
-	datePart := sanitizeIdempotencyPart(checkinDate)
-	if datePart == "" || datePart == "na" {
-		datePart = "unknown"
-	}
-	req.Header.Set("Idempotency-Key", fmt.Sprintf("checkin-%d-%s", userID, datePart))
+	req.Header.Set("Idempotency-Key", IdempotencyKey(scope, userID, slot))
 	c.applyInternalHost(req)
 
 	body, status, err := c.do(req)
@@ -462,6 +468,29 @@ func truncate(b []byte, n int) string {
 }
 
 // sanitizeIdempotencyPart 把备注等文本压成合法 idempotency 片段（无空格、可打印 ASCII）
+// Idempotency scopes for AddBalanceScoped.
+const (
+	IdempotencyScopeCheckin = "checkin"
+	IdempotencyScopeLottery = "lottery"
+)
+
+// IdempotencyKey builds the upstream Idempotency-Key header value.
+//
+// sub2api requires printable ASCII without spaces, max 128 chars, so every
+// dynamic part is sanitized. The "checkin" scope must keep producing exactly
+// "checkin-<id>-<date>" for backward compatibility with already-issued keys.
+func IdempotencyKey(scope string, userID int64, slot string) string {
+	scopePart := sanitizeIdempotencyPart(scope)
+	if scopePart == "" || scopePart == "na" {
+		scopePart = IdempotencyScopeCheckin
+	}
+	slotPart := sanitizeIdempotencyPart(slot)
+	if slotPart == "" || slotPart == "na" {
+		slotPart = "unknown"
+	}
+	return fmt.Sprintf("%s-%d-%s", scopePart, userID, slotPart)
+}
+
 func sanitizeIdempotencyPart(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {

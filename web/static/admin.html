@@ -246,6 +246,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     <div class="modnav" role="tablist" aria-label="管理模块">
       <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
       <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
+<button type="button" id="nav-lottery"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 8.7l5.4-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>幸运抽奖</button>
 <button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
     </div>
 
@@ -635,6 +636,68 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
+    <div id="sec-lottery" class="hidden">
+      <div class="card" id="lotteryCard">
+        <div class="card-head">
+          <div>
+            <h2>幸运抽奖</h2>
+            <div class="hint">签到后每日一次抽奖。奖项名称、额度与权重均可自由配置。</div>
+          </div>
+          <span class="badge" id="lotteryBadge">—</span>
+        </div>
+
+        <div class="grid">
+          <div class="col">
+            <label class="switch"><input id="lotteryEnabled" type="checkbox" /><span>启用抽奖</span></label>
+            <label class="switch"><input id="lotteryRequireCheckin" type="checkbox" /><span>需先完成当日签到</span></label>
+          </div>
+          <div class="col">
+            <div class="field">
+              <label for="lotteryDailyBudget">抽奖日预算</label>
+              <input id="lotteryDailyBudget" type="number" step="0.0001" min="0" placeholder="0" />
+              <div class="hint">0 表示不限制。与签到日预算相互独立。</div>
+            </div>
+            <div class="field">
+              <label for="lotteryHardCap">单次上限</label>
+              <input id="lotteryHardCap" type="number" step="0.0001" min="0" placeholder="0" />
+              <div class="hint">0 表示不钳制。超过此额度的奖项按上限发放。</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>奖池配置</label>
+          <div class="hint">权重越大中奖概率越高；额度填 0 即为“未中奖”奖项。最多 12 项。</div>
+          <table class="tbl" id="lotteryPrizeTable">
+            <thead><tr><th>奖项名称</th><th style="width:140px">额度</th><th style="width:120px">权重</th><th style="width:100px">概率</th><th style="width:60px"></th></tr></thead>
+            <tbody id="lotteryPrizeBody"></tbody>
+          </table>
+          <div class="toolbar">
+            <button type="button" class="secondary sm" id="btnLotteryAddPrize">新增奖项</button>
+            <button type="button" class="secondary sm" id="btnLotteryResetPrize">恢复默认奖池</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="sm" id="btnLotterySave">保存抽奖配置</button>
+          <button type="button" class="secondary sm" id="btnLotteryRefresh">刷新</button>
+        </div>
+
+        <div class="card-head" style="margin-top:18px">
+          <div><h2 style="font-size:16px">抽奖数据</h2></div>
+          <span class="badge" id="lotteryStatsBadge">—</span>
+        </div>
+        <div class="hint" id="lotteryStats">—</div>
+        <table class="tbl">
+          <thead><tr><th>时间</th><th>用户</th><th>日期</th><th>奖项</th><th>额度</th></tr></thead>
+          <tbody id="lotteryDrawBody"><tr><td colspan="5" class="hint">—</td></tr></tbody>
+        </table>
+        <div class="toolbar">
+          <button type="button" class="secondary sm" id="btnLotteryDrawsRefresh">刷新记录</button>
+        </div>
+      </div>
+    </div>
+
   <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
@@ -647,7 +710,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
-      const secs=['checkin','patrol','notify'];
+      const secs=['checkin','patrol','notify','lottery'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -655,11 +718,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(tab) tab.classList.toggle('active', s===name);
       });
       const dock=el('checkinSaveDock'); if(dock) dock.style.display=(name==='checkin')?'flex':'none';
-      if(name==='patrol' || name==='notify'){
+      if(name==='patrol' || name==='notify' || name==='lottery'){
         try{ history.replaceState(null,'','#'+name); }catch{}
       } else {
         const h=(location.hash||'').toLowerCase();
-        try{ if(h==='#patrol'||h==='#notify') history.replaceState(null,'',location.pathname+location.search); }catch{}
+        try{ if(h==='#patrol'||h==='#notify'||h==='#lottery') history.replaceState(null,'',location.pathname+location.search); }catch{}
       }
     }
     const THEME_KEY='sub2api_ext_theme';
@@ -1589,6 +1652,112 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     el('btnPatrolHealth').onclick=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
     el('patrolHealthOnlyProblem').onchange=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
     el('notifyChannel').onchange=()=>applyNotifyChannelUI();
+    // ---- lottery ----
+    let lotteryPrizes=[];
+    const LOTTERY_DEFAULT_PRIZES=[
+      {label:'谢谢参与',amount:0,weight:40},
+      {label:'0.5 额度',amount:0.5,weight:30},
+      {label:'1 额度',amount:1,weight:20},
+      {label:'5 额度',amount:5,weight:9},
+      {label:'10 额度',amount:10,weight:1}
+    ];
+    function lotteryEsc(v){
+      const d=document.createElement('div');
+      d.textContent=v==null?'':String(v);
+      return d.innerHTML;
+    }
+    function renderLotteryPrizes(){
+      const body=el('lotteryPrizeBody');
+      if(!body) return;
+      if(!lotteryPrizes.length){
+        body.innerHTML='<tr><td colspan="5" class="hint">奖池为空，请新增奖项</td></tr>';
+        return;
+      }
+      const total=lotteryPrizes.reduce((a,p)=>a+(Number(p.weight)>0?Number(p.weight):0),0);
+      body.innerHTML=lotteryPrizes.map((p,i)=>{
+        const w=Number(p.weight)>0?Number(p.weight):0;
+        const pct=total>0?((w/total)*100).toFixed(2)+'%':'—';
+        return '<tr>'
+          +'<td><input type="text" data-lot="label" data-i="'+i+'" value="'+lotteryEsc(p.label)+'" maxlength="24" /></td>'
+          +'<td><input type="number" step="0.0001" min="0" data-lot="amount" data-i="'+i+'" value="'+lotteryEsc(p.amount)+'" /></td>'
+          +'<td><input type="number" step="1" min="0" data-lot="weight" data-i="'+i+'" value="'+lotteryEsc(p.weight)+'" /></td>'
+          +'<td class="hint">'+pct+'</td>'
+          +'<td><button type="button" class="secondary sm" data-lot="del" data-i="'+i+'">删除</button></td>'
+          +'</tr>';
+      }).join('');
+      body.querySelectorAll('[data-lot]').forEach(node=>{
+        const idx=Number(node.getAttribute('data-i'));
+        const kind=node.getAttribute('data-lot');
+        if(kind==='del'){
+          node.onclick=()=>{ lotteryPrizes.splice(idx,1); renderLotteryPrizes(); };
+          return;
+        }
+        node.oninput=()=>{
+          if(kind==='label') lotteryPrizes[idx].label=node.value;
+          else lotteryPrizes[idx][kind]=Number(node.value);
+          if(kind==='weight') renderLotteryPrizes();
+        };
+      });
+    }
+    function fillLottery(s){
+      if(!s) return;
+      el('lotteryEnabled').checked=!!s.enabled;
+      el('lotteryRequireCheckin').checked=s.require_checkin!==false;
+      el('lotteryDailyBudget').value=String(s.daily_budget||0);
+      el('lotteryHardCap').value=String(s.hard_cap||0);
+      lotteryPrizes=(s.prizes||[]).map(p=>({label:p.label,amount:Number(p.amount)||0,weight:Number(p.weight)||0}));
+      renderLotteryPrizes();
+      const badge=el('lotteryBadge');
+      if(badge) badge.textContent=s.enabled?'已启用':'未启用';
+    }
+    async function refreshLottery(){
+      const data=await api('./api/admin/lottery/settings');
+      fillLottery(data.settings||{});
+    }
+    async function saveLottery(){
+      const payload={
+        enabled: el('lotteryEnabled').checked,
+        require_checkin: el('lotteryRequireCheckin').checked,
+        daily_budget: Number(el('lotteryDailyBudget').value)||0,
+        hard_cap: Number(el('lotteryHardCap').value)||0,
+        prizes: lotteryPrizes.map(p=>({label:String(p.label||''),amount:Number(p.amount)||0,weight:Math.round(Number(p.weight)||0)}))
+      };
+      const data=await api('./api/admin/lottery/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      fillLottery(data.settings||{});
+    }
+    async function refreshLotteryStats(){
+      const s=await api('./api/admin/lottery/stats');
+      const box=el('lotteryStats');
+      if(box){
+        const parts=['今日抽奖 '+(s.today_draws||0)+' 次','今日发放 '+Number(s.today_amount||0).toFixed(4),'累计 '+(s.total_draws||0)+' 次 / 中奖 '+(s.total_winners||0)+' 次 / 共 '+Number(s.total_amount||0).toFixed(4)];
+        if(s.budget_left!=null) parts.push('剩余预算 '+Number(s.budget_left).toFixed(4));
+        box.textContent=parts.join(' · ');
+      }
+      const badge=el('lotteryStatsBadge');
+      if(badge) badge.textContent=(s.today||'')+' 共 '+(s.today_draws||0)+' 次';
+    }
+    async function refreshLotteryDraws(){
+      const body=el('lotteryDrawBody');
+      if(!body) return;
+      body.innerHTML='<tr><td colspan="5" class="hint">加载中…</td></tr>';
+      const data=await api('./api/admin/lottery/draws?limit=50');
+      const items=data.items||[];
+      if(!items.length){
+        body.innerHTML='<tr><td colspan="5" class="hint">暂无记录</td></tr>';
+        return;
+      }
+      body.innerHTML=items.map(d=>{
+        const t=d.created_at?new Date(d.created_at):null;
+        const when=(t&&!isNaN(t.getTime()))?t.toLocaleString():'—';
+        const amt=Number(d.amount)>0?Number(d.amount).toFixed(4):'—';
+        return '<tr><td>'+lotteryEsc(when)+'</td><td>'+lotteryEsc(d.user_id)+'</td><td>'+lotteryEsc(d.draw_date)+'</td><td>'+lotteryEsc(d.prize_label||'—')+'</td><td>'+amt+'</td></tr>';
+      }).join('');
+    }
+    async function refreshLotteryAll(){
+      await refreshLottery();
+      await Promise.all([refreshLotteryStats().catch(()=>{}), refreshLotteryDraws().catch(()=>{})]);
+    }
+
     el('btnNotifyRefresh').onclick=()=>refreshNotify().then(()=>show('通知配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     el('btnNotifySave').onclick=async()=>{
       el('btnNotifySave').disabled=true;
@@ -1619,10 +1788,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navCheckin=el('nav-checkin'); if(navCheckin) navCheckin.onclick=(e)=>{ e.preventDefault(); setAdminSection('checkin'); };
     const navPatrol=el('nav-patrol'); if(navPatrol) navPatrol.onclick=(e)=>{ e.preventDefault(); setAdminSection('patrol'); };
     const navNotify=el('nav-notify'); if(navNotify) navNotify.onclick=(e)=>{ e.preventDefault(); setAdminSection('notify'); refreshNotify().catch(e2=>show(e2.message||String(e2),'err')); };
+    const navLottery=el('nav-lottery'); if(navLottery) navLottery.onclick=(e)=>{ e.preventDefault(); setAdminSection('lottery'); refreshLotteryAll().catch(e2=>show(e2.message||String(e2),'err')); };
+    const btnLotSave=el('btnLotterySave'); if(btnLotSave) btnLotSave.onclick=()=>saveLottery().then(()=>show('抽奖配置已保存','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnLotRefresh=el('btnLotteryRefresh'); if(btnLotRefresh) btnLotRefresh.onclick=()=>refreshLotteryAll().then(()=>show('抽奖配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnLotDraws=el('btnLotteryDrawsRefresh'); if(btnLotDraws) btnLotDraws.onclick=()=>Promise.all([refreshLotteryStats(),refreshLotteryDraws()]).then(()=>show('记录已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnLotAdd=el('btnLotteryAddPrize'); if(btnLotAdd) btnLotAdd.onclick=()=>{ if(lotteryPrizes.length>=12){ show('最多 12 个奖项','err'); return; } lotteryPrizes.push({label:'新奖项',amount:0,weight:1}); renderLotteryPrizes(); };
+    const btnLotReset=el('btnLotteryResetPrize'); if(btnLotReset) btnLotReset.onclick=()=>{ lotteryPrizes=LOTTERY_DEFAULT_PRIZES.map(p=>({...p})); renderLotteryPrizes(); };
     const themeBtn=el('themeBtn'); if(themeBtn) themeBtn.onclick=()=>toggleTheme();
     const initHash=(location.hash||'').toLowerCase();
     if(initHash==='#patrol') setAdminSection('patrol');
     else if(initHash==='#notify'){ setAdminSection('notify'); refreshNotify().catch(()=>{}); }
+    else if(initHash==='#lottery'){ setAdminSection('lottery'); refreshLotteryAll().catch(()=>{}); }
     else setAdminSection('checkin');
 
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;

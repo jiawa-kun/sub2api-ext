@@ -15,6 +15,7 @@ type Config struct {
 	Checkin  CheckinConfig  `yaml:"checkin"`
 	Patrol   PatrolConfig   `yaml:"patrol"`
 	Notify   NotifyConfig   `yaml:"notify"`
+	Lottery  LotteryConfig  `yaml:"lottery"`
 	Sub2API  Sub2APIConfig  `yaml:"sub2api"`
 	Store    StoreConfig    `yaml:"store"`
 	Security SecurityConfig `yaml:"security"`
@@ -92,6 +93,28 @@ type NotifyConfig struct {
 	MinLevel string `yaml:"min_level"`
 }
 
+// LotteryPrizeConfig is one startup-default prize slot.
+type LotteryPrizeConfig struct {
+	Label  string  `yaml:"label"`
+	Amount float64 `yaml:"amount"`
+	Weight int     `yaml:"weight"`
+}
+
+// LotteryConfig is the startup default for the daily draw module.
+// Values changed from the admin page are stored in SQLite and win.
+type LotteryConfig struct {
+	// Enabled turns the draw on. Defaults to false so an upgrade is a no-op.
+	Enabled bool `yaml:"enabled"`
+	// RequireCheckin gates the draw behind today's check-in.
+	RequireCheckin bool `yaml:"require_checkin"`
+	// Prizes is the weighted pool; empty falls back to built-in defaults.
+	Prizes []LotteryPrizeConfig `yaml:"prizes"`
+	// DailyBudget caps credited amount per day; 0 means unlimited.
+	DailyBudget float64 `yaml:"daily_budget"`
+	// HardCap clamps a single prize; 0 means unclamped.
+	HardCap float64 `yaml:"hard_cap"`
+}
+
 type StoreConfig struct {
 	SQLitePath string `yaml:"sqlite_path"`
 }
@@ -141,6 +164,13 @@ func Default() Config {
 			Timezone:                "Asia/Shanghai",
 			KeepRuns:                50,
 			FailThreshold:           1,
+		},
+		Lottery: LotteryConfig{
+			Enabled:        false,
+			RequireCheckin: true,
+			Prizes:         nil,
+			DailyBudget:    0,
+			HardCap:        0,
 		},
 		Store: StoreConfig{
 			SQLitePath: "./data/checkin.db",
@@ -292,6 +322,22 @@ func applyEnv(cfg *Config) {
 			}
 		}
 		cfg.Notify.Events = out
+	}
+	if v := os.Getenv("LOTTERY_ENABLED"); v != "" {
+		cfg.Lottery.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("LOTTERY_REQUIRE_CHECKIN"); v != "" {
+		cfg.Lottery.RequireCheckin = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("LOTTERY_DAILY_BUDGET"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Lottery.DailyBudget = f
+		}
+	}
+	if v := os.Getenv("LOTTERY_HARD_CAP"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			cfg.Lottery.HardCap = f
+		}
 	}
 	if v := os.Getenv("SQLITE_PATH"); v != "" {
 		cfg.Store.SQLitePath = v

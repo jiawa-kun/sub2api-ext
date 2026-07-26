@@ -12,6 +12,7 @@ import (
 
 	"sub2api-ext/internal/config"
 	"sub2api-ext/internal/handler"
+	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
@@ -52,8 +53,11 @@ func main() {
 	defer notifier.Stop()
 	patrolSvc.SetNotifier(notifier)
 
+	lotterySettings := lottery.NewSettings(st, cfg.Lottery)
+
 	h := handler.New(cfg, st, client, stg, patrolSvc)
 	h.SetNotifier(notifier)
+	h.SetLottery(lotterySettings)
 
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
@@ -105,6 +109,20 @@ func main() {
 		}
 	})
 	mux.HandleFunc(base+"/api/admin/notify/test", h.AdminNotifyTest)
+	mux.HandleFunc(base+"/api/lottery/status", h.LotteryStatus)
+	mux.HandleFunc(base+"/api/lottery/draw", h.LotteryDraw)
+	mux.HandleFunc(base+"/api/admin/lottery/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetLotterySettings(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminUpdateLotterySettings(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc(base+"/api/admin/lottery/draws", h.AdminLotteryDraws)
+	mux.HandleFunc(base+"/api/admin/lottery/stats", h.AdminLotteryStats)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 

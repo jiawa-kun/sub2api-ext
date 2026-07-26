@@ -66,6 +66,18 @@ func Builtin() []Module {
 			Status:      "active",
 			Tags:        []string{"通知", "告警", "运维"},
 		},
+		{
+			ID:          "lottery",
+			Name:        "幸运抽奖",
+			Description: "签到后每日一次抽奖，奖项名称/额度/权重均可后台配置，独立日预算与单次上限。",
+			UserPath:    "./",
+			AdminPath:   "./admin.html#lottery",
+			APIBase:     "./api/lottery",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"余额", "运营", "玩法"},
+		},
 	}
 }
 

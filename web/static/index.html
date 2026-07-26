@@ -154,6 +154,18 @@ details.more .body{padding:0 12px 12px}
 }
 #adminLink{display:none}
 #userLine{max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right}
+  .lottery{margin-top:16px;padding:14px;border-radius:14px;border:1px solid var(--line);background:var(--card-2,rgba(127,127,127,.06))}
+  .lottery-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .lottery-title{font-weight:600;font-size:14px}
+  .lottery-state{font-size:12px;opacity:.7}
+  .lottery-prizes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .lottery-prizes span{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);opacity:.85}
+  .lottery-prizes span.win{border-color:var(--ok,#16a34a);color:var(--ok,#16a34a)}
+  .lottery-result{margin-bottom:10px;padding:10px;border-radius:10px;text-align:center;font-weight:600;font-size:15px}
+  .lottery-result.win{background:rgba(22,163,74,.12);color:var(--ok,#16a34a)}
+  .lottery-result.miss{background:rgba(127,127,127,.12);opacity:.75}
+  .lottery.is-drawing .lottery-prizes span{animation:lotFlash .28s linear infinite}
+  @keyframes lotFlash{0%,100%{opacity:.35}50%{opacity:1}}
   </style>
 </head>
 <body>
@@ -200,6 +212,16 @@ details.more .body{padding:0 12px 12px}
       <button id="btn" class="btn" disabled>签到</button>
       <div id="msg" class="msg"></div>
       <div class="chips" id="milestoneHint" style="display:none"></div>
+
+      <div id="lotteryBox" class="lottery" style="display:none">
+        <div class="lottery-head">
+          <span class="lottery-title">幸运抽奖</span>
+          <span class="lottery-state" id="lotteryState">—</span>
+        </div>
+        <div class="lottery-prizes" id="lotteryPrizes"></div>
+        <div class="lottery-result" id="lotteryResult" style="display:none"></div>
+        <button id="lotteryBtn" class="btn" disabled>抽奖</button>
+      </div>
 
       <details class="more">
         <summary>签到月历</summary>
@@ -719,6 +741,7 @@ details.more .body{padding:0 12px 12px}
         const now=new Date();
         if(!calYear){ calYear=now.getFullYear(); calMonth=now.getMonth()+1; }
         await loadCalendar(calYear, calMonth);
+        await loadLottery();
       }catch(e){
         const friendly=friendlyAuthError(e);
         const expired=isExpiredAuthError(e);
@@ -732,6 +755,90 @@ details.more .body{padding:0 12px 12px}
         if(card) card.classList.remove('is-loading');
       }
     }
+    // ---- lottery ----
+    let lotteryBusy=false;
+    function renderLottery(s){
+      const box=el('lotteryBox');
+      if(!box) return;
+      if(!s || !s.enabled){ box.style.display='none'; return; }
+      box.style.display='block';
+      const prizes=s.prizes||[];
+      const wrap=el('lotteryPrizes');
+      if(wrap){
+        wrap.innerHTML=prizes.map(p=>{
+          const win=Number(p.amount)>0;
+          const label=String(p.label==null?'':p.label);
+          const d=document.createElement('div');
+          d.textContent=label;
+          return '<span class="'+(win?'win':'')+'">'+d.innerHTML+'</span>';
+        }).join('');
+      }
+      const btn=el('lotteryBtn');
+      const state=el('lotteryState');
+      if(s.drawn_today){
+        if(state) state.textContent='今日已抽';
+        const res=el('lotteryResult');
+        if(res && s.today_prize){
+          const won=Number(s.today_amount)>0;
+          res.style.display='block';
+          res.className='lottery-result '+(won?'win':'miss');
+          res.textContent=won?('今日抽中 '+s.today_prize+' · +'+money(s.today_amount)):('今日：'+s.today_prize);
+        }
+        if(btn){ btn.disabled=true; btn.textContent='明天再来'; btn.className='btn done'; }
+        return;
+      }
+      if(state) state.textContent=s.can_draw?'可抽奖':(s.reason||'暂不可抽');
+      if(btn){
+        if(s.can_draw){ btn.disabled=false; btn.textContent='立即抽奖'; btn.className='btn primary'; }
+        else { btn.disabled=true; btn.textContent=s.reason||'暂不可抽'; btn.className='btn ghost'; }
+      }
+    }
+    async function loadLottery(){
+      try{
+        const s=await api('./api/lottery/status');
+        renderLottery(s);
+      }catch{
+        const box=el('lotteryBox');
+        if(box) box.style.display='none';
+      }
+    }
+    async function doDraw(){
+      if(lotteryBusy) return;
+      lotteryBusy=true;
+      const box=el('lotteryBox');
+      const btn=el('lotteryBtn');
+      if(btn){ btn.disabled=true; btn.textContent='抽奖中…'; }
+      if(box) box.classList.add('is-drawing');
+      try{
+        // brief spin so the result does not appear instantly
+        await new Promise(r=>setTimeout(r,600));
+        const r=await api('./api/lottery/draw',{method:'POST'});
+        const res=el('lotteryResult');
+        if(res){
+          res.style.display='block';
+          if(r.status==='win'){
+            res.className='lottery-result win';
+            res.textContent='恭喜抽中 '+(r.prize_label||'')+' · +'+money(r.amount);
+            showMsg('抽奖成功，到账 '+money(r.amount),'ok');
+          } else if(r.status==='miss'){
+            res.className='lottery-result miss';
+            res.textContent=(r.prize_label||'谢谢参与');
+            showMsg('很遗憾，本次未中奖','warn');
+          } else {
+            res.style.display='none';
+            showMsg(r.message||'暂不可抽奖','warn');
+          }
+        }
+        await loadLottery();
+        if(r.status==='win'){ await load(); }
+      }catch(e){
+        showMsg(friendlyAuthError(e),'err');
+      }finally{
+        if(box) box.classList.remove('is-drawing');
+        lotteryBusy=false;
+      }
+    }
+
     el('calPrev').onclick=()=>{ let y=calYear,m=calMonth-1; if(m<1){m=12;y--;} loadCalendar(y,m); };
     el('calNext').onclick=()=>{ let y=calYear,m=calMonth+1; if(m>12){m=1;y++;} loadCalendar(y,m); };
 
@@ -757,6 +864,9 @@ details.more .body{padding:0 12px 12px}
         el('btn').disabled=false;
       }
     };
+
+    const lotBtn=el('lotteryBtn');
+    if(lotBtn) lotBtn.onclick=()=>doDraw();
     initTheme();
     wireInternalNav();
     const themeBtn = el('themeBtn');

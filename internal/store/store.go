@@ -145,6 +145,30 @@ CREATE INDEX IF NOT EXISTS idx_patrol_account_state_fail
 	if err != nil {
 		return err
 	}
+
+	// The UNIQUE(user_id, draw_date) index is what actually enforces
+	// "one draw per user per day"; the handler check is only a fast path.
+	_, err = s.db.Exec(`
+CREATE TABLE IF NOT EXISTS lottery_draws (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  draw_date TEXT NOT NULL,
+  prize_label TEXT NOT NULL DEFAULT '',
+  prize_type TEXT NOT NULL DEFAULT 'none',
+  amount REAL NOT NULL DEFAULT 0,
+  new_balance REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_lottery_user_date
+  ON lottery_draws(user_id, draw_date);
+CREATE INDEX IF NOT EXISTS idx_lottery_date
+  ON lottery_draws(draw_date);
+CREATE INDEX IF NOT EXISTS idx_lottery_created
+  ON lottery_draws(created_at DESC);
+`)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
