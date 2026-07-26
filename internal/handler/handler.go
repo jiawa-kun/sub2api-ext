@@ -15,6 +15,7 @@ import (
 	"sub2api-ext/internal/config"
 	"sub2api-ext/internal/metrics"
 	"sub2api-ext/internal/modules"
+	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/ratelimit"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/patrol"
@@ -31,6 +32,7 @@ type Handler struct {
 	client   *sub2api.Client
 	settings *settings.Service
 	patrol   *patrol.Service
+	notifier *notify.Notifier
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -53,6 +55,16 @@ func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settin
 	}
 	h.syncAdminCred()
 	return h
+}
+
+// SetNotifier attaches an optional notifier. Safe to leave nil.
+func (h *Handler) SetNotifier(n *notify.Notifier) { h.notifier = n }
+
+func (h *Handler) publish(ev notify.Event) {
+	if h.notifier == nil {
+		return
+	}
+	h.notifier.Publish(ev)
 }
 
 type statusResponse struct {
@@ -326,6 +338,18 @@ func (h *Handler) Checkin(w http.ResponseWriter, r *http.Request) {
 	if budgetStatus != "" {
 		if budgetStatus == "budget_exhausted" {
 			metrics.CheckinBudget.Add(1)
+			h.publish(notify.Event{
+				Type:  notify.TypeCheckinBudget,
+				Level: notify.LevelWarn,
+				Title: "签到日预算耗尽",
+				Text:  "今日签到预算已用完，后续签到将被拒绝",
+				Fields: []notify.Field{
+					{Key: "日期", Value: today},
+					{Key: "日预算", Value: strconv.FormatFloat(rt.DailyBudget, 'f', 4, 64)},
+					{Key: "已发放", Value: strconv.FormatFloat(spent, 'f', 4, 64)},
+					{Key: "预算动作", Value: rt.BudgetAction},
+				},
+			})
 		}
 		if budgetStatus == "budget_exhausted" && rt.BudgetAction == settings.BudgetDisable {
 			disabled := false
@@ -823,6 +847,18 @@ func auditPayload(a store.SettingsAudit) map[string]any {
 
 func (h *Handler) writeAudit(r *http.Request, actor *sub2api.User, source, oldJSON, newJSON string) {
 	actorType, actorName := classifyActor(actor)
+	h.publish(notify.Event{
+		Type:  notify.TypeSettingsChanged,
+		Level: notify.LevelWarn,
+		Title: "扩展配置被修改",
+		Text:  "签到配置发生变更",
+		Fields: []notify.Field{
+			{Key: "操作者", Value: actorName + " (" + actorType + ")"},
+			{Key: "来源", Value: source},
+			{Key: "来源 IP", Value: clientIP(r)},
+			{Key: "变更后", Value: truncateForNotify(newJSON, 300)},
+		},
+	})
 	_, _ = h.store.InsertSettingsAudit(r.Context(), store.SettingsAudit{
 		ActorType: actorType,
 		ActorID:   actor.ID,
@@ -1226,3 +1262,11 @@ func (h *Handler) Calendar(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+
+// truncateForNotify keeps notification payloads compact.
+func truncateForNotify(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}

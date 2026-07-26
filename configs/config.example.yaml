@@ -38,6 +38,22 @@ patrol:
   timezone: "Asia/Shanghai"
   keep_runs: 50
 
+notify:
+  # 是否启用通知（也可在管理页热更新）
+  enabled: false
+  # webhook | wecom | telegram
+  channel: "webhook"
+  # Webhook 地址；channel=telegram 时填 bot token
+  target: ""
+  # channel=telegram 时填 chat id
+  extra: ""
+  # 作为 Authorization: Bearer 发送，可留空
+  secret: ""
+  # 留空表示订阅全部事件
+  events: []
+  # info | warn | error
+  min_level: "warn"
+
 sub2api:
   # sub2api 根地址，不要带尾斜杠
   base_url: "https://sub2api.example.com"

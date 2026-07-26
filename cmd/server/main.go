@@ -13,6 +13,7 @@ import (
 	"sub2api-ext/internal/config"
 	"sub2api-ext/internal/handler"
 	"sub2api-ext/internal/modules"
+	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
@@ -44,7 +45,15 @@ func main() {
 	patrolSvc := patrol.NewService(client, st, patrolSettings)
 	patrolSvc.StartScheduler()
 	defer patrolSvc.StopScheduler()
+
+	notifySettings := notify.NewSettings(st, cfg.Notify)
+	notifier := notify.NewNotifier(notifySettings)
+	notifier.Start()
+	defer notifier.Stop()
+	patrolSvc.SetNotifier(notifier)
+
 	h := handler.New(cfg, st, client, stg, patrolSvc)
+	h.SetNotifier(notifier)
 
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
@@ -85,6 +94,17 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/patrol/accounts", h.AdminPatrolAccounts)
 	mux.HandleFunc(base+"/api/admin/patrol/options", h.AdminPatrolOptions)
 	mux.HandleFunc(base+"/api/admin/patrol/models", h.AdminPatrolModels)
+	mux.HandleFunc(base+"/api/admin/notify/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetNotifySettings(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminUpdateNotifySettings(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc(base+"/api/admin/notify/test", h.AdminNotifyTest)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 

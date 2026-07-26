@@ -246,6 +246,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     <div class="modnav" role="tablist" aria-label="管理模块">
       <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
       <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
+<button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
     </div>
 
     <details class="fold" id="authDetails" open>
@@ -571,6 +572,69 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
   </div>
 
+
+    <div id="sec-notify" class="hidden">
+      <div class="card" id="notifyCard">
+        <div class="card-head">
+          <div>
+            <h2>通知中心</h2>
+            <p class="desc">把巡检处置、预算耗尽、配置变更推送到你的聊天工具</p>
+          </div>
+          <span class="badge" id="notifyBadge">—</span>
+        </div>
+
+        <div class="split" style="margin-top:14px">
+          <div>
+            <div class="section-title"><h3>渠道配置</h3></div>
+            <label class="switch"><input id="notifyEnabled" type="checkbox" /><span>启用通知</span></label>
+            <div class="field">
+              <label for="notifyChannel">通知渠道</label>
+              <select id="notifyChannel"></select>
+            </div>
+            <div class="field">
+              <label for="notifyTarget" id="notifyTargetLabel">Webhook 地址</label>
+              <input id="notifyTarget" type="text" placeholder="https://..." autocomplete="off" />
+              <div class="hint" id="notifyTargetHint">留空表示不修改已保存的地址</div>
+            </div>
+            <div class="field hidden" id="notifyExtraField">
+              <label for="notifyExtra">Telegram Chat ID</label>
+              <input id="notifyExtra" type="text" placeholder="-1001234567890" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="notifySecret">附加密钥（可选）</label>
+              <input id="notifySecret" type="password" placeholder="留空表示不修改" autocomplete="new-password" />
+              <div class="hint" id="notifySecretHint">作为 Authorization: Bearer 发送</div>
+            </div>
+          </div>
+          <div>
+            <div class="section-title"><h3>推送内容</h3></div>
+            <div class="field" style="margin-top:0">
+              <label for="notifyMinLevel">最低级别</label>
+              <select id="notifyMinLevel">
+                <option value="info">全部（含普通信息）</option>
+                <option value="warn">警告及以上</option>
+                <option value="error">仅错误</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>订阅事件</label>
+              <div id="notifyEvents" class="checks"></div>
+            </div>
+            <div class="field">
+              <label>投递统计</label>
+              <div class="hint" id="notifyStats">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="sm" id="btnNotifySave">保存通知配置</button>
+          <button type="button" class="secondary sm" id="btnNotifyTest">发送测试通知</button>
+          <button type="button" class="secondary sm" id="btnNotifyRefresh">刷新</button>
+        </div>
+      </div>
+    </div>
+
   <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
@@ -583,7 +647,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
-      const secs=['checkin','patrol'];
+      const secs=['checkin','patrol','notify'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -591,10 +655,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(tab) tab.classList.toggle('active', s===name);
       });
       const dock=el('checkinSaveDock'); if(dock) dock.style.display=(name==='checkin')?'flex':'none';
-      if(name==='patrol'){
-        try{ history.replaceState(null,'','#patrol'); }catch{}
+      if(name==='patrol' || name==='notify'){
+        try{ history.replaceState(null,'','#'+name); }catch{}
       } else {
-        try{ if((location.hash||'').toLowerCase()==='#patrol') history.replaceState(null,'',location.pathname+location.search); }catch{}
+        const h=(location.hash||'').toLowerCase();
+        try{ if(h==='#patrol'||h==='#notify') history.replaceState(null,'',location.pathname+location.search); }catch{}
       }
     }
     const THEME_KEY='sub2api_ext_theme';
@@ -1096,6 +1161,100 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         +'</tr></thead><tbody>'+rows+'</tbody></table>';
     }
 
+    let notifySaved=null;
+
+    function notifyEsc(v){
+      const d=document.createElement('div');
+      d.textContent=v==null?'':String(v);
+      return d.innerHTML;
+    }
+
+    function applyNotifyChannelUI(){
+      const ch=el('notifyChannel').value;
+      const isTg=ch==='telegram';
+      el('notifyExtraField').classList.toggle('hidden', !isTg);
+      el('notifyTargetLabel').textContent = isTg ? 'Telegram Bot Token' : 'Webhook 地址';
+      el('notifyTarget').placeholder = isTg ? '123456:ABC-DEF...' : 'https://...';
+    }
+
+    function fillNotify(s){
+      if(!s) return;
+      notifySaved=s;
+
+      const chSel=el('notifyChannel');
+      if(!chSel.options.length){
+        (s.channel_options||[]).forEach(o=>{
+          const opt=document.createElement('option');
+          opt.value=o.value; opt.textContent=o.label;
+          chSel.appendChild(opt);
+        });
+      }
+      chSel.value=s.channel||'webhook';
+
+      el('notifyEnabled').checked=!!s.enabled;
+      el('notifyMinLevel').value=s.min_level||'warn';
+
+      // never populate secrets back into the form; show a masked hint instead
+      el('notifyTarget').value='';
+      el('notifySecret').value='';
+      el('notifyTargetHint').textContent = s.target_configured
+        ? ('已配置：'+(s.target_masked||'****')+'（留空表示不修改）')
+        : '尚未配置，请填写完整地址';
+      el('notifySecretHint').textContent = s.secret_configured
+        ? ('已配置：'+(s.secret_masked||'****')+'（留空表示不修改）')
+        : '作为 Authorization: Bearer 发送，可留空';
+      el('notifyExtra').value=s.extra||'';
+
+      const box=el('notifyEvents');
+      box.innerHTML='';
+      const selected=new Set(s.events||[]);
+      (s.event_options||[]).forEach(o=>{
+        const lab=document.createElement('label');
+        lab.className='switch';
+        const cb=document.createElement('input');
+        cb.type='checkbox'; cb.value=o.value; cb.checked=selected.has(o.value);
+        cb.setAttribute('data-notify-event','1');
+        const sp=document.createElement('span'); sp.textContent=o.label;
+        lab.appendChild(cb); lab.appendChild(sp);
+        box.appendChild(lab);
+      });
+
+      const st=s.stats||{};
+      el('notifyStats').textContent =
+        '成功 '+(st.sent||0)+' · 失败 '+(st.failed||0)+' · 丢弃 '+(st.dropped||0)+
+        ' · 队列 '+(st.queued||0)+(st.last_error?(' · 最近错误：'+st.last_error):'');
+
+      const badge=el('notifyBadge');
+      if(badge){
+        badge.textContent=s.enabled?'已启用':'未启用';
+        badge.className='badge'+(s.enabled?' ok':'');
+      }
+      applyNotifyChannelUI();
+    }
+
+    function notifyForm(){
+      const events=Array.from(document.querySelectorAll('[data-notify-event]'))
+        .filter(cb=>cb.checked).map(cb=>cb.value);
+      const body={
+        enabled: !!el('notifyEnabled').checked,
+        channel: el('notifyChannel').value,
+        min_level: el('notifyMinLevel').value,
+        events: events,
+        extra: (el('notifyExtra').value||'').trim(),
+      };
+      // only send credentials when the operator actually typed a new value
+      const target=(el('notifyTarget').value||'').trim();
+      if(target) body.target=target;
+      const secret=(el('notifySecret').value||'').trim();
+      if(secret) body.secret=secret;
+      return body;
+    }
+
+    async function refreshNotify(){
+      const r=await api('./api/admin/notify/settings');
+      fillNotify(r.settings||{});
+    }
+
     function renderPatrolStatus(st){
       if(!st) return;
       const stats=st.stats||{};
@@ -1429,14 +1588,41 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     el('btnPatrolRefresh').onclick=()=>refreshPatrol(true).catch(e=>show(e.message||String(e),'err'));
     el('btnPatrolHealth').onclick=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
     el('patrolHealthOnlyProblem').onchange=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
+    el('notifyChannel').onchange=()=>applyNotifyChannelUI();
+    el('btnNotifyRefresh').onclick=()=>refreshNotify().then(()=>show('通知配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
+    el('btnNotifySave').onclick=async()=>{
+      el('btnNotifySave').disabled=true;
+      try{
+        const body=notifyForm();
+        if(body.enabled && !body.target && !(notifySaved&&notifySaved.target_configured)){
+          throw new Error('启用通知前请先填写通知地址');
+        }
+        const r=await api('./api/admin/notify/settings',{method:'PUT', body:JSON.stringify(body)});
+        fillNotify(r.settings||{});
+        show('通知配置已保存','ok');
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ el('btnNotifySave').disabled=false; }
+    };
+    el('btnNotifyTest').onclick=async()=>{
+      el('btnNotifyTest').disabled=true;
+      try{
+        const r=await api('./api/admin/notify/test',{method:'POST', body:'{}'});
+        show(r.message||'测试通知已发送','ok');
+        await refreshNotify();
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ el('btnNotifyTest').disabled=false; }
+    };
     el('btnPatrolOptions').onclick=()=>loadPatrolOptions(selectedPatrolGroups()).then(()=>show('分组/模型已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     el('patrolGroups').onchange=()=>{ reloadPatrolModels(); };
 
     // section nav + deep link #patrol
     const navCheckin=el('nav-checkin'); if(navCheckin) navCheckin.onclick=(e)=>{ e.preventDefault(); setAdminSection('checkin'); };
     const navPatrol=el('nav-patrol'); if(navPatrol) navPatrol.onclick=(e)=>{ e.preventDefault(); setAdminSection('patrol'); };
+    const navNotify=el('nav-notify'); if(navNotify) navNotify.onclick=(e)=>{ e.preventDefault(); setAdminSection('notify'); refreshNotify().catch(e2=>show(e2.message||String(e2),'err')); };
     const themeBtn=el('themeBtn'); if(themeBtn) themeBtn.onclick=()=>toggleTheme();
-    if((location.hash||'').toLowerCase()==='#patrol') setAdminSection('patrol');
+    const initHash=(location.hash||'').toLowerCase();
+    if(initHash==='#patrol') setAdminSection('patrol');
+    else if(initHash==='#notify'){ setAdminSection('notify'); refreshNotify().catch(()=>{}); }
     else setAdminSection('checkin');
 
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;

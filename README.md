@@ -22,6 +22,7 @@
 | 扩展中心 | `/ext/home.html` | 模块总览（新） |
 | 管理台 | `/ext/admin.html` | 扩展管理（签到 + 账号巡检） |
 | 巡检锚点 | `/ext/admin.html#patrol` | 直达账号模型巡检配置 |
+| 通知锚点 | `/ext/admin.html#notify` | 直达通知中心配置 |
 | 健康检查 | `/ext/healthz` | 含 `product` / `modules` 字段 |
 | 模块列表 API | `/ext/api/modules` | 公开，供首页渲染 |
 
@@ -39,6 +40,7 @@ internal/
   store/                   SQLite（签到记录 + app_settings + patrol_runs + patrol_account_state）
   settings/                运行时签到额度（可热更新）
   patrol/                  账号模型巡检（cron + runner + 配置）
+  notify/                  通知中心（Webhook / 企业微信 / Telegram）
   sub2api/                 调 Sub2API（用户识别 / 加余额 / 账号测活）
   handler/                 HTTP API（平台 + 签到 + 巡检）
 web/static/
@@ -108,6 +110,47 @@ Dockerfile                 多阶段构建（仅 CI 发布 GHCR 镜像用）
 | POST | `/api/admin/patrol/run` | 手动触发一次 |
 | POST | `/api/admin/patrol/stop` | 请求停止当前任务 |
 | GET | `/api/admin/patrol/accounts` | 账号健康度（`?only_problem=1&limit=100`） |
+
+### 通知中心
+
+把关键运维事件推送到聊天工具，避免「账号被下线了但没人知道」。
+
+1. 管理页 `/ext/admin.html#notify` 配置渠道与订阅事件
+2. 支持渠道：通用 Webhook（JSON）、企业微信机器人、Telegram Bot
+3. 可推送事件：
+
+| 事件 | 说明 | 级别 |
+|---|---|---|
+| `patrol.run_finished` | 巡检运行结束，含统计 | info / warn / error |
+| `patrol.account_action` | 账号被下线或删除 | warn / error |
+| `checkin.budget_exhausted` | 签到日预算耗尽 | warn |
+| `settings.changed` | 签到配置被修改 | warn |
+
+4. 支持「最低级别」过滤，默认 `warn`
+5. 「发送测试通知」会**同步**发送并回显真实错误，便于排查
+
+> 投递完全异步且队列有界（256）。webhook 不可达时事件会被丢弃并计数，
+> **绝不会阻塞巡检或签到请求**。
+
+管理 API：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET/PUT | `/api/admin/notify/settings` | 读取/更新通知配置 |
+| POST | `/api/admin/notify/test` | 同步发送一条测试通知 |
+
+环境变量示例：
+
+```env
+NOTIFY_ENABLED=false
+NOTIFY_CHANNEL=wecom
+NOTIFY_TARGET=https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
+NOTIFY_MIN_LEVEL=warn
+# Telegram 时：NOTIFY_TARGET 填 bot token，NOTIFY_EXTRA 填 chat id
+```
+
+> 读取接口对地址与密钥做掩码返回，不会回显明文。
+> 保存时留空表示「不修改已存值」，不会误清空。
 
 环境变量示例：
 

@@ -3,15 +3,19 @@ package patrol_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
@@ -226,5 +230,58 @@ func TestPatrolRecoveryResetsStreak(t *testing.T) {
 	runOnce(t, svc)
 	if got := calls.disable.Load(); got != 0 {
 		t.Fatalf("streak was not reset; disable calls = %d", got)
+	}
+}
+
+// Disabling an account must emit a notification so the operator finds out.
+func TestPatrolEmitsNotificationOnAction(t *testing.T) {
+	calls := &upstreamCalls{}
+	up := newMockUpstream(t, calls)
+
+	var mu sync.Mutex
+	var received []string
+	hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		received = append(received, string(b))
+		mu.Unlock()
+	}))
+	defer hook.Close()
+
+	svc, st := newService(t, up.URL, "disable", 1)
+
+	ns := notify.NewSettings(st, config.NotifyConfig{})
+	enabled, target, level := true, hook.URL, notify.LevelInfo
+	if _, err := ns.Update(context.Background(), notify.UpdateInput{
+		Enabled: &enabled, Target: &target, MinLevel: &level,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	n := notify.NewNotifier(ns)
+	n.Start()
+	defer n.Stop()
+	svc.SetNotifier(n)
+
+	runOnce(t, svc)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		count := len(received)
+		mu.Unlock()
+		if count >= 2 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	joined := strings.Join(received, "\n")
+	if !strings.Contains(joined, notify.TypePatrolAccountAction) {
+		t.Fatalf("no account-action notification delivered; got: %s", joined)
+	}
+	if !strings.Contains(joined, notify.TypePatrolRunFinished) {
+		t.Fatalf("no run-finished notification delivered; got: %s", joined)
 	}
 }

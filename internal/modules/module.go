@@ -54,6 +54,18 @@ func Builtin() []Module {
 			Status:      "active",
 			Tags:        []string{"账号", "巡检", "定时任务"},
 		},
+		{
+			ID:          "notify",
+			Name:        "通知中心",
+			Description: "把巡检处置、签到预算耗尽、配置变更等事件推送到 Webhook / 企业微信 / Telegram。",
+			UserPath:    "",
+			AdminPath:   "./admin.html#notify",
+			APIBase:     "./api/admin/notify",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"通知", "告警", "运维"},
+		},
 	}
 }
 

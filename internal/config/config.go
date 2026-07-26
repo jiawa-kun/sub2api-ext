@@ -14,6 +14,7 @@ type Config struct {
 	Server   ServerConfig   `yaml:"server"`
 	Checkin  CheckinConfig  `yaml:"checkin"`
 	Patrol   PatrolConfig   `yaml:"patrol"`
+	Notify   NotifyConfig   `yaml:"notify"`
 	Sub2API  Sub2APIConfig  `yaml:"sub2api"`
 	Store    StoreConfig    `yaml:"store"`
 	Security SecurityConfig `yaml:"security"`
@@ -70,6 +71,25 @@ type PatrolConfig struct {
 	// FailThreshold is how many consecutive failed runs an account must hit
 	// before ActionOnFail is applied. 1 keeps the legacy behaviour.
 	FailThreshold int `yaml:"fail_threshold"`
+}
+
+// NotifyConfig is the startup default for the notification module.
+// Values changed from the admin page are stored in SQLite and win.
+type NotifyConfig struct {
+	// Enabled turns outbound notifications on.
+	Enabled bool `yaml:"enabled"`
+	// Channel: webhook | wecom | telegram
+	Channel string `yaml:"channel"`
+	// Target is the webhook URL, or the bot token for telegram.
+	Target string `yaml:"target"`
+	// Extra is channel specific (telegram chat id).
+	Extra string `yaml:"extra"`
+	// Secret is sent as an Authorization bearer token when set.
+	Secret string `yaml:"secret"`
+	// Events to subscribe; empty means all.
+	Events []string `yaml:"events"`
+	// MinLevel: info | warn | error
+	MinLevel string `yaml:"min_level"`
 }
 
 type StoreConfig struct {
@@ -245,6 +265,34 @@ func applyEnv(cfg *Config) {
 			cfg.Patrol.FailThreshold = n
 		}
 	}
+	if v := os.Getenv("NOTIFY_ENABLED"); v != "" {
+		cfg.Notify.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("NOTIFY_CHANNEL"); v != "" {
+		cfg.Notify.Channel = v
+	}
+	if v := os.Getenv("NOTIFY_TARGET"); v != "" {
+		cfg.Notify.Target = v
+	}
+	if v := os.Getenv("NOTIFY_EXTRA"); v != "" {
+		cfg.Notify.Extra = v
+	}
+	if v := os.Getenv("NOTIFY_SECRET"); v != "" {
+		cfg.Notify.Secret = v
+	}
+	if v := os.Getenv("NOTIFY_MIN_LEVEL"); v != "" {
+		cfg.Notify.MinLevel = v
+	}
+	if v := os.Getenv("NOTIFY_EVENTS"); v != "" {
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			if p = strings.TrimSpace(p); p != "" {
+				out = append(out, p)
+			}
+		}
+		cfg.Notify.Events = out
+	}
 	if v := os.Getenv("SQLITE_PATH"); v != "" {
 		cfg.Store.SQLitePath = v
 	}
@@ -329,6 +377,12 @@ func applyEnv(cfg *Config) {
 	}
 	if cfg.Patrol.FailThreshold <= 0 {
 		cfg.Patrol.FailThreshold = 1
+	}
+	if strings.TrimSpace(cfg.Notify.Channel) == "" {
+		cfg.Notify.Channel = "webhook"
+	}
+	if strings.TrimSpace(cfg.Notify.MinLevel) == "" {
+		cfg.Notify.MinLevel = "warn"
 	}
 	if cfg.Patrol.FailThreshold > 10 {
 		cfg.Patrol.FailThreshold = 10

@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
 )
@@ -69,6 +71,7 @@ type Service struct {
 	client   *sub2api.Client
 	store    *store.Store
 	settings *Settings
+	notifier *notify.Notifier
 
 	state runnerState
 
@@ -86,6 +89,16 @@ func NewService(client *sub2api.Client, st *store.Store, settings *Settings) *Se
 }
 
 func (s *Service) Settings() *Settings { return s.settings }
+
+// SetNotifier attaches an optional notifier. Safe to leave nil.
+func (s *Service) SetNotifier(n *notify.Notifier) { s.notifier = n }
+
+func (s *Service) publish(ev notify.Event) {
+	if s.notifier == nil {
+		return
+	}
+	s.notifier.Publish(ev)
+}
 
 func (s *Service) Snapshot() Snapshot {
 	rt := s.settings.Get()
@@ -255,6 +268,7 @@ func (s *Service) execute(runID int64, trigger string, rt Runtime, stopCh <-chan
 		snap := s.finish(status, runErr)
 		_ = s.persistRun(ctx, runID, snap)
 		_ = s.store.TrimPatrolRuns(ctx, rt.KeepRuns)
+		s.publishRunFinished(trigger, snap)
 	}()
 
 	s.logf("info", "开始巡检 trigger=%s groups=%v model=%q concurrency=%d action=%s fail_threshold=%d",
@@ -445,6 +459,7 @@ func (s *Service) handleFailure(ctx context.Context, account sub2api.Account, ti
 		s.incDeleted()
 		_ = s.store.DeletePatrolAccountState(ctx, account.ID)
 		s.logf("success", "%s 已删除账号", title)
+		s.publishAccountAction(account, "删除账号", reason, notify.LevelError)
 	case ActionDisable:
 		s.logf("error", "%s %s，准备关闭 schedulable", title, reason)
 		if err := s.client.SetAccountSchedulable(ctx, account.ID, false); err != nil {
@@ -454,6 +469,7 @@ func (s *Service) handleFailure(ctx context.Context, account sub2api.Account, ti
 		s.incDisabled()
 		_ = s.store.MarkPatrolAccountAction(ctx, account.ID, ActionDisable)
 		s.logf("success", "%s 已关闭 schedulable", title)
+		s.publishAccountAction(account, "关闭调度", reason, notify.LevelWarn)
 	default:
 		_ = s.store.MarkPatrolAccountAction(ctx, account.ID, ActionNone)
 		s.logf("warn", "%s 检测到异常但未处理账号（action_on_fail=none）：%s", title, reason)
@@ -618,4 +634,61 @@ func (s *Service) RecentRuns(ctx context.Context, limit int) ([]map[string]any, 
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+// publishAccountAction reports a destructive action applied to an account.
+func (s *Service) publishAccountAction(account sub2api.Account, action, reason, level string) {
+	if s.notifier == nil {
+		return
+	}
+	name := strings.TrimSpace(account.Name)
+	if name == "" {
+		name = "(未命名)"
+	}
+	s.publish(notify.Event{
+		Type:  notify.TypePatrolAccountAction,
+		Level: level,
+		Title: fmt.Sprintf("账号巡检：%s", action),
+		Text:  fmt.Sprintf("账号 #%d %s 已被%s", account.ID, name, action),
+		Fields: []notify.Field{
+			{Key: "账号", Value: fmt.Sprintf("#%d %s", account.ID, name)},
+			{Key: "分组", Value: account.EffectiveGroup()},
+			{Key: "原因", Value: reason},
+		},
+	})
+}
+
+// publishRunFinished reports the outcome of a whole patrol run.
+func (s *Service) publishRunFinished(trigger string, snap Snapshot) {
+	if s.notifier == nil {
+		return
+	}
+	st := snap.Stats
+	level := notify.LevelInfo
+	if st.Disabled > 0 || st.Deleted > 0 {
+		level = notify.LevelWarn
+	}
+	if snap.Status == "failed" || snap.Error != "" {
+		level = notify.LevelError
+	}
+	fields := []notify.Field{
+		{Key: "触发方式", Value: trigger},
+		{Key: "结果", Value: snap.Status},
+		{Key: "账号总数", Value: strconv.Itoa(st.Total)},
+		{Key: "正常", Value: strconv.Itoa(st.OK)},
+		{Key: "失败", Value: strconv.Itoa(st.Failed)},
+		{Key: "观察中", Value: strconv.Itoa(st.Pending)},
+		{Key: "已下线", Value: strconv.Itoa(st.Disabled)},
+		{Key: "已删除", Value: strconv.Itoa(st.Deleted)},
+	}
+	if snap.Error != "" {
+		fields = append(fields, notify.Field{Key: "错误", Value: snap.Error})
+	}
+	s.publish(notify.Event{
+		Type:   notify.TypePatrolRunFinished,
+		Level:  level,
+		Title:  "账号巡检完成",
+		Text:   fmt.Sprintf("本次巡检 %d 个账号，失败 %d，处置 %d", st.Total, st.Failed, st.Disabled+st.Deleted),
+		Fields: fields,
+	})
 }
