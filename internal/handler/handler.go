@@ -18,6 +18,7 @@ import (
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/ratelimit"
+	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/store"
@@ -35,6 +36,7 @@ type Handler struct {
 	patrol   *patrol.Service
 	notifier *notify.Notifier
 	lottery  *lottery.Settings
+	report   *report.Service
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -61,6 +63,9 @@ func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settin
 
 // SetNotifier attaches an optional notifier. Safe to leave nil.
 func (h *Handler) SetNotifier(n *notify.Notifier) { h.notifier = n }
+
+// SetReport attaches the daily report service. Safe to leave nil.
+func (h *Handler) SetReport(s *report.Service) { h.report = s }
 
 func (h *Handler) publish(ev notify.Event) {
 	if h.notifier == nil {

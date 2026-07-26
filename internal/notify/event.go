@@ -25,6 +25,10 @@ const (
 	TypeLotteryBudget      = "lottery.budget_exhausted"
 	TypeSettingsChanged    = "settings.changed"
 	TypeTest               = "notify.test"
+	// TypeDailyReport is delivered by the report module. It is deliberately
+	// absent from AllTypes: the digest has its own on/off switch and is sent
+	// directly, so it is not part of the alert subscription list.
+	TypeDailyReport = "report.daily"
 )
 
 // AllTypes lists every event type that can be subscribed to.
@@ -51,6 +55,8 @@ func TypeLabel(t string) string {
 		return "抽奖日预算耗尽"
 	case TypeSettingsChanged:
 		return "配置被修改"
+	case TypeDailyReport:
+		return "运营日报"
 	case TypeTest:
 		return "测试通知"
 	default:

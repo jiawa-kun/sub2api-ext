@@ -16,6 +16,7 @@ type Config struct {
 	Patrol   PatrolConfig   `yaml:"patrol"`
 	Notify   NotifyConfig   `yaml:"notify"`
 	Lottery  LotteryConfig  `yaml:"lottery"`
+	Report   ReportConfig   `yaml:"report"`
 	Sub2API  Sub2APIConfig  `yaml:"sub2api"`
 	Store    StoreConfig    `yaml:"store"`
 	Security SecurityConfig `yaml:"security"`
@@ -115,6 +116,22 @@ type LotteryConfig struct {
 	HardCap float64 `yaml:"hard_cap"`
 }
 
+// ReportConfig is the startup default for the daily operations digest.
+// Values changed from the admin page are stored in SQLite and win.
+type ReportConfig struct {
+	// Enabled turns the scheduled digest on. Defaults to false so an upgrade
+	// never starts sending messages by itself.
+	Enabled bool `yaml:"enabled"`
+	// SendAt is a local HH:MM wall-clock time.
+	SendAt string `yaml:"send_at"`
+	// Timezone the send time and the covered date are evaluated in.
+	Timezone string `yaml:"timezone"`
+	// CoverDay: yesterday | today
+	CoverDay string `yaml:"cover_day"`
+	// Sections: checkin | lottery | patrol; empty means all.
+	Sections []string `yaml:"sections"`
+}
+
 type StoreConfig struct {
 	SQLitePath string `yaml:"sqlite_path"`
 }
@@ -171,6 +188,13 @@ func Default() Config {
 			Prizes:         nil,
 			DailyBudget:    0,
 			HardCap:        0,
+		},
+		Report: ReportConfig{
+			Enabled:  false,
+			SendAt:   "09:00",
+			Timezone: "Asia/Shanghai",
+			CoverDay: "yesterday",
+			Sections: nil,
 		},
 		Store: StoreConfig{
 			SQLitePath: "./data/checkin.db",
@@ -339,6 +363,21 @@ func applyEnv(cfg *Config) {
 			cfg.Lottery.HardCap = f
 		}
 	}
+	if v := os.Getenv("REPORT_ENABLED"); v != "" {
+		cfg.Report.Enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	if v := os.Getenv("REPORT_SEND_AT"); v != "" {
+		cfg.Report.SendAt = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("REPORT_TIMEZONE"); v != "" {
+		cfg.Report.Timezone = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("REPORT_COVER_DAY"); v != "" {
+		cfg.Report.CoverDay = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("REPORT_SECTIONS"); v != "" {
+		cfg.Report.Sections = splitCSV(v)
+	}
 	if v := os.Getenv("SQLITE_PATH"); v != "" {
 		cfg.Store.SQLitePath = v
 	}
@@ -429,6 +468,15 @@ func applyEnv(cfg *Config) {
 	}
 	if strings.TrimSpace(cfg.Notify.MinLevel) == "" {
 		cfg.Notify.MinLevel = "warn"
+	}
+	if strings.TrimSpace(cfg.Report.SendAt) == "" {
+		cfg.Report.SendAt = "09:00"
+	}
+	if strings.TrimSpace(cfg.Report.Timezone) == "" {
+		cfg.Report.Timezone = cfg.Checkin.Timezone
+	}
+	if strings.TrimSpace(cfg.Report.CoverDay) == "" {
+		cfg.Report.CoverDay = "yesterday"
 	}
 	if cfg.Patrol.FailThreshold > 10 {
 		cfg.Patrol.FailThreshold = 10

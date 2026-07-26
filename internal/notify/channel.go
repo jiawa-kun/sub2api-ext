@@ -36,6 +36,10 @@ type payload struct {
 	Body []byte
 }
 
+// PlainText renders an event exactly as it will be delivered. Exported so
+// the admin report preview can show the real outbound message.
+func PlainText(ev Event) string { return plainText(ev) }
+
 // plainText renders an event as a readable multi-line message.
 func plainText(ev Event) string {
 	var b strings.Builder

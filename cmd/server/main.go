@@ -16,6 +16,7 @@ import (
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
+	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
@@ -55,9 +56,21 @@ func main() {
 
 	lotterySettings := lottery.NewSettings(st, cfg.Lottery)
 
+	// The digest reads live budgets through closures so it always reports the
+	// value currently in effect, not the one captured at startup.
+	reportSettings := report.NewSettings(st, cfg.Report)
+	reportSvc := report.NewService(st, reportSettings, notifier, report.Deps{
+		CheckinBudget:  func() float64 { return stg.Get().DailyBudget },
+		LotteryBudget:  func() float64 { return lotterySettings.Get().DailyBudget },
+		LotteryEnabled: func() bool { return lotterySettings.Get().Enabled },
+	})
+	reportSvc.StartScheduler()
+	defer reportSvc.StopScheduler()
+
 	h := handler.New(cfg, st, client, stg, patrolSvc)
 	h.SetNotifier(notifier)
 	h.SetLottery(lotterySettings)
+	h.SetReport(reportSvc)
 
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
@@ -123,6 +136,18 @@ func main() {
 	})
 	mux.HandleFunc(base+"/api/admin/lottery/draws", h.AdminLotteryDraws)
 	mux.HandleFunc(base+"/api/admin/lottery/stats", h.AdminLotteryStats)
+	mux.HandleFunc(base+"/api/admin/report/settings", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetReportSettings(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminUpdateReportSettings(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc(base+"/api/admin/report/preview", h.AdminReportPreview)
+	mux.HandleFunc(base+"/api/admin/report/send", h.AdminReportSend)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 

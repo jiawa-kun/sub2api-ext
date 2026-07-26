@@ -247,6 +247,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
       <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
 <button type="button" id="nav-lottery"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 8.7l5.4-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>幸运抽奖</button>
+<button type="button" id="nav-report"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>运营日报</button>
 <button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
     </div>
 
@@ -698,6 +699,63 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
+    <div id="sec-report" class="hidden">
+      <div class="card" id="reportCard">
+        <div class="card-head">
+          <div>
+            <h2>运营日报</h2>
+            <p class="desc">每天定时把签到 / 抽奖 / 巡检的结果汇成一条消息，走通知中心已配置的渠道</p>
+          </div>
+          <span class="badge" id="reportBadge">—</span>
+        </div>
+
+        <div class="split" style="margin-top:14px">
+          <div>
+            <div class="section-title"><h3>发送计划</h3></div>
+            <label class="switch"><input id="reportEnabled" type="checkbox" /><span>启用每日自动发送</span></label>
+            <div class="field">
+              <label for="reportSendAt">发送时间</label>
+              <input id="reportSendAt" type="text" placeholder="09:00" />
+              <div class="hint">24 小时制 HH:MM。服务重启造成错过时，2 小时内会自动补发。</div>
+            </div>
+            <div class="field">
+              <label for="reportTimezone">时区</label>
+              <input id="reportTimezone" type="text" placeholder="Asia/Shanghai" />
+            </div>
+            <div class="field">
+              <label for="reportCoverDay">统计范围</label>
+              <select id="reportCoverDay"></select>
+              <div class="hint">早上发送建议选“前一天”，深夜发送可选“当天”。</div>
+            </div>
+          </div>
+          <div>
+            <div class="section-title"><h3>日报内容</h3></div>
+            <div class="field" style="margin-top:0">
+              <label>统计板块</label>
+              <div id="reportSections" class="checks"></div>
+            </div>
+            <div class="field">
+              <label>发送状态</label>
+              <div class="hint" id="reportStats">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>内容预览</label>
+          <div class="hint">预览只读取数据，不会发送任何消息。</div>
+          <div class="patrol-log" id="reportPreview"><div class="l-info">点击「预览日报」生成</div></div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="sm" id="btnReportSave">保存日报配置</button>
+          <button type="button" class="secondary sm" id="btnReportPreview">预览日报</button>
+          <button type="button" class="secondary sm" id="btnReportSend">立即发送</button>
+          <button type="button" class="secondary sm" id="btnReportRefresh">刷新</button>
+        </div>
+      </div>
+    </div>
+
   <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
@@ -710,7 +768,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
-      const secs=['checkin','patrol','notify','lottery'];
+      const secs=['checkin','patrol','notify','lottery','report'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -718,11 +776,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(tab) tab.classList.toggle('active', s===name);
       });
       const dock=el('checkinSaveDock'); if(dock) dock.style.display=(name==='checkin')?'flex':'none';
-      if(name==='patrol' || name==='notify' || name==='lottery'){
+      if(name==='patrol' || name==='notify' || name==='lottery' || name==='report'){
         try{ history.replaceState(null,'','#'+name); }catch{}
       } else {
         const h=(location.hash||'').toLowerCase();
-        try{ if(h==='#patrol'||h==='#notify'||h==='#lottery') history.replaceState(null,'',location.pathname+location.search); }catch{}
+        try{ if(h==='#patrol'||h==='#notify'||h==='#lottery'||h==='#report') history.replaceState(null,'',location.pathname+location.search); }catch{}
       }
     }
     const THEME_KEY='sub2api_ext_theme';
@@ -1758,6 +1816,84 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await Promise.all([refreshLotteryStats().catch(()=>{}), refreshLotteryDraws().catch(()=>{})]);
     }
 
+    // ---- daily report ----
+    function fillReport(s){
+      if(!s) return;
+      el('reportEnabled').checked=!!s.enabled;
+      el('reportSendAt').value=s.send_at||'09:00';
+      el('reportTimezone').value=s.timezone||'Asia/Shanghai';
+
+      const cover=el('reportCoverDay');
+      if(cover){
+        cover.innerHTML='';
+        (s.cover_options||[]).forEach(o=>{
+          const opt=document.createElement('option');
+          opt.value=o.value; opt.textContent=o.label;
+          cover.appendChild(opt);
+        });
+        cover.value=s.cover_day||'yesterday';
+      }
+
+      const box=el('reportSections');
+      if(box){
+        box.innerHTML='';
+        const selected=new Set(s.sections||[]);
+        (s.section_options||[]).forEach(o=>{
+          const lab=document.createElement('label');
+          lab.className='switch';
+          const cb=document.createElement('input');
+          cb.type='checkbox'; cb.value=o.value; cb.checked=selected.has(o.value);
+          cb.setAttribute('data-report-section','1');
+          const sp=document.createElement('span'); sp.textContent=o.label;
+          lab.appendChild(cb); lab.appendChild(sp);
+          box.appendChild(lab);
+        });
+      }
+
+      const st=s.stats||{};
+      const parts=['\u6210\u529f '+(st.sent||0),'\u5931\u8d25 '+(st.failed||0)];
+      if(st.next_due_at) parts.push('\u4e0b\u6b21 '+st.next_due_at);
+      if(st.last_sent_at) parts.push('\u6700\u8fd1\u53d1\u9001 '+st.last_sent_at);
+      if(st.last_error) parts.push('\u6700\u8fd1\u9519\u8bef\uff1a'+st.last_error);
+      const stats=el('reportStats');
+      if(stats) stats.textContent=parts.join(' \u00b7 ');
+
+      const badge=el('reportBadge');
+      if(badge){
+        badge.textContent=s.enabled?'\u5df2\u542f\u7528':'\u672a\u542f\u7528';
+        badge.className='badge'+(s.enabled?' ok':'');
+      }
+    }
+    function reportForm(){
+      const sections=Array.from(document.querySelectorAll('[data-report-section]'))
+        .filter(cb=>cb.checked).map(cb=>cb.value);
+      return {
+        enabled: !!el('reportEnabled').checked,
+        send_at: (el('reportSendAt').value||'').trim(),
+        timezone: (el('reportTimezone').value||'').trim(),
+        cover_day: el('reportCoverDay').value,
+        sections: sections
+      };
+    }
+    async function refreshReport(){
+      const r=await api('./api/admin/report/settings');
+      fillReport(r.settings||{});
+    }
+    async function saveReport(){
+      const r=await api('./api/admin/report/settings',{method:'PUT', body:JSON.stringify(reportForm())});
+      fillReport(r.settings||{});
+    }
+    function renderReportPreview(text){
+      const box=el('reportPreview');
+      if(!box) return;
+      const lines=String(text||'').split('\n');
+      box.innerHTML=lines.map(l=>'<div class="l-info">'+escapeHtml(l)+'</div>').join('');
+    }
+    async function previewReport(){
+      const r=await api('./api/admin/report/preview');
+      renderReportPreview(r.message||'');
+    }
+
     el('btnNotifyRefresh').onclick=()=>refreshNotify().then(()=>show('通知配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     el('btnNotifySave').onclick=async()=>{
       el('btnNotifySave').disabled=true;
@@ -1789,6 +1925,24 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navPatrol=el('nav-patrol'); if(navPatrol) navPatrol.onclick=(e)=>{ e.preventDefault(); setAdminSection('patrol'); };
     const navNotify=el('nav-notify'); if(navNotify) navNotify.onclick=(e)=>{ e.preventDefault(); setAdminSection('notify'); refreshNotify().catch(e2=>show(e2.message||String(e2),'err')); };
     const navLottery=el('nav-lottery'); if(navLottery) navLottery.onclick=(e)=>{ e.preventDefault(); setAdminSection('lottery'); refreshLotteryAll().catch(e2=>show(e2.message||String(e2),'err')); };
+    const navReport=el('nav-report'); if(navReport) navReport.onclick=(e)=>{ e.preventDefault(); setAdminSection('report'); refreshReport().catch(e2=>show(e2.message||String(e2),'err')); };
+    const btnRepSave=el('btnReportSave'); if(btnRepSave) btnRepSave.onclick=()=>saveReport().then(()=>show('\u65e5\u62a5\u914d\u7f6e\u5df2\u4fdd\u5b58','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnRepRefresh=el('btnReportRefresh'); if(btnRepRefresh) btnRepRefresh.onclick=()=>refreshReport().then(()=>show('\u65e5\u62a5\u914d\u7f6e\u5df2\u5237\u65b0','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnRepPreview=el('btnReportPreview'); if(btnRepPreview) btnRepPreview.onclick=()=>previewReport().then(()=>show('\u9884\u89c8\u5df2\u751f\u6210','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnRepSend=el('btnReportSend'); if(btnRepSend) btnRepSend.onclick=async()=>{
+      btnRepSend.disabled=true;
+      try{
+        const r=await api('./api/admin/report/send',{method:'POST', body:'{}'});
+        if(r.digest && r.digest.title){
+          // rebuild the delivered text from the digest fields so the preview
+          // pane reflects what just went out
+          try{ await previewReport(); }catch{}
+        }
+        show(r.message||'\u65e5\u62a5\u5df2\u53d1\u9001','ok');
+        await refreshReport();
+      }catch(e){ show(e.message||String(e),'err'); }
+      finally{ btnRepSend.disabled=false; }
+    };
     const btnLotSave=el('btnLotterySave'); if(btnLotSave) btnLotSave.onclick=()=>saveLottery().then(()=>show('抽奖配置已保存','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnLotRefresh=el('btnLotteryRefresh'); if(btnLotRefresh) btnLotRefresh.onclick=()=>refreshLotteryAll().then(()=>show('抽奖配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnLotDraws=el('btnLotteryDrawsRefresh'); if(btnLotDraws) btnLotDraws.onclick=()=>Promise.all([refreshLotteryStats(),refreshLotteryDraws()]).then(()=>show('记录已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
@@ -1799,6 +1953,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     if(initHash==='#patrol') setAdminSection('patrol');
     else if(initHash==='#notify'){ setAdminSection('notify'); refreshNotify().catch(()=>{}); }
     else if(initHash==='#lottery'){ setAdminSection('lottery'); refreshLotteryAll().catch(()=>{}); }
+    else if(initHash==='#report'){ setAdminSection('report'); refreshReport().catch(()=>{}); }
     else setAdminSection('checkin');
 
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;

@@ -5,7 +5,7 @@
 > 项目名 / 镜像 / 容器名：**`sub2api-ext`**  
 > 产品标识：**`sub2api-ext`**（Sub2API 扩展）  
 > 对外 HTTP 路径前缀为 **`/ext`**（不再使用 `/checkin`）。  
-> **每日签到**是当前内置的第一个扩展模块；**账号模型巡检**为第二个内置模块（可配置定时任务）。
+> 当前内置模块：**每日签到**、**账号模型巡检**、**通知中心**、**幸运抽奖**、**运营日报**。
 
 ## 定位
 
@@ -20,9 +20,11 @@
 |---|---|---|
 | 签到（默认菜单） | `/ext/` | 默认签到页（自定义菜单请改到此路径） |
 | 扩展中心 | `/ext/home.html` | 模块总览（新） |
-| 管理台 | `/ext/admin.html` | 扩展管理（签到 + 账号巡检） |
+| 管理台 | `/ext/admin.html` | 扩展管理（签到 / 巡检 / 抽奖 / 通知 / 日报） |
 | 巡检锚点 | `/ext/admin.html#patrol` | 直达账号模型巡检配置 |
+| 抽奖锚点 | `/ext/admin.html#lottery` | 直达幸运抽奖配置 |
 | 通知锚点 | `/ext/admin.html#notify` | 直达通知中心配置 |
+| 日报锚点 | `/ext/admin.html#report` | 直达运营日报配置 |
 | 健康检查 | `/ext/healthz` | 含 `product` / `modules` 字段 |
 | 模块列表 API | `/ext/api/modules` | 公开，供首页渲染 |
 
@@ -37,16 +39,18 @@ cmd/server/                入口（注册平台路由 + 模块 API）
 internal/
   modules/                 扩展模块注册表（产品标识 / 模块元数据）
   config/                  配置加载（yaml + 环境变量）
-  store/                   SQLite（签到记录 + app_settings + patrol_runs + patrol_account_state）
+  store/                   SQLite（签到 / 抽奖 / 巡检 / 设置）
   settings/                运行时签到额度（可热更新）
   patrol/                  账号模型巡检（cron + runner + 配置）
+  lottery/                 幸运抽奖（可配置奖池 + 日预算）
   notify/                  通知中心（Webhook / 企业微信 / Telegram）
+  report/                  运营日报（定时汇总 + 走通知渠道送达）
   sub2api/                 调 Sub2API（用户识别 / 加余额 / 账号测活）
-  handler/                 HTTP API（平台 + 签到 + 巡检）
+  handler/                 HTTP API（平台 + 各模块）
 web/static/
-  index.html               用户签到页（默认入口，兼容菜单）
+  index.html               用户签到页（含抽奖卡片，默认入口）
   home.html                扩展中心（模块总览）
-  admin.html               扩展管理台（签到 + 账号巡检）
+  admin.html               扩展管理台（签到 / 巡检 / 抽奖 / 通知 / 日报）
 configs/                   配置示例
 deploy/                    Nginx 完整配置 / 片段
 scripts/deploy-server.ps1  一键部署/更新脚本（远程拉镜像）
@@ -124,6 +128,7 @@ Dockerfile                 多阶段构建（仅 CI 发布 GHCR 镜像用）
 | `patrol.run_finished` | 巡检运行结束，含统计 | info / warn / error |
 | `patrol.account_action` | 账号被下线或删除 | warn / error |
 | `checkin.budget_exhausted` | 签到日预算耗尽 | warn |
+| `lottery.budget_exhausted` | 抽奖日预算耗尽 | warn |
 | `settings.changed` | 签到配置被修改 | warn |
 
 4. 支持「最低级别」过滤，默认 `warn`
@@ -151,6 +156,65 @@ NOTIFY_MIN_LEVEL=warn
 
 > 读取接口对地址与密钥做掩码返回，不会回显明文。
 > 保存时留空表示「不修改已存值」，不会误清空。
+
+### 幸运抽奖
+
+签到后每日一次抽奖。奖项名称、额度、权重均可后台配置，独立日预算与单次上限。
+
+1. 默认关闭，升级后不会自动开始发放
+2. 可要求先完成当日签到再抽
+3. 先占位后发放，靠 `UNIQUE(user_id, draw_date)` 防并发双发
+4. 发放余额使用独立幂等键 `lottery-<uid>-<date>`，不会与签到撞键
+5. 日预算耗尽时关闭入口，不会偷偷把中奖改成空奖
+
+管理 API：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/lottery/status` | 用户侧抽奖状态 |
+| POST | `/api/lottery/draw` | 执行抽奖 |
+| GET/PUT | `/api/admin/lottery/settings` | 读取/更新抽奖配置 |
+| GET | `/api/admin/lottery/draws` | 抽奖记录 |
+| GET | `/api/admin/lottery/stats` | 抽奖统计 |
+
+环境变量示例：
+
+```env
+LOTTERY_ENABLED=false
+LOTTERY_REQUIRE_CHECKIN=true
+LOTTERY_DAILY_BUDGET=0
+LOTTERY_HARD_CAP=0
+```
+
+### 运营日报
+
+每天定时把签到、抽奖、巡检结果汇总成一条消息，**复用通知中心已配置的渠道**送达。
+
+1. 默认关闭，升级后不会自动发消息
+2. 可配置发送时间、时区、统计范围（前一天 / 当天）与板块
+3. 管理页支持「预览」与「立即发送」；预览只读数据不发送
+4. 定时发送有 2 小时补发窗口，短时重启不会漏发；同一覆盖日只会发一次
+5. 日报不走通知订阅列表与最低级别过滤，只受「日报开关 + 通知中心总开关」控制
+
+管理 API：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET/PUT | `/api/admin/report/settings` | 读取/更新日报配置 |
+| GET | `/api/admin/report/preview` | 预览日报正文（不发送） |
+| POST | `/api/admin/report/send` | 立即发送日报 |
+
+环境变量示例：
+
+```env
+REPORT_ENABLED=false
+REPORT_SEND_AT=09:00
+REPORT_TIMEZONE=Asia/Shanghai
+REPORT_COVER_DAY=yesterday
+# REPORT_SECTIONS=checkin,lottery,patrol
+```
+
+> 发送前请先在通知中心配置好渠道并开启。否则「立即发送」会明确报错。
 
 环境变量示例：
 

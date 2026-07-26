@@ -78,6 +78,18 @@ func Builtin() []Module {
 			Status:      "active",
 			Tags:        []string{"余额", "运营", "玩法"},
 		},
+		{
+			ID:          "daily-report",
+			Name:        "运营日报",
+			Description: "每天定时把签到、抽奖、巡检的当日结果汇总成一条日报，复用通知中心渠道送达。",
+			UserPath:    "",
+			AdminPath:   "./admin.html#report",
+			APIBase:     "./api/admin/report",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"运营", "日报", "定时任务"},
+		},
 	}
 }
 

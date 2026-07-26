@@ -54,6 +54,29 @@ notify:
   # info | warn | error
   min_level: "warn"
 
+lottery:
+  # 是否启用抽奖（也可在管理页热更新；默认关闭）
+  enabled: false
+  # 是否要求先完成当日签到
+  require_checkin: true
+  # 日预算；0 表示不限制
+  daily_budget: 0
+  # 单次上限；0 表示不钳制
+  hard_cap: 0
+  # 奖池可留空，启动时使用内置默认奖池
+  prizes: []
+
+report:
+  # 是否启用运营日报（也可在管理页热更新；默认关闭）
+  enabled: false
+  # 本地发送时间 HH:MM
+  send_at: "09:00"
+  timezone: "Asia/Shanghai"
+  # yesterday | today
+  cover_day: "yesterday"
+  # 留空表示全部：checkin / lottery / patrol
+  sections: []
+
 sub2api:
   # sub2api 根地址，不要带尾斜杠
   base_url: "https://sub2api.example.com"
