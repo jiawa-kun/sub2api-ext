@@ -41,13 +41,35 @@ if ($Pinned) { $TargetImage = $Image.Trim() } else { $TargetImage = $LatestImage
 if ($Pinned) { $PinFlag = "1" } else { $PinFlag = "0" }
 if ($NoPrune) { $PruneFlag = "0" } else { $PruneFlag = "1" }
 
-function Invoke-SSH([string]$RemoteCommand) {
-    $RemoteCommand = $RemoteCommand -replace "`r`n", "`n" -replace "`r", "`n"
-    $sshArgs = @("-p", "$SshPort", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20")
+function Get-SSHArgs([int]$TimeoutSeconds) {
+    $sshArgs = @("-p", "$SshPort", "-o", "BatchMode=yes")
+    if ($TimeoutSeconds -gt 0) { $sshArgs += @("-o", "ConnectTimeout=$TimeoutSeconds") }
     if ($IdentityFile) { $sshArgs += @("-i", $IdentityFile) }
+    return $sshArgs
+}
+
+# Run a remote bash script by shipping it as a single base64 argv token.
+# Rationale:
+#   - passing the raw script as an ssh argument makes PowerShell, ssh and the
+#     remote shell each re-parse quotes, which breaks lines like echo "(none)"
+#   - piping it over stdin is not safe either: PowerShell rewrites line endings
+#     to CRLF for native commands, and bash then chokes on the trailing CR
+# base64 output only contains A-Za-z0-9+/= so nothing can be re-interpreted.
+function Invoke-SSH([string]$RemoteCommand) {
+    $payload = $RemoteCommand -replace "`r`n", "`n" -replace "`r", "`n"
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($payload))
+    $sshArgs = Get-SSHArgs 20
+    $sshArgs += @($HostName, "echo $encoded | base64 -d | bash -s")
+    & ssh @sshArgs
+    if ($LASTEXITCODE -ne 0) { throw "ssh failed (exit $LASTEXITCODE)" }
+}
+
+# Streaming form: stdin must stay attached to the terminal (docker logs -f),
+# so the command is passed as a single argv element instead.
+function Invoke-SSHStream([string]$RemoteCommand) {
+    $sshArgs = Get-SSHArgs 20
     $sshArgs += @($HostName, $RemoteCommand)
     & ssh @sshArgs
-    if ($LASTEXITCODE -ne 0) { throw "ssh failed: $RemoteCommand" }
 }
 
 function Invoke-SCP([string[]]$Locals, [string]$Remote) {
@@ -60,7 +82,7 @@ function Invoke-SCP([string[]]$Locals, [string]$Remote) {
 }
 
 if ($Logs) {
-    Invoke-SSH "docker logs --tail 200 -f $ContainerName"
+    Invoke-SSHStream "docker logs --tail 200 -f $ContainerName"
     return
 }
 
@@ -163,7 +185,7 @@ echo "pulling $IMAGE"
 docker pull "$IMAGE"
 NEW_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
 if [ -n "$OLD_ID" ] && [ "$OLD_ID" = "$NEW_ID" ]; then
-  echo "image_changed=0"
+  echo "image_changed=0 (already up to date)"
 else
   echo "image_changed=1"
 fi
