@@ -25,6 +25,7 @@ type Stats struct {
 	Enabled  int `json:"enabled"`
 	Disabled int `json:"disabled"`
 	Deleted  int `json:"deleted"`
+	Pending  int `json:"pending"`
 }
 
 // LogLine is a compact run log entry retained in SQLite.
@@ -256,8 +257,8 @@ func (s *Service) execute(runID int64, trigger string, rt Runtime, stopCh <-chan
 		_ = s.store.TrimPatrolRuns(ctx, rt.KeepRuns)
 	}()
 
-	s.logf("info", "开始巡检 trigger=%s groups=%v model=%q concurrency=%d action=%s",
-		trigger, rt.Groups, rt.TestModel, rt.Concurrency, rt.ActionOnFail)
+	s.logf("info", "开始巡检 trigger=%s groups=%v model=%q concurrency=%d action=%s fail_threshold=%d",
+		trigger, rt.Groups, rt.TestModel, rt.Concurrency, rt.ActionOnFail, rt.FailThreshold)
 
 	var accounts []sub2api.Account
 	for _, group := range rt.Groups {
@@ -351,7 +352,7 @@ func (s *Service) processAccount(ctx context.Context, account sub2api.Account, r
 	if len(models) == 0 {
 		s.incFailed()
 		s.logf("error", "%s 没有可测模型（test_model/model_mapping 为空）", title)
-		s.handleFailure(ctx, account, title, "没有可测模型", rt)
+		s.escalate(ctx, account, title, "没有可测模型", rt)
 		return
 	}
 
@@ -387,6 +388,9 @@ func (s *Service) processAccount(ctx context.Context, account sub2api.Account, r
 
 	if accountOK {
 		s.incOK()
+		if err := s.store.ResetPatrolAccountOK(ctx, account.ID, account.Name, account.EffectiveGroup()); err != nil {
+			s.logf("warn", "%s 健康状态写入失败：%v", title, err)
+		}
 		if rt.AutoEnableOnSuccess && !account.Schedulable {
 			if err := s.client.SetAccountSchedulable(ctx, account.ID, true); err != nil {
 				s.logf("error", "%s 模型正常但重新启用失败：%v", title, err)
@@ -401,7 +405,33 @@ func (s *Service) processAccount(ctx context.Context, account sub2api.Account, r
 	}
 
 	s.incFailed()
-	s.handleFailure(ctx, account, title, failReason, rt)
+	s.escalate(ctx, account, title, failReason, rt)
+}
+
+// escalate records the failure streak and only applies ActionOnFail once the
+// account has failed FailThreshold consecutive checks. This prevents a single
+// upstream hiccup from disabling or deleting a healthy account.
+func (s *Service) escalate(ctx context.Context, account sub2api.Account, title, reason string, rt Runtime) {
+	threshold := rt.FailThreshold
+	if threshold < 1 {
+		threshold = 1
+	}
+	streak, err := s.store.UpsertPatrolAccountFail(ctx, account.ID, account.Name, account.EffectiveGroup(), reason)
+	if err != nil {
+		// Persistence failure must not silently escalate to a destructive action.
+		s.logf("error", "%s 健康状态写入失败：%v；本次仅告警不处置", title, err)
+		s.incPending()
+		return
+	}
+	if streak < threshold {
+		s.incPending()
+		s.logf("warn", "%s %s（连续失败 %d/%d，未达阈值，暂不处置）", title, reason, streak, threshold)
+		_ = s.store.MarkPatrolAccountAction(ctx, account.ID, "pending")
+		return
+	}
+
+	s.logf("warn", "%s 连续失败 %d 次已达阈值 %d，执行 action_on_fail=%s", title, streak, threshold, rt.ActionOnFail)
+	s.handleFailure(ctx, account, title, reason, rt)
 }
 
 func (s *Service) handleFailure(ctx context.Context, account sub2api.Account, title, reason string, rt Runtime) {
@@ -413,6 +443,7 @@ func (s *Service) handleFailure(ctx context.Context, account sub2api.Account, ti
 			return
 		}
 		s.incDeleted()
+		_ = s.store.DeletePatrolAccountState(ctx, account.ID)
 		s.logf("success", "%s 已删除账号", title)
 	case ActionDisable:
 		s.logf("error", "%s %s，准备关闭 schedulable", title, reason)
@@ -421,8 +452,10 @@ func (s *Service) handleFailure(ctx context.Context, account sub2api.Account, ti
 			return
 		}
 		s.incDisabled()
+		_ = s.store.MarkPatrolAccountAction(ctx, account.ID, ActionDisable)
 		s.logf("success", "%s 已关闭 schedulable", title)
 	default:
+		_ = s.store.MarkPatrolAccountAction(ctx, account.ID, ActionNone)
 		s.logf("warn", "%s 检测到异常但未处理账号（action_on_fail=none）：%s", title, reason)
 	}
 }
@@ -548,6 +581,16 @@ func (s *Service) incDeleted() {
 	s.state.mu.Lock()
 	s.state.stats.Deleted++
 	s.state.mu.Unlock()
+}
+func (s *Service) incPending() {
+	s.state.mu.Lock()
+	s.state.stats.Pending++
+	s.state.mu.Unlock()
+}
+
+// AccountStates returns per-account patrol health rows from SQLite.
+func (s *Service) AccountStates(ctx context.Context, onlyProblem bool, limit int) ([]store.PatrolAccountState, error) {
+	return s.store.ListPatrolAccountStates(ctx, onlyProblem, limit)
 }
 
 // RecentRuns returns historical summaries from SQLite.

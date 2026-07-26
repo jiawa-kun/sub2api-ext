@@ -474,6 +474,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <div class="metric soft"><div class="k">启用</div><div class="v" id="pEnabled">0</div></div>
           <div class="metric"><div class="k">下线</div><div class="v" id="pDisabled">0</div></div>
           <div class="metric bad"><div class="k">删除</div><div class="v" id="pDeleted">0</div></div>
+          <div class="metric soft"><div class="k">观察中</div><div class="v" id="pPending">0</div></div>
         </div>
 
         <div class="split" style="margin-top:14px">
@@ -497,13 +498,20 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
               <label for="patrolCron">Cron（5 段）</label>
               <input id="patrolCron" type="text" placeholder="0 */6 * * *" />
             </div>
-            <div class="field">
-              <label for="patrolAction">失败动作</label>
-              <select id="patrolAction">
-                <option value="disable">关闭 schedulable</option>
-                <option value="delete">删除账号</option>
-                <option value="none">仅记录</option>
-              </select>
+            <div class="grid2">
+              <div class="field">
+                <label for="patrolAction">失败动作</label>
+                <select id="patrolAction">
+                  <option value="disable">关闭 schedulable</option>
+                  <option value="delete">删除账号</option>
+                  <option value="none">仅记录</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="patrolFailThreshold">失败阈值（连续）</label>
+                <input id="patrolFailThreshold" type="number" min="1" max="10" step="1" />
+                <div class="hint">连续失败达到该次数才执行失败动作，1 = 一次失败即处置。建议 2，可避免上游抖动误杀账号。</div>
+              </div>
             </div>
             <div class="grid2">
               <div class="field">
@@ -537,6 +545,18 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" class="secondary sm" id="btnPatrolStop">停止</button>
           <button type="button" class="secondary sm" id="btnPatrolRefresh">刷新状态</button>
           <button type="button" class="secondary sm" id="btnPatrolOptions">刷新分组/模型</button>
+        </div>
+
+        <div class="log-card" style="margin-top:14px">
+          <div class="log-head">
+            <span>账号健康度</span>
+            <span class="sub" id="patrolHealthMeta" style="margin:0">—</span>
+          </div>
+          <div class="toolbar" style="margin:10px 0 0">
+            <button type="button" class="secondary sm" id="btnPatrolHealth">刷新健康度</button>
+            <label class="switch" style="margin:0"><input id="patrolHealthOnlyProblem" type="checkbox" checked /><span>只看异常账号</span></label>
+          </div>
+          <div id="patrolHealth" style="margin-top:10px;overflow:auto"><div class="hint">点击「刷新健康度」加载</div></div>
         </div>
 
         <div class="log-card">
@@ -945,6 +965,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         groups: selectedPatrolGroups(),
         test_model: (el('patrolTestModel').value||'').trim(),
         action_on_fail: el('patrolAction').value,
+        fail_threshold: Math.max(1, Math.min(10, Number(el('patrolFailThreshold').value||1))),
         concurrency: Number(el('patrolConcurrency').value||8),
         timeout_ms: Math.round(Number(el('patrolTimeout').value||45)*1000),
         timezone: (el('patrolTimezone').value||'').trim() || 'Asia/Shanghai',
@@ -1007,6 +1028,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         selected: s.test_model?[s.test_model]:[]
       });
       el('patrolAction').value=s.action_on_fail||'disable';
+      el('patrolFailThreshold').value=String(s.fail_threshold||1);
       el('patrolConcurrency').value=String(s.concurrency||8);
       el('patrolTimeout').value=String(Math.max(1, Math.round((s.timeout_ms||45000)/1000)));
       el('patrolTimezone').value=s.timezone||'Asia/Shanghai';
@@ -1014,6 +1036,64 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('patrolOnlySched').checked=!!s.only_schedulable;
       el('patrolStopFirst').checked=s.stop_on_first_model_failure!==false;
       el('patrolAutoEnable').checked=s.auto_enable_on_success!==false;
+    }
+
+    function patrolHealthText(v){
+      const d=document.createElement('div');
+      d.textContent=v==null?'':String(v);
+      return d.innerHTML;
+    }
+
+    function fmtPatrolTime(raw){
+      if(!raw) return '—';
+      const t=new Date(raw);
+      if(isNaN(t.getTime())) return '—';
+      return t.toLocaleString();
+    }
+
+    function patrolActionLabel(a){
+      switch(a){
+        case 'pending': return '观察中';
+        case 'disable': return '已下线';
+        case 'delete': return '已删除';
+        case 'none': return '仅记录';
+        default: return '—';
+      }
+    }
+
+    async function refreshPatrolHealth(){
+      const box=el('patrolHealth');
+      const meta=el('patrolHealthMeta');
+      if(!box) return;
+      const onlyProblem=!!(el('patrolHealthOnlyProblem')&&el('patrolHealthOnlyProblem').checked);
+      box.innerHTML='<div class="hint">加载中…</div>';
+      const q='?limit=100&only_problem='+(onlyProblem?'1':'0');
+      const data=await api('./api/admin/patrol/accounts'+q);
+      const items=data.items||[];
+      if(meta) meta.textContent='阈值 '+(data.fail_threshold||1)+' 次 · 共 '+items.length+' 条';
+      if(!items.length){
+        box.innerHTML='<div class="hint">'+(onlyProblem?'当前没有连续失败的账号':'暂无巡检记录')+'</div>';
+        return;
+      }
+      const threshold=data.fail_threshold||1;
+      const rows=items.map(it=>{
+        const danger=(it.consecutive_fail||0)>=threshold;
+        const streak=(it.consecutive_fail||0)+' / '+threshold;
+        return '<tr>'
+          +'<td>#'+patrolHealthText(it.account_id)+'</td>'
+          +'<td>'+patrolHealthText(it.account_name||'(未命名)')+'</td>'
+          +'<td>'+patrolHealthText(it.group_key||'—')+'</td>'
+          +'<td style="'+(danger?'color:var(--bad,#e5484d);font-weight:600':'')+'">'+streak+'</td>'
+          +'<td>'+patrolHealthText(patrolActionLabel(it.last_action))+'</td>'
+          +'<td>'+patrolHealthText(it.last_reason||'—')+'</td>'
+          +'<td>'+fmtPatrolTime(it.last_fail_at)+'</td>'
+          +'<td>'+fmtPatrolTime(it.last_ok_at)+'</td>'
+          +'</tr>';
+      }).join('');
+      box.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:13px">'
+        +'<thead><tr style="text-align:left;opacity:.7">'
+        +'<th>ID</th><th>名称</th><th>分组</th><th>连续失败</th><th>最近处置</th><th>最近原因</th><th>最近失败</th><th>最近正常</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table>';
     }
 
     function renderPatrolStatus(st){
@@ -1027,6 +1107,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('pEnabled').textContent=stats.enabled||0;
       el('pDisabled').textContent=stats.disabled||0;
       el('pDeleted').textContent=stats.deleted||0;
+      el('pPending').textContent=stats.pending||0;
       const runFlag=st.running?'运行中':'空闲';
       const status=st.status||'-';
       const trig=st.trigger||'-';
@@ -1321,6 +1402,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(body.groups.length>1) body.groups=body.groups.slice(0,1);
         if(body.enabled && !body.groups.length) throw new Error('启用巡检前请选择巡检分组');
         if(body.action_on_fail==='delete' && !confirm('失败动作=删除账号，确认保存？')) return;
+        if(body.action_on_fail==='delete' && body.fail_threshold===1 && !confirm('失败阈值=1 表示单次测活失败就会真实删除账号，上游抖动可能误删。建议设为 2 或更高。仍要保存？')) return;
         const r=await api('./api/admin/patrol/settings',{method:'PUT', body:JSON.stringify(body)});
         fillPatrol(r.settings||body);
         renderPatrolStatus(r.status||{});
@@ -1345,6 +1427,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       }catch(e){ show(e.message||String(e),'err'); }
     };
     el('btnPatrolRefresh').onclick=()=>refreshPatrol(true).catch(e=>show(e.message||String(e),'err'));
+    el('btnPatrolHealth').onclick=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
+    el('patrolHealthOnlyProblem').onchange=()=>refreshPatrolHealth().catch(e=>show(e.message||String(e),'err'));
     el('btnPatrolOptions').onclick=()=>loadPatrolOptions(selectedPatrolGroups()).then(()=>show('分组/模型已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     el('patrolGroups').onchange=()=>{ reloadPatrolModels(); };
 

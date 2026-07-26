@@ -36,7 +36,7 @@ cmd/server/                入口（注册平台路由 + 模块 API）
 internal/
   modules/                 扩展模块注册表（产品标识 / 模块元数据）
   config/                  配置加载（yaml + 环境变量）
-  store/                   SQLite（签到记录 + app_settings + patrol_runs）
+  store/                   SQLite（签到记录 + app_settings + patrol_runs + patrol_account_state）
   settings/                运行时签到额度（可热更新）
   patrol/                  账号模型巡检（cron + runner + 配置）
   sub2api/                 调 Sub2API（用户识别 / 加余额 / 账号测活）
@@ -81,10 +81,23 @@ Dockerfile                 多阶段构建（仅 CI 发布 GHCR 镜像用）
    - 分组列表（必填，逗号分隔）
    - 测试模型（默认 `gpt-5.4`）
    - 失败动作：`disable` / `delete` / `none`
+   - **失败阈值 `fail_threshold`（1~10）**：连续失败达到该次数才执行失败动作
    - 并发、超时、仅可调度、成功自动重新启用等
 2. 支持「立即巡检 / 停止 / 查看最近运行与日志」
 3. 鉴权复用服务端 Admin API Key（`SUB2API_ADMIN_API_KEY`）
 4. 运行摘要写入 SQLite `patrol_runs`（默认保留 50 次）
+5. 账号级健康度写入 SQLite `patrol_account_state`，管理页可查「连续失败次数 / 最近原因 / 最近处置」
+
+#### 失败阈值（防误杀）
+
+上游偶发抖动会让一次测活失败。若立刻 `disable` 甚至 `delete`，健康账号会被误伤。
+
+- `fail_threshold = 1`：**默认值**，一次失败即处置，与旧版本行为完全一致
+- `fail_threshold = N (>1)`：账号需**连续 N 次**巡检都失败才会被处置；期间只记 `warn` 日志并计入 `pending`（观察中）
+- 任意一次测活成功都会**清零**连续失败计数
+- `action_on_fail=delete` 时建议至少设为 `2`
+
+运行统计新增 `pending` 字段，表示本次「已判失败但未达阈值、暂不处置」的账号数。
 
 管理 API：
 
@@ -94,6 +107,7 @@ Dockerfile                 多阶段构建（仅 CI 发布 GHCR 镜像用）
 | GET | `/api/admin/patrol/status` | 当前状态 + 最近运行 |
 | POST | `/api/admin/patrol/run` | 手动触发一次 |
 | POST | `/api/admin/patrol/stop` | 请求停止当前任务 |
+| GET | `/api/admin/patrol/accounts` | 账号健康度（`?only_problem=1&limit=100`） |
 
 环境变量示例：
 
@@ -103,6 +117,7 @@ PATROL_CRON=0 */6 * * *
 PATROL_GROUPS=group-a,group-b
 PATROL_TEST_MODEL=gpt-5.4
 PATROL_ACTION_ON_FAIL=disable
+PATROL_FAIL_THRESHOLD=1
 PATROL_CONCURRENCY=8
 PATROL_TIMEOUT_MS=45000
 ```

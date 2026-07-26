@@ -26,6 +26,7 @@ const (
 	KeyAutoEnableOnSuccess     = "patrol_auto_enable_on_success"
 	KeyTimezone                = "patrol_timezone"
 	KeyKeepRuns                = "patrol_keep_runs"
+	KeyFailThreshold           = "patrol_fail_threshold"
 
 	ActionDisable = "disable"
 	ActionDelete  = "delete"
@@ -47,6 +48,7 @@ type Runtime struct {
 	AutoEnableOnSuccess     bool     `json:"auto_enable_on_success"`
 	Timezone                string   `json:"timezone"`
 	KeepRuns                int      `json:"keep_runs"`
+	FailThreshold           int      `json:"fail_threshold"`
 }
 
 // UpdateInput uses pointers so partial updates are possible.
@@ -64,6 +66,7 @@ type UpdateInput struct {
 	AutoEnableOnSuccess     *bool     `json:"auto_enable_on_success"`
 	Timezone                *string   `json:"timezone"`
 	KeepRuns                *int      `json:"keep_runs"`
+	FailThreshold           *int      `json:"fail_threshold"`
 }
 
 // Settings holds runtime patrol configuration backed by app_settings.
@@ -97,6 +100,7 @@ func fromConfig(c config.PatrolConfig) Runtime {
 		AutoEnableOnSuccess:     c.AutoEnableOnSuccess,
 		Timezone:                c.Timezone,
 		KeepRuns:                c.KeepRuns,
+		FailThreshold:           c.FailThreshold,
 	}
 }
 
@@ -161,6 +165,11 @@ func (s *Settings) Reload(ctx context.Context) error {
 			rt.KeepRuns = n
 		}
 	}
+	if v, ok := get(KeyFailThreshold); ok {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			rt.FailThreshold = n
+		}
+	}
 	rt = normalizeRuntime(rt)
 	s.mu.Lock()
 	s.current = rt
@@ -210,6 +219,9 @@ func (s *Settings) Update(ctx context.Context, in UpdateInput) (Runtime, error) 
 	if in.KeepRuns != nil {
 		next.KeepRuns = *in.KeepRuns
 	}
+	if in.FailThreshold != nil {
+		next.FailThreshold = *in.FailThreshold
+	}
 	next = normalizeRuntime(next)
 	if err := validateRuntime(next); err != nil {
 		return cur, err
@@ -229,6 +241,7 @@ func (s *Settings) Update(ctx context.Context, in UpdateInput) (Runtime, error) 
 		KeyAutoEnableOnSuccess:     strconv.FormatBool(next.AutoEnableOnSuccess),
 		KeyTimezone:                next.Timezone,
 		KeyKeepRuns:                strconv.Itoa(next.KeepRuns),
+		KeyFailThreshold:           strconv.Itoa(next.FailThreshold),
 	}
 	if err := s.store.SetSettings(ctx, kv); err != nil {
 		return cur, err
@@ -270,6 +283,12 @@ func normalizeRuntime(rt Runtime) Runtime {
 	if rt.KeepRuns <= 0 {
 		rt.KeepRuns = 50
 	}
+	if rt.FailThreshold <= 0 {
+		rt.FailThreshold = 1
+	}
+	if rt.FailThreshold > 10 {
+		rt.FailThreshold = 10
+	}
 	return rt
 }
 
@@ -287,6 +306,9 @@ func validateRuntime(rt Runtime) error {
 	}
 	if rt.TimeoutMs < 1000 {
 		return fmt.Errorf("timeout_ms must be >= 1000")
+	}
+	if rt.FailThreshold < 1 || rt.FailThreshold > 10 {
+		return fmt.Errorf("fail_threshold must be 1..10")
 	}
 	return nil
 }

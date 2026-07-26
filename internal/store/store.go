@@ -126,6 +126,21 @@ CREATE TABLE IF NOT EXISTS patrol_runs (
 );
 CREATE INDEX IF NOT EXISTS idx_patrol_runs_started
   ON patrol_runs(started_at DESC);
+
+CREATE TABLE IF NOT EXISTS patrol_account_state (
+  account_id INTEGER PRIMARY KEY,
+  account_name TEXT NOT NULL DEFAULT '',
+  group_key TEXT NOT NULL DEFAULT '',
+  consecutive_fail INTEGER NOT NULL DEFAULT 0,
+  last_status TEXT NOT NULL DEFAULT '',
+  last_reason TEXT NOT NULL DEFAULT '',
+  last_action TEXT NOT NULL DEFAULT '',
+  last_ok_at TEXT NOT NULL DEFAULT '',
+  last_fail_at TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_patrol_account_state_fail
+  ON patrol_account_state(consecutive_fail DESC);
 `)
 	if err != nil {
 		return err

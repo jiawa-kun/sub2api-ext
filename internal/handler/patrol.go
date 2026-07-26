@@ -76,6 +76,49 @@ func (h *Handler) AdminUpdatePatrolSettings(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+// AdminPatrolAccounts GET /api/admin/patrol/accounts?only_problem=1&limit=50
+func (h *Handler) AdminPatrolAccounts(w http.ResponseWriter, r *http.Request) {
+	if !h.limitAdminRead.Allow("AdminPatrolAccounts:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.patrol == nil {
+		writeErr(w, http.StatusServiceUnavailable, "patrol module unavailable")
+		return
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	onlyProblem := false
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("only_problem"))) {
+	case "1", "true", "yes", "on":
+		onlyProblem = true
+	}
+	items, err := h.patrol.AccountStates(r.Context(), onlyProblem, limit)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rt := h.patrol.Settings().Get()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items":          items,
+		"count":          len(items),
+		"only_problem":   onlyProblem,
+		"fail_threshold": rt.FailThreshold,
+	})
+}
+
 // AdminPatrolStatus GET /api/admin/patrol/status
 func (h *Handler) AdminPatrolStatus(w http.ResponseWriter, r *http.Request) {
 	if !h.limitAdminRead.Allow("AdminPatrolStatus:" + clientIP(r)) {

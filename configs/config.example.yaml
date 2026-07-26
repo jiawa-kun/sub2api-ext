@@ -28,6 +28,9 @@ patrol:
   timeout_ms: 45000
   # disable | delete | none
   action_on_fail: "disable"
+  # 连续失败达到该次数才执行 action_on_fail（1..10）
+  # 1 = 一次失败即处置（旧行为）；建议 2，可避免上游抖动误杀账号
+  fail_threshold: 1
   only_schedulable: false
   stop_on_first_model_failure: true
   prompt: "hi"

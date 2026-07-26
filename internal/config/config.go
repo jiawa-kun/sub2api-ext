@@ -67,6 +67,9 @@ type PatrolConfig struct {
 	Timezone string `yaml:"timezone"`
 	// KeepRuns is how many historical run summaries to retain.
 	KeepRuns int `yaml:"keep_runs"`
+	// FailThreshold is how many consecutive failed runs an account must hit
+	// before ActionOnFail is applied. 1 keeps the legacy behaviour.
+	FailThreshold int `yaml:"fail_threshold"`
 }
 
 type StoreConfig struct {
@@ -117,6 +120,7 @@ func Default() Config {
 			AutoEnableOnSuccess:     true,
 			Timezone:                "Asia/Shanghai",
 			KeepRuns:                50,
+			FailThreshold:           1,
 		},
 		Store: StoreConfig{
 			SQLitePath: "./data/checkin.db",
@@ -236,6 +240,11 @@ func applyEnv(cfg *Config) {
 			cfg.Patrol.KeepRuns = n
 		}
 	}
+	if v := os.Getenv("PATROL_FAIL_THRESHOLD"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.Patrol.FailThreshold = n
+		}
+	}
 	if v := os.Getenv("SQLITE_PATH"); v != "" {
 		cfg.Store.SQLitePath = v
 	}
@@ -317,6 +326,12 @@ func applyEnv(cfg *Config) {
 	}
 	if cfg.Patrol.KeepRuns <= 0 {
 		cfg.Patrol.KeepRuns = 50
+	}
+	if cfg.Patrol.FailThreshold <= 0 {
+		cfg.Patrol.FailThreshold = 1
+	}
+	if cfg.Patrol.FailThreshold > 10 {
+		cfg.Patrol.FailThreshold = 10
 	}
 }
 
