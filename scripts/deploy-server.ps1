@@ -196,7 +196,7 @@ if [ -n "$OLD_IMG" ] && docker image inspect "$OLD_IMG" >/dev/null 2>&1; then
 fi
 docker image prune -f
 echo "--- sub2api-ext images ---"
-docker images --filter "reference=*sub2api-ext*" --format '{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}'
+docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | grep sub2api-ext || echo "(none)"
 '@
     $prune = $prune.Replace("__LEGACY_IMAGE__", $LegacyImageName)
     Invoke-SSH $prune
