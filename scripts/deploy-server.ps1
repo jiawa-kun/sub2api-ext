@@ -163,7 +163,7 @@ echo "pulling $IMAGE"
 docker pull "$IMAGE"
 NEW_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
 if [ -n "$OLD_ID" ] && [ "$OLD_ID" = "$NEW_ID" ]; then
-  echo "image_changed=0 (already up to date)"
+  echo "image_changed=0"
 else
   echo "image_changed=1"
 fi
