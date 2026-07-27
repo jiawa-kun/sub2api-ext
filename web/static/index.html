@@ -152,7 +152,7 @@ details.more .body{padding:0 12px 12px}
   margin-top:14px; display:flex; justify-content:space-between; align-items:center; gap:8px;
   color:var(--muted); font-size:.76rem;
 }
-#adminLink{display:none}
+#adminLink,#adminTopLink{display:none}
 #userLine{max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right}
   .lottery{margin-top:16px;padding:14px;border-radius:14px;border:1px solid var(--border);background:linear-gradient(180deg,rgba(91,140,255,.08),rgba(127,127,127,.04))}
   .lottery-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -219,7 +219,7 @@ details.more .body{padding:0 12px 12px}
       <div>
         <div class="topnav">
           <a class="active" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
-          <a href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
+          <a id="adminTopLink" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
         <div class="brand-title">
           <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
@@ -653,7 +653,9 @@ details.more .body{padding:0 12px 12px}
       }
       el('hint').textContent = `日期 ${s.today||'—'} · 时区 ${s.timezone||'—'}`;
       if(s.username||s.email) el('userLine').textContent = s.username || s.email;
-      if(s.is_admin) el('adminLink').style.display='inline';
+      const adminDisplay=s.is_admin?'inline-flex':'none';
+      el('adminTopLink').style.display=adminDisplay;
+      el('adminLink').style.display=s.is_admin?'inline':'none';
 
       if(s.daily_budget>0){
         el('budgetBox').style.display='block';
