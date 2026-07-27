@@ -23,6 +23,15 @@ func (h *Handler) Modules(w http.ResponseWriter, r *http.Request) {
 		if list[i].ID == "account-patrol" && h.patrol != nil {
 			list[i].Enabled = h.patrol.Settings().Get().Enabled
 		}
+		if list[i].ID == "notify" && h.notifier != nil {
+			list[i].Enabled = h.notifier.Settings().Get().Enabled
+		}
+		if list[i].ID == "lottery" && h.lottery != nil {
+			list[i].Enabled = h.lottery.Get().Enabled
+		}
+		if list[i].ID == "daily-report" && h.report != nil {
+			list[i].Enabled = h.report.Settings().Get().Enabled
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"product":      modules.ProductID,

@@ -105,6 +105,25 @@ func TestNormalizeFallsBackWhenAllWeightsZero(t *testing.T) {
 	}
 }
 
+func TestDefaultPrizesMatchConfiguredPool(t *testing.T) {
+	got := DefaultPrizes()
+	want := []Prize{
+		{Label: "宇宙边角料补贴", Amount: 2, Weight: 50},
+		{Label: "赛博馒头基金", Amount: 5, Weight: 20},
+		{Label: "老板良心残片", Amount: 10, Weight: 15},
+		{Label: "财神打喷嚏奖", Amount: 20, Weight: 12},
+		{Label: "天选打工皇帝奖", Amount: 50, Weight: 3},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("len = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("prize %d = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func TestNormalizeClampsNegativeAndOversized(t *testing.T) {
 	rt := Normalize(Runtime{
 		Prizes:      []Prize{{Label: "  ", Amount: -5, Weight: -3}, {Label: "big", Amount: MaxPrizeAmount * 10, Weight: MaxWeight * 2}},

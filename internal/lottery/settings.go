@@ -185,11 +185,11 @@ func (s *Settings) Update(ctx context.Context, in UpdateInput) (Runtime, error) 
 // DefaultPrizes is the starting pool; every field stays operator-editable.
 func DefaultPrizes() []Prize {
 	return []Prize{
-		{Label: "谢谢参与", Amount: 0, Weight: 40},
-		{Label: "0.5 额度", Amount: 0.5, Weight: 30},
-		{Label: "1 额度", Amount: 1, Weight: 20},
-		{Label: "5 额度", Amount: 5, Weight: 9},
-		{Label: "10 额度", Amount: 10, Weight: 1},
+		{Label: "宇宙边角料补贴", Amount: 2, Weight: 50},
+		{Label: "赛博馒头基金", Amount: 5, Weight: 20},
+		{Label: "老板良心残片", Amount: 10, Weight: 15},
+		{Label: "财神打喷嚏奖", Amount: 20, Weight: 12},
+		{Label: "天选打工皇帝奖", Amount: 50, Weight: 3},
 	}
 }
 

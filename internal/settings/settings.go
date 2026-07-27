@@ -2,9 +2,9 @@ package settings
 
 import (
 	"context"
-	"encoding/json"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -17,19 +17,20 @@ import (
 )
 
 const (
-	KeyEnabled      = "checkin_enabled"
-	KeyRewardMode   = "checkin_reward_mode"
-	KeyRewardAmount = "checkin_reward_amount"
-	KeyRewardMin    = "checkin_reward_min"
-	KeyRewardMax    = "checkin_reward_max"
-	KeyTimezone     = "checkin_timezone"
-	KeyNotesPrefix  = "checkin_notes_prefix"
-	KeyHardCap      = "checkin_hard_cap"
-	KeyDailyBudget  = "checkin_daily_budget"
-	KeyBudgetAction = "checkin_budget_action"
-	KeyStreakEnabled = "checkin_streak_enabled"
-	KeyStreakStep    = "checkin_streak_step"
-	KeyStreakMaxDays = "checkin_streak_max_days"
+	KeyEnabled          = "checkin_enabled"
+	KeyRewardMode       = "checkin_reward_mode"
+	KeyRewardAmount     = "checkin_reward_amount"
+	KeyRewardMin        = "checkin_reward_min"
+	KeyRewardMax        = "checkin_reward_max"
+	KeyRewardRanges     = "checkin_reward_ranges"
+	KeyTimezone         = "checkin_timezone"
+	KeyNotesPrefix      = "checkin_notes_prefix"
+	KeyHardCap          = "checkin_hard_cap"
+	KeyDailyBudget      = "checkin_daily_budget"
+	KeyBudgetAction     = "checkin_budget_action"
+	KeyStreakEnabled    = "checkin_streak_enabled"
+	KeyStreakStep       = "checkin_streak_step"
+	KeyStreakMaxDays    = "checkin_streak_max_days"
 	KeyStreakMilestones = "checkin_streak_milestones"
 	// Sub2API admin API key override (UI-managed; takes precedence over env)
 	KeySub2APIAdminAPIKey = "sub2api_admin_api_key"
@@ -42,29 +43,39 @@ const (
 	BudgetBlock   = "block"
 	BudgetDisable = "disable"
 
-	AbsoluteMax        = 100.0
-	DefaultHardCap     = 5.0
-	DefaultDailyBudget = 50.0
+	AbsoluteMax          = 100.0
+	DefaultHardCap       = 5.0
+	DefaultDailyBudget   = 50.0
 	DefaultStreakStep    = 0.01
 	DefaultStreakMaxDays = 7
+	MaxRewardRanges      = 12
+	MaxRewardRangeWeight = 1000000
 )
 
+type RewardRange struct {
+	Label  string  `json:"label,omitempty"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Weight int     `json:"weight"`
+}
+
 type Runtime struct {
-	Enabled      bool    `json:"enabled"`
-	RewardMode   string  `json:"reward_mode"`
-	RewardAmount float64 `json:"reward_amount"`
-	RewardMin    float64 `json:"reward_min"`
-	RewardMax    float64 `json:"reward_max"`
-	RandomReward bool    `json:"random_reward"`
-	Timezone     string  `json:"timezone"`
-	NotesPrefix  string  `json:"notes_prefix"`
-	HardCap      float64 `json:"hard_cap"`
-	DailyBudget  float64 `json:"daily_budget"`
-	BudgetAction string  `json:"budget_action"`
-	Clamped       bool    `json:"clamped,omitempty"`
-	StreakEnabled bool    `json:"streak_enabled"`
-	StreakStep    float64 `json:"streak_step"`
-	StreakMaxDays  int             `json:"streak_max_days"`
+	Enabled          bool            `json:"enabled"`
+	RewardMode       string          `json:"reward_mode"`
+	RewardAmount     float64         `json:"reward_amount"`
+	RewardMin        float64         `json:"reward_min"`
+	RewardMax        float64         `json:"reward_max"`
+	RewardRanges     []RewardRange   `json:"reward_ranges,omitempty"`
+	RandomReward     bool            `json:"random_reward"`
+	Timezone         string          `json:"timezone"`
+	NotesPrefix      string          `json:"notes_prefix"`
+	HardCap          float64         `json:"hard_cap"`
+	DailyBudget      float64         `json:"daily_budget"`
+	BudgetAction     string          `json:"budget_action"`
+	Clamped          bool            `json:"clamped,omitempty"`
+	StreakEnabled    bool            `json:"streak_enabled"`
+	StreakStep       float64         `json:"streak_step"`
+	StreakMaxDays    int             `json:"streak_max_days"`
 	StreakMilestones map[int]float64 `json:"streak_milestones"`
 }
 
@@ -83,20 +94,20 @@ func New(st *store.Store, defaults config.CheckinConfig) *Service {
 	s := &Service{
 		store: st,
 		current: Runtime{
-			Enabled:      defaults.Enabled,
-			RewardMode:   ModeFixed,
-			RewardAmount: amt,
-			RewardMin:    amt,
-			RewardMax:    amt,
-			RandomReward: false,
-			Timezone:     defaults.Timezone,
-			NotesPrefix:  defaults.NotesPrefix,
-			HardCap:      DefaultHardCap,
-			DailyBudget:  DefaultDailyBudget,
-			BudgetAction: BudgetBlock,
-			StreakEnabled: true,
-			StreakStep:    DefaultStreakStep,
-			StreakMaxDays: DefaultStreakMaxDays,
+			Enabled:          defaults.Enabled,
+			RewardMode:       ModeFixed,
+			RewardAmount:     amt,
+			RewardMin:        amt,
+			RewardMax:        amt,
+			RandomReward:     false,
+			Timezone:         defaults.Timezone,
+			NotesPrefix:      defaults.NotesPrefix,
+			HardCap:          DefaultHardCap,
+			DailyBudget:      DefaultDailyBudget,
+			BudgetAction:     BudgetBlock,
+			StreakEnabled:    true,
+			StreakStep:       DefaultStreakStep,
+			StreakMaxDays:    DefaultStreakMaxDays,
 			StreakMilestones: defaultMilestones(),
 		},
 	}
@@ -128,6 +139,9 @@ func (s *Service) PickReward() float64 {
 	var reward float64
 	if rt.RewardMode == ModeRandom {
 		minV, maxV := normalizeRange(rt.RewardMin, rt.RewardMax, rt.RewardAmount)
+		if rr, ok := pickRewardRange(rt.RewardRanges); ok {
+			minV, maxV = normalizeRange(rr.Min, rr.Max, rr.Min)
+		}
 		if maxV > minV {
 			reward = roundMoney(randFloatBetween(minV, maxV))
 		} else {
@@ -182,6 +196,14 @@ func (s *Service) Reload(ctx context.Context) error {
 	} else if ok {
 		if f, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil && f > 0 {
 			maxV = f
+		}
+	}
+	rewardRanges := cur.RewardRanges
+	if v, ok, err := s.store.GetSetting(ctx, KeyRewardRanges); err != nil {
+		return err
+	} else if ok {
+		if ranges, err := parseRewardRanges(v); err == nil {
+			rewardRanges = ranges
 		}
 	}
 	if maxV < minV {
@@ -244,11 +266,16 @@ func (s *Service) Reload(ctx context.Context) error {
 	if maxV < minV {
 		maxV = minV
 	}
+	rewardRanges, rangesClamped := normalizeRewardRanges(rewardRanges, hardCap)
+	if rangesClamped {
+		clamped = true
+	}
 
 	cur.RewardMode = mode
 	cur.RewardAmount = legacyAmt
 	cur.RewardMin = minV
 	cur.RewardMax = maxV
+	cur.RewardRanges = rewardRanges
 	cur.RandomReward = mode == ModeRandom
 	cur.HardCap = hardCap
 	cur.DailyBudget = dailyBudget
@@ -321,19 +348,20 @@ func (s *Service) Reload(ctx context.Context) error {
 }
 
 type UpdateInput struct {
-	Enabled      *bool    `json:"enabled"`
-	RewardMode   *string  `json:"reward_mode"`
-	RewardAmount *float64 `json:"reward_amount"`
-	RewardMin    *float64 `json:"reward_min"`
-	RewardMax    *float64 `json:"reward_max"`
-	Timezone     *string  `json:"timezone"`
-	NotesPrefix  *string  `json:"notes_prefix"`
-	HardCap      *float64 `json:"hard_cap"`
-	DailyBudget  *float64 `json:"daily_budget"`
-	BudgetAction *string  `json:"budget_action"`
-	StreakEnabled *bool    `json:"streak_enabled"`
-	StreakStep    *float64 `json:"streak_step"`
-	StreakMaxDays  *int            `json:"streak_max_days"`
+	Enabled          *bool           `json:"enabled"`
+	RewardMode       *string         `json:"reward_mode"`
+	RewardAmount     *float64        `json:"reward_amount"`
+	RewardMin        *float64        `json:"reward_min"`
+	RewardMax        *float64        `json:"reward_max"`
+	RewardRanges     *[]RewardRange  `json:"reward_ranges"`
+	Timezone         *string         `json:"timezone"`
+	NotesPrefix      *string         `json:"notes_prefix"`
+	HardCap          *float64        `json:"hard_cap"`
+	DailyBudget      *float64        `json:"daily_budget"`
+	BudgetAction     *string         `json:"budget_action"`
+	StreakEnabled    *bool           `json:"streak_enabled"`
+	StreakStep       *float64        `json:"streak_step"`
+	StreakMaxDays    *int            `json:"streak_max_days"`
 	StreakMilestones map[int]float64 `json:"streak_milestones"`
 }
 
@@ -377,6 +405,10 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Runtime, error) {
 	if in.RewardMax != nil {
 		maxV = *in.RewardMax
 	}
+	rewardRanges := next.RewardRanges
+	if in.RewardRanges != nil {
+		rewardRanges = append([]RewardRange{}, (*in.RewardRanges)...)
+	}
 
 	if in.RewardMode == nil {
 		if in.RewardMin != nil || in.RewardMax != nil {
@@ -405,6 +437,13 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Runtime, error) {
 		maxV = hardCap
 		clamped = true
 	}
+	if err := validateRewardRanges(rewardRanges); err != nil {
+		return next, err
+	}
+	rewardRanges, rangesClamped := normalizeRewardRanges(rewardRanges, hardCap)
+	if rangesClamped {
+		clamped = true
+	}
 
 	if mode == ModeRandom {
 		if minV <= 0 || maxV <= 0 {
@@ -419,12 +458,16 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Runtime, error) {
 		next.RewardMode = ModeRandom
 		next.RewardMin = minV
 		next.RewardMax = maxV
+		next.RewardRanges = rewardRanges
 		next.RandomReward = true
 		next.RewardAmount = roundMoney((minV + maxV) / 2)
 		kv[KeyRewardMode] = ModeRandom
 		kv[KeyRewardMin] = formatFloat(minV)
 		kv[KeyRewardMax] = formatFloat(maxV)
 		kv[KeyRewardAmount] = formatFloat(next.RewardAmount)
+		if in.RewardRanges != nil || rangesClamped {
+			kv[KeyRewardRanges] = formatRewardRanges(rewardRanges)
+		}
 	} else {
 		if fixedAmt <= 0 {
 			if minV > 0 && (in.RewardMin != nil || in.RewardMax != nil) {
@@ -440,11 +483,15 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Runtime, error) {
 		next.RewardAmount = fixedAmt
 		next.RewardMin = fixedAmt
 		next.RewardMax = fixedAmt
+		next.RewardRanges = nil
 		next.RandomReward = false
 		kv[KeyRewardMode] = ModeFixed
 		kv[KeyRewardAmount] = formatFloat(fixedAmt)
 		kv[KeyRewardMin] = formatFloat(fixedAmt)
 		kv[KeyRewardMax] = formatFloat(fixedAmt)
+		if in.RewardRanges != nil {
+			kv[KeyRewardRanges] = "[]"
+		}
 	}
 
 	next.HardCap = hardCap
@@ -553,7 +600,6 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (Runtime, error) {
 	return next, nil
 }
 
-
 // StoredAdminAPIKey returns the UI/SQLite override only (not env).
 func (s *Service) StoredAdminAPIKey() string {
 	s.mu.RLock()
@@ -618,6 +664,11 @@ func ApplyMapToUpdateInput(m map[string]any) UpdateInput {
 	}
 	if v, ok := asFloat(m["reward_max"]); ok {
 		in.RewardMax = &v
+	}
+	if raw, ok := m["reward_ranges"]; ok && raw != nil {
+		if rr, ok := parseRewardRangesAny(raw); ok {
+			in.RewardRanges = &rr
+		}
 	}
 	if v, ok := asString(m["timezone"]); ok {
 		in.Timezone = &v
@@ -710,6 +761,187 @@ func normalizeRange(minV, maxV, fallback float64) (float64, float64) {
 	return minV, maxV
 }
 
+func normalizeRewardRanges(ranges []RewardRange, hardCap float64) ([]RewardRange, bool) {
+	if len(ranges) == 0 {
+		return nil, false
+	}
+	if len(ranges) > MaxRewardRanges {
+		ranges = ranges[:MaxRewardRanges]
+	}
+	out := make([]RewardRange, 0, len(ranges))
+	clamped := false
+	for _, rr := range ranges {
+		rr.Label = strings.TrimSpace(rr.Label)
+		if len([]rune(rr.Label)) > 24 {
+			rr.Label = string([]rune(rr.Label)[:24])
+		}
+		if rr.Min < 0 {
+			rr.Min = 0
+			clamped = true
+		}
+		if rr.Max < 0 {
+			rr.Max = 0
+			clamped = true
+		}
+		if rr.Max < rr.Min {
+			rr.Max = rr.Min
+			clamped = true
+		}
+		if hardCap > 0 {
+			if rr.Min > hardCap {
+				rr.Min = hardCap
+				clamped = true
+			}
+			if rr.Max > hardCap {
+				rr.Max = hardCap
+				clamped = true
+			}
+		}
+		if rr.Weight < 0 {
+			rr.Weight = 0
+			clamped = true
+		}
+		if rr.Weight > MaxRewardRangeWeight {
+			rr.Weight = MaxRewardRangeWeight
+			clamped = true
+		}
+		rr.Min = roundMoney(rr.Min)
+		rr.Max = roundMoney(rr.Max)
+		out = append(out, rr)
+	}
+	return out, clamped
+}
+
+func validateRewardRanges(ranges []RewardRange) error {
+	if len(ranges) > MaxRewardRanges {
+		return fmt.Errorf("random reward ranges cannot exceed %d", MaxRewardRanges)
+	}
+	total := 0
+	for i, rr := range ranges {
+		if rr.Min <= 0 || rr.Max <= 0 {
+			return fmt.Errorf("random range %d min/max must be > 0", i+1)
+		}
+		if rr.Max < rr.Min {
+			return fmt.Errorf("random range %d max must be >= min", i+1)
+		}
+		if rr.Max > AbsoluteMax {
+			return fmt.Errorf("random range %d max too large", i+1)
+		}
+		if rr.Weight < 0 {
+			return fmt.Errorf("random range %d weight cannot be negative", i+1)
+		}
+		if rr.Weight > MaxRewardRangeWeight {
+			return fmt.Errorf("random range %d weight too large", i+1)
+		}
+		if rr.Weight > 0 {
+			total += rr.Weight
+		}
+	}
+	if len(ranges) > 0 && total <= 0 {
+		return fmt.Errorf("random reward ranges total weight must be > 0")
+	}
+	return nil
+}
+
+func pickRewardRange(ranges []RewardRange) (RewardRange, bool) {
+	total := 0
+	for _, rr := range ranges {
+		if rr.Weight > 0 {
+			total += rr.Weight
+		}
+	}
+	if total <= 0 {
+		return RewardRange{}, false
+	}
+	n, ok := randInt(total)
+	if !ok {
+		for _, rr := range ranges {
+			if rr.Weight > 0 {
+				return rr, true
+			}
+		}
+		return RewardRange{}, false
+	}
+	acc := 0
+	for _, rr := range ranges {
+		if rr.Weight <= 0 {
+			continue
+		}
+		acc += rr.Weight
+		if n < acc {
+			return rr, true
+		}
+	}
+	return RewardRange{}, false
+}
+
+func parseRewardRanges(raw string) ([]RewardRange, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	var ranges []RewardRange
+	if err := json.Unmarshal([]byte(raw), &ranges); err != nil {
+		return nil, err
+	}
+	if err := validateRewardRanges(ranges); err != nil {
+		return nil, err
+	}
+	out, _ := normalizeRewardRanges(ranges, 0)
+	return out, nil
+}
+
+func parseRewardRangesAny(raw any) ([]RewardRange, bool) {
+	switch v := raw.(type) {
+	case []RewardRange:
+		if err := validateRewardRanges(v); err != nil {
+			return nil, false
+		}
+		out, _ := normalizeRewardRanges(v, 0)
+		return out, true
+	case []any:
+		out := make([]RewardRange, 0, len(v))
+		for _, item := range v {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil, false
+			}
+			rr := RewardRange{}
+			if label, ok := asString(m["label"]); ok {
+				rr.Label = label
+			}
+			if minV, ok := asFloat(m["min"]); ok {
+				rr.Min = minV
+			}
+			if maxV, ok := asFloat(m["max"]); ok {
+				rr.Max = maxV
+			}
+			if weight, ok := asFloat(m["weight"]); ok {
+				rr.Weight = int(weight)
+			}
+			out = append(out, rr)
+		}
+		if err := validateRewardRanges(out); err != nil {
+			return nil, false
+		}
+		clean, _ := normalizeRewardRanges(out, 0)
+		return clean, true
+	case string:
+		out, err := parseRewardRanges(v)
+		return out, err == nil
+	default:
+		return nil, false
+	}
+}
+
+func formatRewardRanges(ranges []RewardRange) string {
+	if len(ranges) == 0 {
+		return "[]"
+	}
+	b, _ := json.Marshal(ranges)
+	return string(b)
+}
+
 func formatFloat(f float64) string {
 	return strconv.FormatFloat(f, 'f', -1, 64)
 }
@@ -742,6 +974,16 @@ func randFloatBetween(minV, maxV float64) float64 {
 	return minV + f*(maxV-minV)
 }
 
+func randInt(max int) (int, bool) {
+	if max <= 0 {
+		return 0, false
+	}
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return 0, false
+	}
+	return int(binary.BigEndian.Uint64(b[:]) % uint64(max)), true
+}
 
 // PersistClamped writes currently clamped reward fields + hard_cap into sqlite so restart stays safe.
 func (s *Service) PersistClamped(ctx context.Context) error {
@@ -754,6 +996,7 @@ func (s *Service) PersistClamped(ctx context.Context) error {
 		KeyRewardAmount: formatFloat(rt.RewardAmount),
 		KeyRewardMin:    formatFloat(rt.RewardMin),
 		KeyRewardMax:    formatFloat(rt.RewardMax),
+		KeyRewardRanges: formatRewardRanges(rt.RewardRanges),
 		KeyRewardMode:   rt.RewardMode,
 		KeyDailyBudget:  formatFloat(rt.DailyBudget),
 		KeyBudgetAction: rt.BudgetAction,

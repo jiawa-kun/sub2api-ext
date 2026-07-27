@@ -178,6 +178,14 @@ details.fold[open] > summary::after{content:"▴"}
 .table th,.table td{padding:8px 10px; border-bottom:1px solid var(--border); text-align:left}
 .table th{color:var(--muted); font-weight:700; background:var(--panel); position:sticky; top:0}
 .table td.mono{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.72rem; color:var(--muted)}
+.tbl-wrap{overflow:auto; border:1px solid var(--border); border-radius:12px; background:var(--panel)}
+.tbl{width:100%; min-width:620px; border-collapse:collapse; font-size:.8rem}
+.tbl th,.tbl td{padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle}
+.tbl th{color:var(--muted); font-weight:700; background:rgba(127,127,127,.06); position:sticky; top:0; z-index:1}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.amount,.tbl td.prob{text-align:right; font-variant-numeric:tabular-nums}
+.tbl .row-actions{text-align:right}
+.tbl input{min-width:0}
 .warnbox{display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.25); color:var(--warn); font-size:.8rem}
 .warnbox.show{display:block}
 .msg{margin-top:10px; padding:10px 12px; border-radius:12px; display:none; font-size:.84rem}
@@ -357,6 +365,20 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <div class="grid2">
             <div><label for="rewardMin">最小 $</label><input id="rewardMin" type="number" min="0.0001" step="0.0001" /></div>
             <div><label for="rewardMax">最大 $</label><input id="rewardMax" type="number" min="0.0001" step="0.0001" /></div>
+          </div>
+          <div class="field">
+            <label>随机档位概率</label>
+            <div class="hint">可选。不配置档位时，仍按上方最小~最大均匀随机；配置后先按权重选档位，再在档位区间内随机。</div>
+            <div class="tbl-wrap">
+              <table class="tbl" id="rewardRangeTable">
+                <thead><tr><th>档位名称</th><th style="width:120px">最小 $</th><th style="width:120px">最大 $</th><th style="width:110px">权重</th><th style="width:90px">概率</th><th style="width:78px"></th></tr></thead>
+                <tbody id="rewardRangeBody"></tbody>
+              </table>
+            </div>
+            <div class="toolbar">
+              <button type="button" class="secondary sm" id="btnRewardRangeAdd">新增档位</button>
+              <button type="button" class="secondary sm" id="btnRewardRangeClear">清空档位</button>
+            </div>
           </div>
           <button type="button" class="secondary sm" id="btnSim" style="margin-top:8px">模拟 10 次</button>
           <div id="simResult" class="hint"></div>
@@ -669,10 +691,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="field">
           <label>奖池配置</label>
           <div class="hint">权重越大中奖概率越高；额度填 0 即为“未中奖”奖项。最多 12 项。</div>
-          <table class="tbl" id="lotteryPrizeTable">
-            <thead><tr><th>奖项名称</th><th style="width:140px">额度</th><th style="width:120px">权重</th><th style="width:100px">概率</th><th style="width:60px"></th></tr></thead>
-            <tbody id="lotteryPrizeBody"></tbody>
-          </table>
+          <div class="tbl-wrap">
+            <table class="tbl" id="lotteryPrizeTable">
+              <thead><tr><th>奖项名称</th><th style="width:140px">额度</th><th style="width:120px">权重</th><th style="width:100px">概率</th><th style="width:78px"></th></tr></thead>
+              <tbody id="lotteryPrizeBody"></tbody>
+            </table>
+          </div>
           <div class="toolbar">
             <button type="button" class="secondary sm" id="btnLotteryAddPrize">新增奖项</button>
             <button type="button" class="secondary sm" id="btnLotteryResetPrize">恢复默认奖池</button>
@@ -689,10 +713,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <span class="badge" id="lotteryStatsBadge">—</span>
         </div>
         <div class="hint" id="lotteryStats">—</div>
-        <table class="tbl">
-          <thead><tr><th>时间</th><th>用户</th><th>日期</th><th>奖项</th><th>额度</th></tr></thead>
-          <tbody id="lotteryDrawBody"><tr><td colspan="5" class="hint">—</td></tr></tbody>
-        </table>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>时间</th><th>用户</th><th>日期</th><th>奖项</th><th style="width:100px">额度</th></tr></thead>
+            <tbody id="lotteryDrawBody"><tr><td colspan="5" class="hint">—</td></tr></tbody>
+          </table>
+        </div>
         <div class="toolbar">
           <button type="button" class="secondary sm" id="btnLotteryDrawsRefresh">刷新记录</button>
         </div>
@@ -840,7 +866,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     wireInternalNav();
 
     const msg=el('msg');
-    let rewardMode='fixed', savedSnapshot=null, accessToken='', authMode='none';
+    let rewardMode='fixed', savedSnapshot=null, accessToken='', authMode='none', rewardRanges=[];
 
     function show(text,type){ msg.textContent=text; msg.className='msg show '+type; }
     function isSensitiveAuthError(err){
@@ -932,6 +958,69 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('panelRandom').classList.toggle('hidden', rewardMode!=='random');
       markDirty();
     }
+    function rangePct(weight,total){
+      const w=Number(weight)>0?Number(weight):0;
+      return total>0?((w/total)*100).toFixed(2)+'%':'—';
+    }
+    function renderRewardRanges(){
+      const body=el('rewardRangeBody');
+      if(!body) return;
+      if(!rewardRanges.length){
+        body.innerHTML='<tr><td colspan="6" class="hint">未配置档位，使用上方单一区间均匀随机</td></tr>';
+        return;
+      }
+      const total=rewardRanges.reduce((a,r)=>a+(Number(r.weight)>0?Number(r.weight):0),0);
+      body.innerHTML=rewardRanges.map((r,i)=>'<tr>'
+        +'<td><input type="text" maxlength="24" data-range="label" data-i="'+i+'" value="'+escapeHtml(r.label||'')+'" /></td>'
+        +'<td><input type="number" min="0.0001" step="0.0001" data-range="min" data-i="'+i+'" value="'+escapeHtml(r.min)+'" /></td>'
+        +'<td><input type="number" min="0.0001" step="0.0001" data-range="max" data-i="'+i+'" value="'+escapeHtml(r.max)+'" /></td>'
+        +'<td><input type="number" min="0" step="1" data-range="weight" data-i="'+i+'" value="'+escapeHtml(r.weight)+'" /></td>'
+        +'<td class="hint prob">'+rangePct(r.weight,total)+'</td>'
+        +'<td class="row-actions"><button type="button" class="secondary sm" data-range="del" data-i="'+i+'">删除</button></td>'
+        +'</tr>').join('');
+      body.querySelectorAll('[data-range]').forEach(node=>{
+        const idx=Number(node.getAttribute('data-i'));
+        const kind=node.getAttribute('data-range');
+        if(kind==='del'){
+          node.onclick=()=>{ rewardRanges.splice(idx,1); renderRewardRanges(); markDirty(); };
+          return;
+        }
+        node.oninput=()=>{
+          if(kind==='label') rewardRanges[idx].label=node.value;
+          else rewardRanges[idx][kind]=Number(node.value);
+          if(kind==='weight') renderRewardRanges();
+          markDirty();
+        };
+      });
+    }
+    function normalizedRewardRanges(){
+      return rewardRanges
+        .map(r=>({label:String(r.label||''), min:Number(r.min)||0, max:Number(r.max)||0, weight:Math.round(Number(r.weight)||0)}))
+        .filter(r=>r.label || r.min || r.max || r.weight);
+    }
+    function sameRewardRanges(a,b){
+      a=Array.isArray(a)?a:[];
+      b=Array.isArray(b)?b:[];
+      if(a.length!==b.length) return false;
+      for(let i=0;i<a.length;i++){
+        if(String(a[i].label||'')!==String(b[i].label||'')) return false;
+        if(Number(a[i].min||0)!==Number(b[i].min||0)) return false;
+        if(Number(a[i].max||0)!==Number(b[i].max||0)) return false;
+        if(Number(a[i].weight||0)!==Number(b[i].weight||0)) return false;
+      }
+      return true;
+    }
+    function pickSimRange(ranges){
+      const total=ranges.reduce((a,r)=>a+(Number(r.weight)>0?Number(r.weight):0),0);
+      if(total<=0) return null;
+      let n=Math.random()*total, acc=0;
+      for(const r of ranges){
+        const w=Number(r.weight)>0?Number(r.weight):0;
+        acc+=w;
+        if(n<acc) return r;
+      }
+      return ranges.find(r=>Number(r.weight)>0)||null;
+    }
     function currentForm(){
       const tzPreset=el('timezonePreset').value;
       const timezone=tzPreset==='__custom'?el('timezone').value.trim():tzPreset;
@@ -954,6 +1043,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(rewardMode==='random'){
         body.reward_min=Number(el('rewardMin').value);
         body.reward_max=Number(el('rewardMax').value);
+        body.reward_ranges=normalizedRewardRanges();
       } else body.reward_amount=Number(el('rewardAmount').value);
       return body;
     }
@@ -993,7 +1083,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const sm=s.streak_milestones||{};
       if(Number(f.streak_milestones[3]||0)!==Number(sm[3]||sm['3']||0)) return false;
       if(Number(f.streak_milestones[7]||0)!==Number(sm[7]||sm['7']||0)) return false;
-      if(f.reward_mode==='random') return Number(f.reward_min)===Number(s.reward_min)&&Number(f.reward_max)===Number(s.reward_max);
+      if(f.reward_mode==='random') return Number(f.reward_min)===Number(s.reward_min)&&Number(f.reward_max)===Number(s.reward_max)&&sameRewardRanges(f.reward_ranges,s.reward_ranges);
       return Number(f.reward_amount)===Number(s.reward_amount);
     }
     function markDirty(){
@@ -1016,6 +1106,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('rewardAmount').value=s.reward_amount!=null?s.reward_amount:(s.reward_min||0.1);
       el('rewardMin').value=s.reward_min!=null?s.reward_min:el('rewardAmount').value;
       el('rewardMax').value=s.reward_max!=null?s.reward_max:el('rewardAmount').value;
+      rewardRanges=Array.isArray(s.reward_ranges)?s.reward_ranges.map(r=>({label:r.label||'',min:Number(r.min)||0,max:Number(r.max)||0,weight:Number(r.weight)||0})):[];
+      renderRewardRanges();
       el('hardCap').value=s.hard_cap!=null?s.hard_cap:5;
       el('dailyBudget').value=s.daily_budget!=null?s.daily_budget:50;
       el('budgetAction').value=s.budget_action||'block';
@@ -1559,13 +1651,25 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(!(body.reward_min>0)||!(body.reward_max>0)) throw new Error('区间额度必须大于 0');
         if(body.reward_max<body.reward_min) throw new Error('最大不能小于最小');
         if(body.reward_max>body.hard_cap) throw new Error('最大额度不能超过硬顶');
+        if(body.reward_ranges&&body.reward_ranges.length){
+          if(body.reward_ranges.length>12) throw new Error('随机档位最多 12 个');
+          const total=body.reward_ranges.reduce((a,r)=>a+(Number(r.weight)>0?Number(r.weight):0),0);
+          if(total<=0) throw new Error('随机档位总权重必须大于 0');
+          body.reward_ranges.forEach((r,i)=>{
+            if(!(r.min>0)||!(r.max>0)) throw new Error('第 '+(i+1)+' 个随机档位区间必须大于 0');
+            if(r.max<r.min) throw new Error('第 '+(i+1)+' 个随机档位最大不能小于最小');
+            if(r.max>body.hard_cap) throw new Error('第 '+(i+1)+' 个随机档位最大额度不能超过硬顶');
+            if(r.weight<0) throw new Error('第 '+(i+1)+' 个随机档位权重不能为负');
+          });
+        }
       } else {
         if(!(body.reward_amount>0)) throw new Error('固定额度必须大于 0');
         if(body.reward_amount>body.hard_cap) throw new Error('固定额度不能超过硬顶');
       }
     }
     function needsHighConfirm(body){
-      return body.reward_amount>HIGH_AMOUNT || body.reward_min>HIGH_AMOUNT || body.reward_max>HIGH_AMOUNT || body.hard_cap>HIGH_AMOUNT;
+      if(body.reward_amount>HIGH_AMOUNT || body.reward_min>HIGH_AMOUNT || body.reward_max>HIGH_AMOUNT || body.hard_cap>HIGH_AMOUNT) return true;
+      return Array.isArray(body.reward_ranges) && body.reward_ranges.some(r=>Number(r.min)>HIGH_AMOUNT || Number(r.max)>HIGH_AMOUNT);
     }
 
 
@@ -1580,6 +1684,19 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
     el('modeFixed').onclick=()=>setMode('fixed');
     el('modeRandom').onclick=()=>setMode('random');
+    el('btnRewardRangeAdd').onclick=()=>{
+      if(rewardRanges.length>=12){ show('随机档位最多 12 个','err'); return; }
+      const minV=Number(el('rewardMin').value)||0.1;
+      const maxV=Number(el('rewardMax').value)||minV;
+      rewardRanges.push({label:'新档位',min:minV,max:maxV,weight:1});
+      renderRewardRanges();
+      markDirty();
+    };
+    el('btnRewardRangeClear').onclick=()=>{
+      rewardRanges=[];
+      renderRewardRanges();
+      markDirty();
+    };
     ['enabled','rewardAmount','rewardMin','rewardMax','notes','timezone','hardCap','dailyBudget','budgetAction','streakEnabled','streakStep','streakMaxDays','mile3','mile7'].forEach(id=>{
       el(id).addEventListener('input', markDirty); el(id).addEventListener('change', markDirty);
     });
@@ -1629,7 +1746,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       try{
         const minV=Number(el('rewardMin').value), maxV=Number(el('rewardMax').value);
         if(!(minV>0)||!(maxV>0)||maxV<minV) throw new Error('请填写合法区间');
-        const samples=[]; for(let i=0;i<10;i++){ const x=minV+Math.random()*(maxV-minV); samples.push(Math.round(x*10000)/10000); }
+        const ranges=normalizedRewardRanges();
+        const samples=[];
+        for(let i=0;i<10;i++){
+          const picked=pickSimRange(ranges);
+          const lo=picked?Number(picked.min):minV;
+          const hi=picked?Number(picked.max):maxV;
+          const x=lo+Math.random()*(hi-lo);
+          samples.push(Math.round(x*10000)/10000);
+        }
         const avg=samples.reduce((a,b)=>a+b,0)/samples.length;
         el('simResult').textContent=`[${samples.map(n=>n.toFixed(4)).join(', ')}] min=${Math.min(...samples).toFixed(4)} max=${Math.max(...samples).toFixed(4)} avg=${avg.toFixed(4)}`;
       }catch(e){ el('simResult').textContent=e.message||String(e); }
@@ -1713,11 +1838,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     // ---- lottery ----
     let lotteryPrizes=[];
     const LOTTERY_DEFAULT_PRIZES=[
-      {label:'谢谢参与',amount:0,weight:40},
-      {label:'0.5 额度',amount:0.5,weight:30},
-      {label:'1 额度',amount:1,weight:20},
-      {label:'5 额度',amount:5,weight:9},
-      {label:'10 额度',amount:10,weight:1}
+      {label:'宇宙边角料补贴',amount:2,weight:50},
+      {label:'赛博馒头基金',amount:5,weight:20},
+      {label:'老板良心残片',amount:10,weight:15},
+      {label:'财神打喷嚏奖',amount:20,weight:12},
+      {label:'天选打工皇帝奖',amount:50,weight:3}
     ];
     function lotteryEsc(v){
       const d=document.createElement('div');
@@ -1739,8 +1864,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           +'<td><input type="text" data-lot="label" data-i="'+i+'" value="'+lotteryEsc(p.label)+'" maxlength="24" /></td>'
           +'<td><input type="number" step="0.0001" min="0" data-lot="amount" data-i="'+i+'" value="'+lotteryEsc(p.amount)+'" /></td>'
           +'<td><input type="number" step="1" min="0" data-lot="weight" data-i="'+i+'" value="'+lotteryEsc(p.weight)+'" /></td>'
-          +'<td class="hint">'+pct+'</td>'
-          +'<td><button type="button" class="secondary sm" data-lot="del" data-i="'+i+'">删除</button></td>'
+          +'<td class="hint prob">'+pct+'</td>'
+          +'<td class="row-actions"><button type="button" class="secondary sm" data-lot="del" data-i="'+i+'">删除</button></td>'
           +'</tr>';
       }).join('');
       body.querySelectorAll('[data-lot]').forEach(node=>{
@@ -1808,7 +1933,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         const t=d.created_at?new Date(d.created_at):null;
         const when=(t&&!isNaN(t.getTime()))?t.toLocaleString():'—';
         const amt=Number(d.amount)>0?Number(d.amount).toFixed(4):'—';
-        return '<tr><td>'+lotteryEsc(when)+'</td><td>'+lotteryEsc(d.user_id)+'</td><td>'+lotteryEsc(d.draw_date)+'</td><td>'+lotteryEsc(d.prize_label||'—')+'</td><td>'+amt+'</td></tr>';
+        return '<tr><td>'+lotteryEsc(when)+'</td><td>'+lotteryEsc(d.user_id)+'</td><td>'+lotteryEsc(d.draw_date)+'</td><td>'+lotteryEsc(d.prize_label||'—')+'</td><td class="amount">'+amt+'</td></tr>';
       }).join('');
     }
     async function refreshLotteryAll(){

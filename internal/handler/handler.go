@@ -17,10 +17,10 @@ import (
 	"sub2api-ext/internal/metrics"
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
+	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/ratelimit"
 	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
-	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/store"
 	"sub2api-ext/internal/sub2api"
 )
@@ -75,39 +75,39 @@ func (h *Handler) publish(ev notify.Event) {
 }
 
 type statusResponse struct {
-	Enabled         bool         `json:"enabled"`
-	RewardMode      string       `json:"reward_mode"`
-	RewardAmount    float64      `json:"reward_amount"`
-	RewardMin       float64      `json:"reward_min"`
-	RewardMax       float64      `json:"reward_max"`
-	RandomReward    bool         `json:"random_reward"`
-	Timezone        string       `json:"timezone"`
-	Today           string       `json:"today"`
-	HardCap         float64      `json:"hard_cap"`
-	DailyBudget     float64      `json:"daily_budget"`
-	DailySpent      float64      `json:"daily_spent"`
-	DailyRemaining  *float64     `json:"daily_remaining,omitempty"`
-	BudgetAction    string       `json:"budget_action"`
-	Clamped         bool         `json:"clamped,omitempty"`
-	CheckedInToday  bool         `json:"checked_in_today"`
-	TodayReward     *float64     `json:"today_reward,omitempty"`
-	TotalCheckins   int64        `json:"total_checkins"`
-	UserID          int64        `json:"user_id,omitempty"`
-	Email           string       `json:"email,omitempty"`
-	Username        string       `json:"username,omitempty"`
-	Balance         *float64     `json:"balance,omitempty"`
-	IsAdmin         bool         `json:"is_admin,omitempty"`
-	Recent          []recentItem `json:"recent,omitempty"`
-	StreakEnabled   bool         `json:"streak_enabled"`
-	StreakStep      float64      `json:"streak_step"`
-	StreakMaxDays   int          `json:"streak_max_days"`
-	CurrentStreak   int          `json:"current_streak"`
-	NextStreak      int          `json:"next_streak"`
-	StreakBonus     float64      `json:"streak_bonus"`
-	MilestoneBonus  float64      `json:"milestone_bonus"`
+	Enabled          bool            `json:"enabled"`
+	RewardMode       string          `json:"reward_mode"`
+	RewardAmount     float64         `json:"reward_amount"`
+	RewardMin        float64         `json:"reward_min"`
+	RewardMax        float64         `json:"reward_max"`
+	RandomReward     bool            `json:"random_reward"`
+	Timezone         string          `json:"timezone"`
+	Today            string          `json:"today"`
+	HardCap          float64         `json:"hard_cap"`
+	DailyBudget      float64         `json:"daily_budget"`
+	DailySpent       float64         `json:"daily_spent"`
+	DailyRemaining   *float64        `json:"daily_remaining,omitempty"`
+	BudgetAction     string          `json:"budget_action"`
+	Clamped          bool            `json:"clamped,omitempty"`
+	CheckedInToday   bool            `json:"checked_in_today"`
+	TodayReward      *float64        `json:"today_reward,omitempty"`
+	TotalCheckins    int64           `json:"total_checkins"`
+	UserID           int64           `json:"user_id,omitempty"`
+	Email            string          `json:"email,omitempty"`
+	Username         string          `json:"username,omitempty"`
+	Balance          *float64        `json:"balance,omitempty"`
+	IsAdmin          bool            `json:"is_admin,omitempty"`
+	Recent           []recentItem    `json:"recent,omitempty"`
+	StreakEnabled    bool            `json:"streak_enabled"`
+	StreakStep       float64         `json:"streak_step"`
+	StreakMaxDays    int             `json:"streak_max_days"`
+	CurrentStreak    int             `json:"current_streak"`
+	NextStreak       int             `json:"next_streak"`
+	StreakBonus      float64         `json:"streak_bonus"`
+	MilestoneBonus   float64         `json:"milestone_bonus"`
 	StreakMilestones map[int]float64 `json:"streak_milestones,omitempty"`
-	NextMilestoneDay int         `json:"next_milestone_day,omitempty"`
-	NextMilestoneAmt float64     `json:"next_milestone_amount,omitempty"`
+	NextMilestoneDay int             `json:"next_milestone_day,omitempty"`
+	NextMilestoneAmt float64         `json:"next_milestone_amount,omitempty"`
 }
 
 type recentItem struct {
@@ -127,8 +127,8 @@ type checkinResponse struct {
 
 type adminUpdateBody struct {
 	settings.UpdateInput
-	Source            string  `json:"source"`
-	ConfirmHighAmount *bool   `json:"confirm_high_amount"`
+	Source            string `json:"source"`
+	ConfirmHighAmount *bool  `json:"confirm_high_amount"`
 	// AdminAPIKey: non-empty sets SQLite override (takes precedence over env).
 	// Empty / omitted: no change. Use AdminAPIKeyClear to remove override.
 	AdminAPIKey      *string `json:"admin_api_key"`
@@ -171,7 +171,7 @@ func (h *Handler) Metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
-	if !h.limitStatus.Allow("status:"+clientIP(r)) {
+	if !h.limitStatus.Allow("status:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -179,19 +179,19 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	today := h.settings.Today()
 	spent, _ := h.store.SumAmountByDate(r.Context(), today)
 	resp := statusResponse{
-		Enabled:      rt.Enabled,
-		RewardMode:   rt.RewardMode,
-		RewardAmount: rt.RewardAmount,
-		RewardMin:    rt.RewardMin,
-		RewardMax:    rt.RewardMax,
-		RandomReward: rt.RandomReward || rt.RewardMode == "random",
-		Timezone:     rt.Timezone,
-		Today:        today,
-		HardCap:      rt.HardCap,
-		DailyBudget:  rt.DailyBudget,
-		DailySpent:   spent,
-		BudgetAction: rt.BudgetAction,
-		Clamped:       rt.Clamped,
+		Enabled:          rt.Enabled,
+		RewardMode:       rt.RewardMode,
+		RewardAmount:     rt.RewardAmount,
+		RewardMin:        rt.RewardMin,
+		RewardMax:        rt.RewardMax,
+		RandomReward:     rt.RandomReward || rt.RewardMode == "random",
+		Timezone:         rt.Timezone,
+		Today:            today,
+		HardCap:          rt.HardCap,
+		DailyBudget:      rt.DailyBudget,
+		DailySpent:       spent,
+		BudgetAction:     rt.BudgetAction,
+		Clamped:          rt.Clamped,
 		StreakEnabled:    rt.StreakEnabled,
 		StreakStep:       rt.StreakStep,
 		StreakMaxDays:    rt.StreakMaxDays,
@@ -472,7 +472,7 @@ func (h *Handler) AdminGetSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !h.limitAdminRead.Allow("ar:"+clientIP(r)) {
+	if !h.limitAdminRead.Allow("ar:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -485,7 +485,7 @@ func (h *Handler) AdminGetSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AdminListAudit(w http.ResponseWriter, r *http.Request) {
-	if !h.limitAdminRead.Allow("AdminListAudit:"+clientIP(r)) {
+	if !h.limitAdminRead.Allow("AdminListAudit:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -520,7 +520,7 @@ func (h *Handler) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !h.limitAdminWrite.Allow("aw:"+clientIP(r)) {
+	if !h.limitAdminWrite.Allow("aw:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -622,7 +622,7 @@ func (h *Handler) AdminUpdateSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AdminRollbackSettings(w http.ResponseWriter, r *http.Request) {
-	if !h.limitAdminWrite.Allow("AdminRollbackSettings:"+clientIP(r)) {
+	if !h.limitAdminWrite.Allow("AdminRollbackSettings:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -686,7 +686,7 @@ func (h *Handler) AdminRollbackSettings(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
-	if !h.limitAdminRead.Allow("AdminStats:"+clientIP(r)) {
+	if !h.limitAdminRead.Allow("AdminStats:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -755,7 +755,7 @@ func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AdminListCheckins(w http.ResponseWriter, r *http.Request) {
-	if !h.limitAdminRead.Allow("AdminListCheckins:"+clientIP(r)) {
+	if !h.limitAdminRead.Allow("AdminListCheckins:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -785,12 +785,12 @@ func (h *Handler) AdminListCheckins(w http.ResponseWriter, r *http.Request) {
 	items := make([]map[string]any, 0, len(list))
 	for _, rec := range list {
 		items = append(items, map[string]any{
-			"id":           rec.ID,
-			"user_id":      rec.UserID,
-			"checkin_date": rec.CheckinDate,
-			"amount":       rec.Amount,
-			"new_balance":  rec.NewBalance,
-			"created_at":   rec.CreatedAt.UTC().Format(time.RFC3339),
+			"id":              rec.ID,
+			"user_id":         rec.UserID,
+			"checkin_date":    rec.CheckinDate,
+			"amount":          rec.Amount,
+			"new_balance":     rec.NewBalance,
+			"created_at":      rec.CreatedAt.UTC().Format(time.RFC3339),
 			"idempotency_key": fmt.Sprintf("checkin-%d-%s", rec.UserID, rec.CheckinDate),
 		})
 	}
@@ -810,6 +810,13 @@ func needsHighAmountConfirm(in settings.UpdateInput) bool {
 	}
 	if in.RewardMin != nil && *in.RewardMin > highAmountThreshold {
 		return true
+	}
+	if in.RewardRanges != nil {
+		for _, rr := range *in.RewardRanges {
+			if rr.Min > highAmountThreshold || rr.Max > highAmountThreshold {
+				return true
+			}
+		}
 	}
 	if in.HardCap != nil && *in.HardCap > highAmountThreshold {
 		return true
@@ -907,6 +914,20 @@ func isSensitiveUpdate(in settings.UpdateInput, old settings.Runtime) bool {
 	if in.RewardMin != nil && *in.RewardMin > highAmountThreshold && *in.RewardMin > old.RewardMin {
 		return true
 	}
+	if in.RewardRanges != nil {
+		oldMaxByLabel := map[string]float64{}
+		for _, rr := range old.RewardRanges {
+			oldMaxByLabel[rr.Label] = rr.Max
+		}
+		for _, rr := range *in.RewardRanges {
+			if rr.Max <= highAmountThreshold {
+				continue
+			}
+			if rr.Max > oldMaxByLabel[rr.Label] {
+				return true
+			}
+		}
+	}
 	if in.DailyBudget != nil && *in.DailyBudget > 0 && *in.DailyBudget > old.DailyBudget {
 		return true
 	}
@@ -968,23 +989,24 @@ func (h *Handler) syncAdminCred() {
 func (h *Handler) settingsPayload(rt settings.Runtime, today string) map[string]any {
 	effective := h.effectiveAdminCred()
 	return map[string]any{
-		"enabled":       rt.Enabled,
-		"reward_mode":   rt.RewardMode,
-		"reward_amount": rt.RewardAmount,
-		"reward_min":    rt.RewardMin,
-		"reward_max":    rt.RewardMax,
-		"random_reward": rt.RandomReward || rt.RewardMode == "random",
-		"timezone":      rt.Timezone,
-		"notes_prefix":  rt.NotesPrefix,
-		"hard_cap":      rt.HardCap,
-		"daily_budget":  rt.DailyBudget,
-		"budget_action":  rt.BudgetAction,
-		"clamped":        rt.Clamped,
-		"streak_enabled":    rt.StreakEnabled,
-		"streak_step":       rt.StreakStep,
-		"streak_max_days":   rt.StreakMaxDays,
-		"streak_milestones": rt.StreakMilestones,
-		"today":             today,
+		"enabled":                  rt.Enabled,
+		"reward_mode":              rt.RewardMode,
+		"reward_amount":            rt.RewardAmount,
+		"reward_min":               rt.RewardMin,
+		"reward_max":               rt.RewardMax,
+		"reward_ranges":            rt.RewardRanges,
+		"random_reward":            rt.RandomReward || rt.RewardMode == "random",
+		"timezone":                 rt.Timezone,
+		"notes_prefix":             rt.NotesPrefix,
+		"hard_cap":                 rt.HardCap,
+		"daily_budget":             rt.DailyBudget,
+		"budget_action":            rt.BudgetAction,
+		"clamped":                  rt.Clamped,
+		"streak_enabled":           rt.StreakEnabled,
+		"streak_step":              rt.StreakStep,
+		"streak_max_days":          rt.StreakMaxDays,
+		"streak_milestones":        rt.StreakMilestones,
+		"today":                    today,
 		"admin_api_key_configured": effective != "",
 		"admin_api_key_masked":     settings.MaskSecret(effective),
 		"admin_api_key_source":     h.adminCredSource(),
@@ -997,6 +1019,7 @@ func hasSettingsFields(in settings.UpdateInput) bool {
 		in.RewardAmount != nil ||
 		in.RewardMin != nil ||
 		in.RewardMax != nil ||
+		in.RewardRanges != nil ||
 		in.Timezone != nil ||
 		in.NotesPrefix != nil ||
 		in.HardCap != nil ||
@@ -1007,7 +1030,6 @@ func hasSettingsFields(in settings.UpdateInput) bool {
 		in.StreakMaxDays != nil ||
 		in.StreakMilestones != nil
 }
-
 
 func (h *Handler) requireAdmin(r *http.Request) (*sub2api.User, error) {
 	if h.isServerAdminCredential(r) {
@@ -1152,9 +1174,8 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 	})
 }
 
-
 func (h *Handler) AdminApplyTemplate(w http.ResponseWriter, r *http.Request) {
-	if !h.limitAdminWrite.Allow("AdminApplyTemplate:"+clientIP(r)) {
+	if !h.limitAdminWrite.Allow("AdminApplyTemplate:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -1203,13 +1224,12 @@ func (h *Handler) AdminApplyTemplate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-
 func (h *Handler) Calendar(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if !h.limitStatus.Allow("cal:"+clientIP(r)) {
+	if !h.limitStatus.Allow("cal:" + clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -1268,7 +1288,6 @@ func (h *Handler) Calendar(w http.ResponseWriter, r *http.Request) {
 		"count":    len(recs),
 	})
 }
-
 
 // truncateForNotify keeps notification payloads compact.
 func truncateForNotify(s string, n int) string {
