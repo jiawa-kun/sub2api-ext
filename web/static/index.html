@@ -181,6 +181,7 @@ details.more .body{padding:0 12px 12px}
     position:absolute;left:50%;top:50%;z-index:2;width:74px;margin-left:-37px;margin-top:-12px;
     text-align:center;font-size:11px;font-weight:750;line-height:1.15;color:#0f172a;
     text-shadow:0 1px 0 rgba(255,255,255,.5); white-space:normal; overflow:hidden;
+    transform-origin:center center;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   }
   .lottery-label.miss{color:#475569}
@@ -217,7 +218,6 @@ details.more .body{padding:0 12px 12px}
     <header class="top">
       <div>
         <div class="topnav">
-          <a href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>扩展中心</a>
           <a class="active" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
           <a href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
@@ -295,7 +295,7 @@ details.more .body{padding:0 12px 12px}
       </details>
 
       <div class="foot">
-        <span><a id="adminLink" href="./admin.html">管理台</a> · <a href="./home.html">扩展中心</a></span>
+        <span><a id="adminLink" href="./admin.html">管理台</a></span>
         <span class="sub" style="margin:0" id="userLine"></span>
       </div>
     </section>
@@ -809,6 +809,8 @@ details.more .body{padding:0 12px 12px}
     let lotteryBusy=false;
     let lotteryPrizesCache=[];
     let lotteryRotation=0;
+    const LOTTERY_START_DEG=-90;
+    const LOTTERY_POINTER_DEG=0;
     const lotteryColors=['#bfdbfe','#bbf7d0','#fde68a','#fecdd3','#ddd6fe','#bae6fd','#fed7aa','#ccfbf1'];
     function esc(s){
       const d=document.createElement('div');
@@ -829,17 +831,22 @@ details.more .body{padding:0 12px 12px}
         return;
       }
       const step=360/list.length;
-      wheel.style.background='conic-gradient(from -90deg, '+list.map((p,i)=>{
+      wheel.style.background='conic-gradient(from '+LOTTERY_START_DEG+'deg, '+list.map((p,i)=>{
         const color=lotteryColors[i%lotteryColors.length];
         return color+' '+(i*step)+'deg '+((i+1)*step)+'deg';
       }).join(',')+')';
       const radius=Math.max(66, Math.min(96, (wheel.clientWidth||240)*0.36));
       wheel.innerHTML=list.map((p,i)=>{
-        const mid=-90+(i+.5)*step;
-        const transform='rotate('+mid+'deg) translateY(-'+radius+'px) rotate('+(-mid)+'deg)';
+        const mid=segmentCenterDeg(i);
         const win=Number(p.amount)>0;
-        return '<span class="lottery-label '+(win?'win':'miss')+'" style="transform:'+transform+'" title="'+esc(p.label)+'">'+esc(shortPrizeLabel(p))+'</span>';
+        return '<span class="lottery-label '+(win?'win':'miss')+'" data-angle="'+mid+'" data-radius="'+radius+'" title="'+esc(p.label)+'">'+esc(shortPrizeLabel(p))+'</span>';
       }).join('');
+      applyLotteryLabelTransforms();
+    }
+    function segmentCenterDeg(idx){
+      const n=lotteryPrizesCache.length;
+      if(!n) return LOTTERY_POINTER_DEG;
+      return LOTTERY_START_DEG + (idx+.5)*(360/n);
     }
     function prizeIndexByLabel(label){
       const target=String(label||'');
@@ -849,10 +856,20 @@ details.more .body{padding:0 12px 12px}
     function wheelRotationForIndex(idx){
       const n=lotteryPrizesCache.length;
       if(!n || idx<0) return lotteryRotation;
-      const center=(idx+.5)*(360/n);
-      let next=Math.ceil(lotteryRotation/360)*360 + 1800 - center;
+      const center=segmentCenterDeg(idx);
+      let next=Math.ceil(lotteryRotation/360)*360 + 1800 + LOTTERY_POINTER_DEG - center;
       while(next<lotteryRotation+900) next+=360;
       return next;
+    }
+    function applyLotteryLabelTransforms(){
+      const wheel=el('lotteryWheel');
+      if(!wheel) return;
+      wheel.querySelectorAll('.lottery-label').forEach(node=>{
+        const angle=Number(node.getAttribute('data-angle'))||0;
+        const radius=Number(node.getAttribute('data-radius'))||80;
+        const correction=-(angle+lotteryRotation);
+        node.style.transform='rotate('+angle+'deg) translateY(-'+radius+'px) rotate('+correction+'deg)';
+      });
     }
     function setWheelRotation(deg, animate){
       const wheel=el('lotteryWheel');
@@ -860,6 +877,7 @@ details.more .body{padding:0 12px 12px}
       wheel.style.transition=animate?'transform 4.2s cubic-bezier(.12,.72,.12,1)':'none';
       lotteryRotation=deg;
       wheel.style.transform='rotate('+deg+'deg)';
+      applyLotteryLabelTransforms();
       if(!animate){
         requestAnimationFrame(()=>{ wheel.style.transition='transform 4.2s cubic-bezier(.12,.72,.12,1)'; });
       }
@@ -867,8 +885,7 @@ details.more .body{padding:0 12px 12px}
     function snapWheelToPrize(label){
       const idx=prizeIndexByLabel(label);
       if(idx<0) return;
-      const center=(idx+.5)*(360/lotteryPrizesCache.length);
-      setWheelRotation(-center, false);
+      setWheelRotation(LOTTERY_POINTER_DEG-segmentCenterDeg(idx), false);
     }
     function warmSpin(){
       const wheel=el('lotteryWheel');
@@ -876,6 +893,7 @@ details.more .body{padding:0 12px 12px}
       wheel.style.transition='transform .9s linear';
       lotteryRotation+=360;
       wheel.style.transform='rotate('+lotteryRotation+'deg)';
+      applyLotteryLabelTransforms();
     }
     function spinWheelToPrize(label){
       const idx=prizeIndexByLabel(label);
@@ -889,6 +907,7 @@ details.more .body{padding:0 12px 12px}
           if(done) return;
           done=true;
           wheel.removeEventListener('transitionend', finish);
+          applyLotteryLabelTransforms();
           resolve();
         };
         wheel.addEventListener('transitionend', finish);
