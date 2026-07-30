@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>我的奖励 · Sub2API 扩展</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
-  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <link rel="icon" type="image/svg+xml" href="./assets/rewards-icon-app.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/rewards-icon-app-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/rewards-icon-app.svg" />
   <style>
     :root{
       --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#93a0b8; --border:rgba(255,255,255,.08);
@@ -87,8 +87,8 @@
           <a class="nav-extra" id="adminTopLink" href="./admin.html#ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
         <div class="brand-title">
-          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
-          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <img class="logo dark" src="./assets/rewards-icon-app.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/rewards-icon-app-light.svg" alt="" width="34" height="34" />
           <h1>我的奖励</h1>
         </div>
         <p class="lead">查看本人在扩展侧的签到 / 抽奖 / 任务 / 排行发放记录（只读）。</p>
@@ -191,7 +191,7 @@
     }
     function applyFavicon(light){
       const link=document.getElementById('favicon');
-      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+      if(link) link.href = light ? './assets/rewards-icon-app-light.svg' : './assets/rewards-icon-app.svg';
     }
     function initTheme(){
       const q=(params.get('theme')||'').toLowerCase();

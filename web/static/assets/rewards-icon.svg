@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">奖励流水图标</title>
+  <desc id="desc">账单票据与金币，表示扩展发放奖励流水</desc>
+  <defs>
+    <linearGradient id="bgGradient" x1="40" y1="28" x2="218" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2F80ED"/>
+      <stop offset="1" stop-color="#20B486"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="150" y1="150" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6C945"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="70" y1="40" x2="170" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <filter id="softShadow" x="20" y="18" width="216" height="224" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="8"/>
+      <feGaussianBlur stdDeviation="10"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.067 0 0 0 0 0.145 0 0 0 0 0.231 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+
+  <!-- App tile background -->
+  <rect width="256" height="256" rx="48" fill="#F6FAFF"/>
+
+  <g filter="url(#softShadow)">
+    <!-- Receipt card -->
+    <path d="M72 46h112c10 0 18 8 18 18v128c0 10-8 18-18 18H72c-10 0-18-8-18-18V64c0-10 8-18 18-18z" fill="url(#paper)"/>
+    <!-- top accent bar -->
+    <path d="M54 64c0-10 8-18 18-18h112c10 0 18 8 18 18v14H54V64z" fill="url(#bgGradient)"/>
+    <!-- perforated dots on top bar -->
+    <circle cx="78" cy="57" r="3.2" fill="#fff" opacity=".85"/>
+    <circle cx="96" cy="57" r="3.2" fill="#fff" opacity=".7"/>
+    <circle cx="114" cy="57" r="3.2" fill="#fff" opacity=".55"/>
+
+    <!-- ledger lines -->
+    <rect x="78" y="96" width="72" height="8" rx="4" fill="#CBD5E1"/>
+    <rect x="78" y="116" width="96" height="8" rx="4" fill="#E2E8F0"/>
+    <rect x="78" y="136" width="84" height="8" rx="4" fill="#E2E8F0"/>
+    <rect x="78" y="156" width="60" height="8" rx="4" fill="#E2E8F0"/>
+
+    <!-- amount highlight row -->
+    <rect x="78" y="176" width="48" height="12" rx="6" fill="url(#bgGradient)" opacity=".9"/>
+    <rect x="132" y="178" width="36" height="8" rx="4" fill="#94A3B8" opacity=".55"/>
+  </g>
+
+  <!-- coin badge -->
+  <g filter="url(#softShadow)">
+    <circle cx="186" cy="178" r="34" fill="url(#gold)"/>
+    <circle cx="186" cy="178" r="26" fill="none" stroke="#FFF7D6" stroke-width="3" opacity=".7"/>
+    <path d="M186 158v40M174 166c4-5 20-5 24 0M174 190c4 5 20 5 24 0" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>
