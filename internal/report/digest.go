@@ -54,6 +54,22 @@ type PatrolBlock struct {
 }
 
 // Digest is one built report, ready to render or return as JSON.
+// LedgerSourceStat is one source line inside the ledger block.
+type LedgerSourceStat struct {
+	Source string  `json:"source"`
+	Count  int64   `json:"count"`
+	Amount float64 `json:"amount"`
+}
+
+// LedgerBlock aggregates extension-side credit grants for one day.
+type LedgerBlock struct {
+	Count      int64              `json:"count"`
+	Amount     float64            `json:"amount"`
+	PrevCount  int64              `json:"prev_count"`
+	PrevAmount float64            `json:"prev_amount"`
+	BySource   []LedgerSourceStat `json:"by_source,omitempty"`
+}
+
 type Digest struct {
 	Date        string       `json:"date"`
 	Timezone    string       `json:"timezone"`
@@ -66,6 +82,7 @@ type Digest struct {
 	Checkin     *CheckinBlock `json:"checkin,omitempty"`
 	Lottery     *LotteryBlock `json:"lottery,omitempty"`
 	Patrol      *PatrolBlock  `json:"patrol,omitempty"`
+	Ledger      *LedgerBlock  `json:"ledger,omitempty"`
 }
 
 // Event converts the digest into a deliverable notification.
@@ -217,6 +234,50 @@ func Build(ctx context.Context, st *store.Store, rt Runtime, deps Deps, date str
 			d.Items = append(d.Items, Item{Key: "巡检错误", Value: truncate(blk.LastError, 160)})
 			d.Level = notify.LevelError
 		}
+	}
+
+	if rt.HasSection(SectionLedger) {
+		stats, err := st.LedgerStatsBySource(ctx, date, date)
+		if err != nil {
+			return d, fmt.Errorf("统计扩展发放失败: %w", err)
+		}
+		prevStats, err := st.LedgerStatsBySource(ctx, prev, prev)
+		if err != nil {
+			return d, fmt.Errorf("统计扩展发放(前日)失败: %w", err)
+		}
+		blk := &LedgerBlock{BySource: make([]LedgerSourceStat, 0, len(stats))}
+		for _, s := range stats {
+			blk.Count += s.Count
+			blk.Amount += s.Amount
+			blk.BySource = append(blk.BySource, LedgerSourceStat{Source: s.Source, Count: s.Count, Amount: s.Amount})
+		}
+		for _, s := range prevStats {
+			blk.PrevCount += s.Count
+			blk.PrevAmount += s.Amount
+		}
+		d.Ledger = blk
+		d.Items = append(d.Items,
+			Item{Key: "扩展发放笔数", Value: fmt.Sprintf("%d 笔（%s）", blk.Count, deltaInt(blk.Count, blk.PrevCount))},
+			Item{Key: "扩展发放总额", Value: fmt.Sprintf("%s（%s）", money(blk.Amount), deltaFloat(blk.Amount, blk.PrevAmount))},
+		)
+		// compact per-source lines for top sources
+		for _, s := range blk.BySource {
+			label := s.Source
+			switch s.Source {
+			case "checkin":
+				label = "签到入账"
+			case "lottery":
+				label = "抽奖入账"
+			case "rank_reward":
+				label = "排行发奖"
+			case "task":
+				label = "任务领取"
+			case "backfill":
+				label = "历史回填"
+			}
+			d.Items = append(d.Items, Item{Key: "· " + label, Value: fmt.Sprintf("%d 笔 / %s", s.Count, money(s.Amount))})
+		}
+		summary = append(summary, fmt.Sprintf("发放 %d 笔/%s", blk.Count, money(blk.Amount)))
 	}
 
 	d.Items = append(d.Items, Item{Key: "统计范围", Value: fmt.Sprintf("%s（%s，%s）", date, CoverLabel(rt.CoverDay), rt.Timezone)})

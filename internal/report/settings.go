@@ -43,11 +43,12 @@ const (
 	SectionCheckin = "checkin"
 	SectionLottery = "lottery"
 	SectionPatrol  = "patrol"
+	SectionLedger  = "ledger"
 )
 
 // AllSections lists every selectable section.
 func AllSections() []string {
-	return []string{SectionCheckin, SectionLottery, SectionPatrol}
+	return []string{SectionCheckin, SectionLottery, SectionPatrol, SectionLedger}
 }
 
 // SectionLabel returns a Chinese label for a section id.
@@ -59,6 +60,8 @@ func SectionLabel(s string) string {
 		return "抽奖"
 	case SectionPatrol:
 		return "巡检"
+	case SectionLedger:
+		return "扩展发放"
 	default:
 		return s
 	}

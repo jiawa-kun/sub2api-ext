@@ -128,6 +128,10 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		h.adminSettleCampaign(w, r, id)
 		return
 	}
+	if action == "preview" && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
+		h.adminPreviewCampaign(w, r, id)
+		return
+	}
 	if action == "awards" && r.Method == http.MethodGet {
 		list, err := h.store.ListCampaignAwards(r.Context(), id)
 		if err != nil {
@@ -200,6 +204,72 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 	writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 }
 
+func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, id int64) {
+	c, err := h.store.GetRankCampaign(r.Context(), id)
+	if err != nil || c == nil {
+		writeErr(w, http.StatusNotFound, "campaign not found")
+		return
+	}
+	if c.Board != store.CampaignBoardRewards {
+		writeErr(w, http.StatusBadRequest, "MVP only previews rewards board campaigns")
+		return
+	}
+	rules, err := c.ParseRewards()
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid rewards json")
+		return
+	}
+	topN := c.TopN
+	if topN <= 0 {
+		topN = 10
+	}
+	rows, _, err := h.store.ListRewardRanking(r.Context(), c.StartDate, c.EndDate, topN)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	existing, _ := h.store.CampaignAwardMap(r.Context(), c.ID)
+	spentPlan := 0.0
+	payable := 0
+	skipped := 0
+	details := make([]map[string]any, 0, len(rows))
+	for i, row := range rows {
+		rank := i + 1
+		amt := store.AmountForRank(rules, rank)
+		status := "planned"
+		if amt <= 0 {
+			status = "no_reward"
+			skipped++
+		} else if c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
+			status = "budget_cut"
+			skipped++
+		} else {
+			if prev, ok := existing[row.UserID]; ok {
+				if prev.Status == "success" || prev.Status == "skipped" {
+					status = "already_" + prev.Status
+					skipped++
+				} else {
+					status = "retry_" + prev.Status
+					spentPlan += amt
+					payable++
+				}
+			} else {
+				spentPlan += amt
+				payable++
+			}
+		}
+		details = append(details, map[string]any{
+			"user_id": row.UserID, "rank": rank, "amount": amt, "status": status,
+			"board_amount": row.TotalAmount,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"campaign_id": c.ID, "board": c.Board, "top_n": topN,
+		"payable": payable, "skipped": skipped, "planned_spend": spentPlan,
+		"budget_cap": c.BudgetCap, "details": details,
+	})
+}
+
 func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id int64) {
 	if h.credit == nil {
 		writeErr(w, http.StatusServiceUnavailable, "credit service unavailable")
@@ -217,6 +287,10 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 	}
 	if c.Status == store.CampaignStatusSettled {
 		writeErr(w, http.StatusBadRequest, "already settled")
+		return
+	}
+	if c.Status != store.CampaignStatusActive && c.Status != store.CampaignStatusPartial && c.Status != store.CampaignStatusDraft {
+		writeErr(w, http.StatusBadRequest, "campaign status not settleable: "+c.Status)
 		return
 	}
 	if c.Board != store.CampaignBoardRewards {
@@ -237,16 +311,38 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	existing, err := h.store.CampaignAwardMap(r.Context(), c.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Count already-success spend toward budget so retries respect cap.
 	spent := 0.0
+	for _, a := range existing {
+		if a.Status == "success" {
+			spent += a.Amount
+		}
+	}
+
 	awarded := 0
 	skipped := 0
 	failed := 0
-	details := make([]map[string]any, 0)
+	details := make([]map[string]any, 0, len(rows))
 	for i, row := range rows {
 		rank := i + 1
 		amt := store.AmountForRank(rules, rank)
 		if amt <= 0 {
 			skipped++
+			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "no_reward", "amount": 0})
+			continue
+		}
+		if prev, ok := existing[row.UserID]; ok && (prev.Status == "success" || prev.Status == "skipped") {
+			skipped++
+			details = append(details, map[string]any{
+				"user_id": row.UserID, "rank": rank, "amount": prev.Amount,
+				"status": "already_" + prev.Status, "ledger_id": prev.LedgerID,
+			})
 			continue
 		}
 		if c.BudgetCap > 0 && spent+amt > c.BudgetCap {
@@ -254,6 +350,7 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "budget_cut", "amount": amt})
 			continue
 		}
+
 		res, err := h.credit.Grant(r.Context(), credit.Request{
 			UserID: row.UserID, Amount: amt, Source: credit.SourceRankReward,
 			SourceRef: fmt.Sprintf("campaign:%d:rank:%d", c.ID, rank),
@@ -267,9 +364,13 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 			failed++
 			status = "failed"
 			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "error": err.Error()})
-			_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
-				CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, Status: status,
-			})
+			if prev, ok := existing[row.UserID]; ok {
+				_ = h.store.UpdateCampaignAward(r.Context(), prev.ID, amt, 0, status)
+			} else {
+				_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
+					CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, Status: status,
+				})
+			}
 			continue
 		}
 		if res != nil {
@@ -282,14 +383,26 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 				spent += amt
 			}
 		}
-		_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
-			CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, LedgerID: ledgerID, Status: status,
-		})
+		if prev, ok := existing[row.UserID]; ok {
+			_ = h.store.UpdateCampaignAward(r.Context(), prev.ID, amt, ledgerID, status)
+		} else {
+			_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
+				CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, LedgerID: ledgerID, Status: status,
+			})
+		}
 		details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "ledger_id": ledgerID})
 	}
-	_ = h.store.MarkCampaignSettled(r.Context(), c.ID)
+
+	finalStatus := store.CampaignStatusSettled
+	if failed > 0 {
+		finalStatus = store.CampaignStatusPartial
+		_ = h.store.MarkCampaignStatus(r.Context(), c.ID, finalStatus, false)
+	} else {
+		_ = h.store.MarkCampaignSettled(r.Context(), c.ID)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"campaign_id": c.ID, "awarded": awarded, "skipped": skipped, "failed": failed,
+		"campaign_id": c.ID, "status": finalStatus,
+		"awarded": awarded, "skipped": skipped, "failed": failed,
 		"spent": spent, "details": details,
 	})
 }
@@ -300,7 +413,8 @@ func (h *Handler) PublicRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	list, err := h.store.ListActiveRankCampaigns(r.Context())
+	today := h.settings.Today()
+	list, err := h.store.ListActiveRankCampaigns(r.Context(), today)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return

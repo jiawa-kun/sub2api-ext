@@ -295,3 +295,42 @@ func TestEventTypeIsNotSubscribable(t *testing.T) {
 		t.Fatal("report type needs a human label")
 	}
 }
+
+
+func TestBuildLedgerSection(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	// created_at uses RFC3339Nano; Stats use substr first 10 chars.
+	_, err = st.InsertLedger(ctx, store.LedgerEntry{
+		UserID: 1, Source: store.LedgerSourceTask, Amount: 1.5,
+		IdempotencyKey: "task-1", Status: store.LedgerStatusSuccess,
+		CreatedAt: time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.InsertLedger(ctx, store.LedgerEntry{
+		UserID: 2, Source: store.LedgerSourceRankReward, Amount: 3,
+		IdempotencyKey: "rank-2", Status: store.LedgerStatusSuccess,
+		CreatedAt: time.Date(2026, 7, 30, 9, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := Normalize(Runtime{SendAt: "09:00", Timezone: "UTC", Sections: []string{SectionLedger}})
+	d, err := Build(ctx, st, rt, Deps{}, "2026-07-30", time.Date(2026, 7, 30, 10, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Ledger == nil || d.Ledger.Count != 2 || d.Ledger.Amount < 4.4 {
+		t.Fatalf("ledger=%+v", d.Ledger)
+	}
+	if len(d.Ledger.BySource) < 2 {
+		t.Fatalf("by source=%+v", d.Ledger.BySource)
+	}
+}

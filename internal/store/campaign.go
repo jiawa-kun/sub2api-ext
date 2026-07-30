@@ -13,6 +13,7 @@ const (
 	CampaignStatusActive     = "active"
 	CampaignStatusSettled    = "settled"
 	CampaignStatusCancelled  = "cancelled"
+	CampaignStatusPartial    = "partial"
 	CampaignBoardRewards     = "rewards"
 	CampaignBoardConsumption = "consumption"
 )
@@ -186,11 +187,19 @@ FROM rank_campaigns ORDER BY id DESC LIMIT ?
 	return out, rows.Err()
 }
 
-func (s *Store) ListActiveRankCampaigns(ctx context.Context) ([]RankCampaign, error) {
-	rows, err := s.db.QueryContext(ctx, `
+// ListActiveRankCampaigns returns active campaigns whose date window covers today (YYYY-MM-DD).
+// If today is empty, only status=active is filtered (no date window).
+func (s *Store) ListActiveRankCampaigns(ctx context.Context, today string) ([]RankCampaign, error) {
+	q := `
 SELECT id, name, board, start_date, end_date, top_n, rewards_json, budget_cap, status, settled_at, created_at, updated_at
-FROM rank_campaigns WHERE status='active' ORDER BY id DESC
-`)
+FROM rank_campaigns WHERE status='active'`
+	args := []any{}
+	if today != "" {
+		q += ` AND start_date <= ? AND end_date >= ?`
+		args = append(args, today, today)
+	}
+	q += ` ORDER BY id DESC`
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -207,10 +216,42 @@ FROM rank_campaigns WHERE status='active' ORDER BY id DESC
 }
 
 func (s *Store) MarkCampaignSettled(ctx context.Context, id int64) error {
+	return s.MarkCampaignStatus(ctx, id, CampaignStatusSettled, true)
+}
+
+// MarkCampaignStatus updates campaign status. setSettledAt stamps settled_at when true.
+func (s *Store) MarkCampaignStatus(ctx context.Context, id int64, status string, setSettledAt bool) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.db.ExecContext(ctx, `
+	if setSettledAt {
+		_, err := s.db.ExecContext(ctx, `
 UPDATE rank_campaigns SET status=?, settled_at=?, updated_at=? WHERE id=?
-`, CampaignStatusSettled, now, now, id)
+`, status, now, now, id)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `
+UPDATE rank_campaigns SET status=?, updated_at=? WHERE id=?
+`, status, now, id)
+	return err
+}
+
+// CampaignAwardMap returns awards keyed by user_id.
+func (s *Store) CampaignAwardMap(ctx context.Context, campaignID int64) (map[int64]RankCampaignAward, error) {
+	list, err := s.ListCampaignAwards(ctx, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]RankCampaignAward, len(list))
+	for _, a := range list {
+		out[a.UserID] = a
+	}
+	return out, nil
+}
+
+// UpdateCampaignAward rewrites one award row (for retry after failure).
+func (s *Store) UpdateCampaignAward(ctx context.Context, id int64, amount float64, ledgerID int64, status string) error {
+	_, err := s.db.ExecContext(ctx, `
+UPDATE rank_campaign_awards SET amount=?, ledger_id=?, status=? WHERE id=?
+`, amount, ledgerID, status, id)
 	return err
 }
 

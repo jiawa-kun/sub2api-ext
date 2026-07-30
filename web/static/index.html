@@ -219,8 +219,9 @@ details.more .body{padding:0 12px 12px}
       <div>
         <div class="topnav">
           <a class="active" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
-          
-          <a class="nav-extra" href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</a>
+          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
           <a class="nav-extra" id="adminTopLink" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
         <div class="brand-title">
@@ -634,7 +635,7 @@ details.more .body{padding:0 12px 12px}
       if(s.checked_in_today && s.today_reward!=null){
         el('rewardLabel').textContent='今日已领 ✓';
         el('reward').textContent=money(s.today_reward);
-        el('rewardMeta').textContent='签到成功 · '+ (s.today||'');
+        el('rewardMeta').textContent='签到成功 · '+ (s.today||'') + ' · 可去任务中心查看进度';
       } else if(random){
         el('rewardLabel').textContent='今日奖励（随机）';
         el('reward').textContent=money(s.reward_min)+' ~ '+money(s.reward_max);
@@ -1012,9 +1013,9 @@ details.more .body{padding:0 12px 12px}
       try{
         const r=await api('./api/checkin',{method:'POST'});
         if(r.status==='success'){
-          showMsg('签到成功，到账 '+money(r.amount),'ok');
+          showMsg('签到成功，到账 '+money(r.amount)+' · 可到任务中心查看进度','ok');
         } else if(r.status==='already_checked_in'){
-          showMsg('今日已签到','warn');
+          showMsg('今日已签到 · 可打开任务中心查看进度','warn');
         } else if(r.status==='budget_exhausted'){
           showMsg(r.message||'今日预算已用尽','warn');
         } else if(r.status==='disabled'){

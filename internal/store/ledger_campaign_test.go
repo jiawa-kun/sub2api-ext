@@ -126,7 +126,7 @@ func TestCampaignCRUDAndAwards(t *testing.T) {
 	if err != nil || c == nil || c.Name != "七月" {
 		t.Fatalf("get=%+v err=%v", c, err)
 	}
-	active, err := st.ListActiveRankCampaigns(ctx)
+	active, err := st.ListActiveRankCampaigns(ctx, "2026-07-15")
 	if err != nil || len(active) != 1 {
 		t.Fatalf("active=%d err=%v", len(active), err)
 	}
@@ -190,5 +190,71 @@ func TestTaskPeriodKeyAndWeekRange(t *testing.T) {
 	from, to := tasks.WeekRange(loc, now)
 	if from != "2026-07-27" || to != "2026-08-02" {
 		t.Fatalf("week=%s..%s", from, to)
+	}
+}
+
+
+func TestListActiveRankCampaignsDateWindow(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	id, err := st.CreateRankCampaign(ctx, store.RankCampaign{
+		Name: "窗", Board: store.CampaignBoardRewards,
+		StartDate: "2026-07-01", EndDate: "2026-07-10",
+		TopN: 3, RewardsJSON: `[{"rank":1,"amount":1}]`, Status: store.CampaignStatusActive,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = id
+	in, err := st.ListActiveRankCampaigns(ctx, "2026-07-05")
+	if err != nil || len(in) != 1 {
+		t.Fatalf("in window=%d err=%v", len(in), err)
+	}
+	out, err := st.ListActiveRankCampaigns(ctx, "2026-07-20")
+	if err != nil || len(out) != 0 {
+		t.Fatalf("out window=%d err=%v", len(out), err)
+	}
+}
+
+func TestMarkCampaignPartialAndUpdateAward(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	id, err := st.CreateRankCampaign(ctx, store.RankCampaign{
+		Name: "p", Board: store.CampaignBoardRewards,
+		StartDate: "2026-07-01", EndDate: "2026-07-31",
+		Status: store.CampaignStatusActive, RewardsJSON: `[]`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	aid, err := st.InsertCampaignAward(ctx, store.RankCampaignAward{
+		CampaignID: id, UserID: 1, Rank: 1, Amount: 5, Status: "failed",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpdateCampaignAward(ctx, aid, 5, 99, "success"); err != nil {
+		t.Fatal(err)
+	}
+	m, err := st.CampaignAwardMap(ctx, id)
+	if err != nil || m[1].Status != "success" || m[1].LedgerID != 99 {
+		t.Fatalf("map=%+v err=%v", m, err)
+	}
+	if err := st.MarkCampaignStatus(ctx, id, store.CampaignStatusPartial, false); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := st.GetRankCampaign(ctx, id)
+	if c.Status != store.CampaignStatusPartial {
+		t.Fatalf("status=%s", c.Status)
 	}
 }

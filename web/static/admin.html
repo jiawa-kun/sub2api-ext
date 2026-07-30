@@ -733,7 +733,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="card-head">
           <div>
             <h2>运营日报</h2>
-            <p class="desc">每天定时把签到 / 抽奖 / 巡检的结果汇成一条消息，走通知中心已配置的渠道</p>
+            <p class="desc">每天定时把签到 / 抽奖 / 巡检 / 扩展发放的结果汇成一条消息，走通知中心已配置的渠道</p>
           </div>
           <span class="badge" id="reportBadge">—</span>
         </div>
@@ -825,7 +825,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="card-head">
           <div>
             <h2>排行活动结算</h2>
-            <p class="desc">MVP 仅支持「奖励榜」活动自动发奖。创建后按区间排行一次性结算到发放总账。</p>
+            <p class="desc">MVP 仅支持「奖励榜」结算。可先预览再结算；失败会标记 partial，可重试且跳过已成功名次。</p>
           </div>
           <span class="badge" id="campaignBadge">—</span>
         </div>
@@ -2224,7 +2224,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <td>${escapeHtml(c.status||'')}</td>
         <td>
           <button type="button" class="secondary sm" data-camp-awards="${c.id}">明细</button>
-          ${c.status==='settled'?'':`<button type="button" class="sm" data-camp-settle="${c.id}">结算</button>`}
+          <button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>
+          ${c.status==='settled'?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${c.status==='partial'?'重试结算':'结算'}</button>`}
         </td>
       </tr>`).join('');
     }
@@ -2260,11 +2261,19 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await refreshCampaigns();
     }
     async function settleCampaign(id){
-      if(!confirm('确认结算活动 #'+id+'？将按奖励榜一次性发奖，不可撤销。')) return;
+      if(!confirm('确认结算活动 #'+id+'？已成功的名次会跳过；若有失败将标记为 partial 可重试。')) return;
       const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:'{}'});
-      show(`结算完成：成功 ${res.awarded||0} / 跳过 ${res.skipped||0} / 失败 ${res.failed||0}，花费 ${Number(res.spent||0).toFixed(4)}`,'ok');
+      const st=res.status||'';
+      const lvl=(res.failed>0)?'warn':'ok';
+      show(`结算${st?('['+st+']'):''}：成功 ${res.awarded||0} / 跳过 ${res.skipped||0} / 失败 ${res.failed||0}，累计花费 ${Number(res.spent||0).toFixed(4)}`, lvl);
       await refreshCampaigns();
       await loadCampaignAwards(id);
+    }
+    async function previewCampaign(id){
+      const res=await api('./api/admin/rank/campaigns/'+id+'/preview');
+      const lines=(res.details||[]).slice(0,15).map(d=>`#${d.rank} u${d.user_id} ${Number(d.amount||0).toFixed(4)} ${d.status}`).join('\n');
+      const more=(res.details||[]).length>15?('\n…共 '+(res.details||[]).length+' 行'):'';
+      alert(`预览 #${id}\n应付 ${res.payable||0} 人 / 跳过 ${res.skipped||0}\n计划花费 ${Number(res.planned_spend||0).toFixed(4)} / 预算 ${Number(res.budget_cap||0).toFixed(4)}\n\n${lines}${more}`);
     }
     let tasksAdminCache={enabled:true,defs:[]};
     async function refreshTasksAdmin(){
@@ -2314,8 +2323,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     if(campBodyEl) campBodyEl.addEventListener('click', (e)=>{
       const a=e.target.closest('[data-camp-awards]');
       const s=e.target.closest('[data-camp-settle]');
+      const p=e.target.closest('[data-camp-preview]');
       if(a){ loadCampaignAwards(a.dataset.campAwards).catch(err=>show(err.message||String(err),'err')); }
       if(s){ settleCampaign(s.dataset.campSettle).catch(err=>show(err.message||String(err),'err')); }
+      if(p){ previewCampaign(p.dataset.campPreview).catch(err=>show(err.message||String(err),'err')); }
     });
 
 
