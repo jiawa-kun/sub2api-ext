@@ -51,10 +51,10 @@ type LedgerFilter struct {
 
 // LedgerDayStat aggregates one day.
 type LedgerDayStat struct {
-	Date   string
-	Source string
-	Count  int64
-	Amount float64
+	Date   string  `json:"date"`
+	Source string  `json:"source"`
+	Count  int64   `json:"count"`
+	Amount float64 `json:"amount"`
 }
 
 func (s *Store) ensureLedgerSchema() error {
