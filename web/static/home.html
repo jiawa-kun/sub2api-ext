@@ -72,6 +72,7 @@ html.light .brand-title .logo.light{display:block}
 .topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
 .topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
 html.light .topnav a.active{color:#4f46e5}
+.topnav a.nav-extra{display:none}
 .lead{margin:6px 0 0; color:var(--muted); font-size:.84rem; line-height:1.45}
 .top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
 .theme-btn,.chip{
@@ -158,12 +159,12 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             扩展中心
           </a>
-          <a href="./" data-nav>
+          <a class="nav-extra" href="./" data-nav>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             每日签到
           </a>
-          <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
-          <a href="./admin.html" data-nav>
+          <a class="nav-extra" href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a class="nav-extra" href="./admin.html" data-nav>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             管理台
           </a>
@@ -416,6 +417,33 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
     initTheme();
     wireInternalNav();
     el('themeBtn').onclick = toggleTheme;
+    
+    async function resolveIsAdmin(){
+      const token = (typeof pickToken==='function' ? pickToken() : '') || '';
+      if(!token){
+        // try storage keys used by other pages
+        try{
+          const t = localStorage.getItem('auth_token')||'';
+          if(!t) return false;
+          const r = await fetch('./api/status', { credentials:'same-origin', headers:{ Authorization:'Bearer '+t, Accept:'application/json' }});
+          if(!r.ok) return false;
+          const s = await r.json();
+          return !!(s && s.is_admin);
+        }catch{ return false; }
+      }
+      try{
+        const r = await fetch('./api/status', { credentials:'same-origin', headers:{ Authorization:'Bearer '+token, Accept:'application/json' }});
+        if(!r.ok) return false;
+        const s = await r.json();
+        return !!(s && s.is_admin);
+      }catch{ return false; }
+    }
+    function applyNavForRole(isAdmin){
+      document.querySelectorAll('.topnav a.nav-extra').forEach(a=>{
+        a.style.display = isAdmin ? 'inline-flex' : 'none';
+      });
+    }
+    (async function bootNav(){ applyNavForRole(await resolveIsAdmin()); })();
     load();
   </script>
 </body>
