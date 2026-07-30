@@ -84,6 +84,8 @@ CREATE INDEX IF NOT EXISTS idx_checkin_user_created
   ON checkin_records(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_checkin_date
   ON checkin_records(checkin_date);
+CREATE INDEX IF NOT EXISTS idx_checkin_date_user
+  ON checkin_records(checkin_date, user_id);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
@@ -163,6 +165,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_lottery_user_date
   ON lottery_draws(user_id, draw_date);
 CREATE INDEX IF NOT EXISTS idx_lottery_date
   ON lottery_draws(draw_date);
+CREATE INDEX IF NOT EXISTS idx_lottery_date_user
+  ON lottery_draws(draw_date, user_id);
 CREATE INDEX IF NOT EXISTS idx_lottery_created
   ON lottery_draws(created_at DESC);
 `)
@@ -399,6 +403,9 @@ func (s *Store) TryInsert(ctx context.Context, userID int64, date string, amount
 INSERT INTO checkin_records (user_id, checkin_date, amount, new_balance, created_at)
 VALUES (?, ?, ?, ?, ?)
 `, userID, date, amount, newBalance, now.Format(time.RFC3339Nano))
+	if err == nil {
+		InvalidateRankingCache()
+	}
 	if err != nil {
 		if isUniqueViolation(err) {
 			return nil, ErrAlreadyCheckedIn
@@ -533,3 +540,4 @@ func isUniqueViolation(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "UNIQUE constraint failed") || strings.Contains(msg, "unique constraint")
 }
+

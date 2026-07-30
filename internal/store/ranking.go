@@ -3,27 +3,26 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
 
 // RewardRankRow is one user's aggregated check-in + lottery rewards in a range.
 type RewardRankRow struct {
-	UserID         int64
-	TotalAmount    float64
-	CheckinAmount  float64
-	LotteryAmount  float64
-	CheckinCount   int64
-	LotteryCount   int64
-	LastDate       string
+	UserID        int64
+	TotalAmount   float64
+	CheckinAmount float64
+	LotteryAmount float64
+	CheckinCount  int64
+	LotteryCount  int64
+	LastDate      string
 }
 
 // RewardRankSummary is the range-wide totals for the rewards board.
 type RewardRankSummary struct {
-	TotalAmount  float64
-	UserCount    int64
-	TopAmount    float64
+	TotalAmount float64
+	UserCount   int64
+	TopAmount   float64
 }
 
 type rankingCacheEntry struct {
@@ -32,31 +31,58 @@ type rankingCacheEntry struct {
 	Exp     time.Time
 }
 
+const rankingCacheTTL = 30 * time.Second
+
+// rankingCache is process-local and keyed by date range + limit.
+// It is safe for concurrent readers; writers replace whole entries.
 var (
-	rankingCache     = make(map[string]rankingCacheEntry)
-	rankingCacheMu   sync.RWMutex
-	rankingCacheTTL  = 30 * time.Second
+	rankingCacheMu sync.RWMutex
+	rankingCache   = map[string]rankingCacheEntry{}
 )
 
-func getCacheKey(fromDate, toDate string, limit int) string {
-	return fmt.Sprintf("%s-%s-%d", fromDate, toDate, limit)
+func rankingCacheKey(fromDate, toDate string, limit int) string {
+	return fromDate + "|" + toDate + "|" + fmt.Sprintf("%d", limit)
 }
 
-// ListRewardRanking 优化版：带缓存 + 移除冗余全量查询 + ROW_NUMBER
-func (s *Store) ListRewardRanking(ctx context.Context, fromDate, toDate string, limit int) ([]RewardRankRow, RewardRankSummary, error) {
-	if fromDate == "" || toDate == "" {
-		return nil, RewardRankSummary{}, fmt.Errorf("from/to date required")
-	}
-
-	cacheKey := getCacheKey(fromDate, toDate, limit)
+func getRankingCache(key string) (rankingCacheEntry, bool) {
 	rankingCacheMu.RLock()
-	if entry, ok := rankingCache[cacheKey]; ok && time.Now().Before(entry.Exp) {
-		rankingCacheMu.RUnlock()
-		return entry.Rows, entry.Summary, nil
+	defer rankingCacheMu.RUnlock()
+	ent, ok := rankingCache[key]
+	if !ok || time.Now().After(ent.Exp) {
+		return rankingCacheEntry{}, false
 	}
-	rankingCacheMu.RUnlock()
+	// Return copies so callers cannot mutate shared slices.
+	rows := append([]RewardRankRow(nil), ent.Rows...)
+	return rankingCacheEntry{Rows: rows, Summary: ent.Summary, Exp: ent.Exp}, true
+}
 
-	q := `WITH rewards AS (
+func putRankingCache(key string, rows []RewardRankRow, summary RewardRankSummary) {
+	rankingCacheMu.Lock()
+	defer rankingCacheMu.Unlock()
+	if len(rankingCache) > 256 {
+		now := time.Now()
+		for k, v := range rankingCache {
+			if now.After(v.Exp) {
+				delete(rankingCache, k)
+			}
+		}
+	}
+	rankingCache[key] = rankingCacheEntry{
+		Rows:    append([]RewardRankRow(nil), rows...),
+		Summary: summary,
+		Exp:     time.Now().Add(rankingCacheTTL),
+	}
+}
+
+// InvalidateRankingCache clears ranking cache after reward writes.
+func InvalidateRankingCache() {
+	rankingCacheMu.Lock()
+	rankingCache = map[string]rankingCacheEntry{}
+	rankingCacheMu.Unlock()
+}
+
+const rewardAggCTE = `
+WITH rewards AS (
   SELECT user_id AS user_id, amount AS amount, checkin_date AS d, 'checkin' AS src
   FROM checkin_records
   WHERE checkin_date >= ? AND checkin_date <= ?
@@ -65,35 +91,42 @@ func (s *Store) ListRewardRanking(ctx context.Context, fromDate, toDate string, 
   FROM lottery_draws
   WHERE draw_date >= ? AND draw_date <= ?
 ),
-ranked AS (
-  SELECT 
-    user_id,
-    SUM(amount) AS total_amount,
-    SUM(CASE WHEN src = 'checkin' THEN amount ELSE 0 END) AS checkin_amount,
-    SUM(CASE WHEN src = 'lottery' THEN amount ELSE 0 END) AS lottery_amount,
-    SUM(CASE WHEN src = 'checkin' THEN 1 ELSE 0 END) AS checkin_count,
-    SUM(CASE WHEN src = 'lottery' THEN 1 ELSE 0 END) AS lottery_count,
-    MAX(d) AS last_date,
-    ROW_NUMBER() OVER (ORDER BY SUM(amount) DESC, MAX(d) DESC, user_id ASC) AS rn
+agg AS (
+  SELECT user_id,
+         COALESCE(SUM(amount), 0) AS total_amount,
+         COALESCE(SUM(CASE WHEN src = 'checkin' THEN amount ELSE 0 END), 0) AS checkin_amount,
+         COALESCE(SUM(CASE WHEN src = 'lottery' THEN amount ELSE 0 END), 0) AS lottery_amount,
+         COALESCE(SUM(CASE WHEN src = 'checkin' THEN 1 ELSE 0 END), 0) AS checkin_count,
+         COALESCE(SUM(CASE WHEN src = 'lottery' THEN 1 ELSE 0 END), 0) AS lottery_count,
+         COALESCE(MAX(d), '') AS last_date
   FROM rewards
   GROUP BY user_id
 )
-SELECT 
-  user_id,
-  total_amount,
-  checkin_amount,
-  lottery_amount,
-  checkin_count,
-  lottery_count,
-  last_date
-FROM ranked
-WHERE rn <= ?
-ORDER BY rn
 `
-	args := []any{fromDate, toDate, fromDate, toDate, limit}
-	if limit <= 0 {
-		q = strings.Replace(q, "WHERE rn <= ?", "", 1)
-		args = args[:4]
+
+// ListRewardRanking aggregates check-in and lottery amounts in [fromDate, toDate].
+// Results are ordered by total amount desc, then last activity date desc.
+// limit <= 0 returns all rows (used to compute my_rank).
+// When limit > 0, rows are limited but summary always covers the full range.
+func (s *Store) ListRewardRanking(ctx context.Context, fromDate, toDate string, limit int) ([]RewardRankRow, RewardRankSummary, error) {
+	if fromDate == "" || toDate == "" {
+		return nil, RewardRankSummary{}, fmt.Errorf("from/to date required")
+	}
+
+	cacheKey := rankingCacheKey(fromDate, toDate, limit)
+	if ent, ok := getRankingCache(cacheKey); ok {
+		return ent.Rows, ent.Summary, nil
+	}
+
+	args := []any{fromDate, toDate, fromDate, toDate}
+	q := rewardAggCTE + `
+SELECT user_id, total_amount, checkin_amount, lottery_amount, checkin_count, lottery_count, last_date
+FROM agg
+ORDER BY total_amount DESC, last_date DESC, user_id ASC
+`
+	if limit > 0 {
+		q += " LIMIT ?"
+		args = append(args, limit)
 	}
 
 	rows, err := s.db.QueryContext(ctx, q, args...)
@@ -103,45 +136,81 @@ ORDER BY rn
 	defer rows.Close()
 
 	var out []RewardRankRow
-	var summary RewardRankSummary
 	for rows.Next() {
 		var r RewardRankRow
-		if err := rows.Scan(&r.UserID, &r.TotalAmount, &r.CheckinAmount, &r.LotteryAmount, &r.CheckinCount, &r.LotteryCount, &r.LastDate); err != nil {
+		if err := rows.Scan(
+			&r.UserID,
+			&r.TotalAmount,
+			&r.CheckinAmount,
+			&r.LotteryAmount,
+			&r.CheckinCount,
+			&r.LotteryCount,
+			&r.LastDate,
+		); err != nil {
 			return nil, RewardRankSummary{}, err
 		}
 		out = append(out, r)
-		summary.TotalAmount += r.TotalAmount
-		summary.UserCount++
-		if r.TotalAmount > summary.TopAmount {
-			summary.TopAmount = r.TotalAmount
-		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, RewardRankSummary{}, err
 	}
 
-	entry := rankingCacheEntry{
-		Rows:    out,
-		Summary: summary,
-		Exp:     time.Now().Add(rankingCacheTTL),
+	var summary RewardRankSummary
+	if limit <= 0 {
+		for _, r := range out {
+			summary.TotalAmount += r.TotalAmount
+			summary.UserCount++
+			if r.TotalAmount > summary.TopAmount {
+				summary.TopAmount = r.TotalAmount
+			}
+		}
+	} else {
+		// Cheap full-range summary without shipping every row to Go.
+		sumQ := rewardAggCTE + `
+SELECT COALESCE(SUM(total_amount), 0),
+       COUNT(*),
+       COALESCE(MAX(total_amount), 0)
+FROM agg
+`
+		if err := s.db.QueryRowContext(ctx, sumQ, fromDate, toDate, fromDate, toDate).Scan(
+			&summary.TotalAmount,
+			&summary.UserCount,
+			&summary.TopAmount,
+		); err != nil {
+			return nil, RewardRankSummary{}, err
+		}
 	}
-	rankingCacheMu.Lock()
-	rankingCache[cacheKey] = entry
-	rankingCacheMu.Unlock()
 
+	putRankingCache(cacheKey, out, summary)
 	return out, summary, nil
 }
 
-// RewardRankOfUser 保持不变
+// RewardRankOfUser returns 1-based rank for a user in the range, or 0 if absent.
 func (s *Store) RewardRankOfUser(ctx context.Context, fromDate, toDate string, userID int64) (rank int, amount float64, err error) {
-	rows, _, err := s.ListRewardRanking(ctx, fromDate, toDate, 0)
+	// Prefer rank via SQL so we do not always materialize the full board.
+	q := rewardAggCTE + `
+, ranked AS (
+  SELECT user_id, total_amount,
+         ROW_NUMBER() OVER (ORDER BY total_amount DESC, last_date DESC, user_id ASC) AS rn
+  FROM agg
+)
+SELECT rn, total_amount FROM ranked WHERE user_id = ?
+`
+	var rn int64
+	var amt float64
+	err = s.db.QueryRowContext(ctx, q, fromDate, toDate, fromDate, toDate, userID).Scan(&rn, &amt)
 	if err != nil {
-		return 0, 0, err
-	}
-	for i, r := range rows {
-		if r.UserID == userID {
-			return i + 1, r.TotalAmount, nil
+		// Fallback keeps old behavior if window functions are unavailable.
+		rows, _, listErr := s.ListRewardRanking(ctx, fromDate, toDate, 0)
+		if listErr != nil {
+			return 0, 0, listErr
 		}
+		for i, r := range rows {
+			if r.UserID == userID {
+				return i + 1, r.TotalAmount, nil
+			}
+		}
+		return 0, 0, nil
 	}
-	return 0, 0, nil
+	return int(rn), amt, nil
 }

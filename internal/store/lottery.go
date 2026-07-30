@@ -73,6 +73,9 @@ UPDATE lottery_draws
 SET prize_label = ?, prize_type = ?, amount = ?, new_balance = ?
 WHERE id = ?
 `, label, prizeType, amount, newBalance, id)
+	if err == nil {
+		InvalidateRankingCache()
+	}
 	return err
 }
 
