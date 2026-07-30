@@ -481,19 +481,36 @@ func (s *Store) UpdateNewBalance(ctx context.Context, id int64, newBalance float
 }
 
 // CountStreakBefore returns consecutive checked-in days ending at yesterday (relative to today).
+// Implemented with one range query instead of up to 366 point lookups.
 func (s *Store) CountStreakBefore(ctx context.Context, userID int64, today string) (int, error) {
 	d, err := time.Parse("2006-01-02", today)
 	if err != nil {
 		return 0, err
 	}
-	streak := 0
-	for i := 1; i <= 366; i++ {
-		day := d.AddDate(0, 0, -i).Format("2006-01-02")
-		ok, err := s.HasCheckedIn(ctx, userID, day)
-		if err != nil {
+	// 400-day lookback is enough for any practical streak UI/reward path.
+	from := d.AddDate(0, 0, -400).Format("2006-01-02")
+	toYesterday := d.AddDate(0, 0, -1).Format("2006-01-02")
+	rows, err := s.db.QueryContext(ctx, `SELECT checkin_date FROM checkin_records
+WHERE user_id = ? AND checkin_date >= ? AND checkin_date <= ?`, userID, from, toYesterday)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	have := make(map[string]struct{}, 64)
+	for rows.Next() {
+		var day string
+		if err := rows.Scan(&day); err != nil {
 			return 0, err
 		}
-		if !ok {
+		have[day] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	streak := 0
+	for i := 1; i <= 400; i++ {
+		day := d.AddDate(0, 0, -i).Format("2006-01-02")
+		if _, ok := have[day]; !ok {
 			break
 		}
 		streak++

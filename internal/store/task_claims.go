@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,7 @@ CREATE TABLE IF NOT EXISTS task_claims (
   UNIQUE(user_id, task_id, period_key)
 );
 CREATE INDEX IF NOT EXISTS idx_task_claims_user ON task_claims(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_task_claims_user_period ON task_claims(user_id, period_key);
 `)
 	return err
 }
@@ -40,19 +42,66 @@ func (s *Store) GetTaskClaim(ctx context.Context, userID int64, taskID, periodKe
 SELECT id, user_id, task_id, period_key, amount, ledger_id, created_at
 FROM task_claims WHERE user_id=? AND task_id=? AND period_key=?
 `, userID, taskID, periodKey)
-	var c TaskClaim
-	var created string
-	err := row.Scan(&c.ID, &c.UserID, &c.TaskID, &c.PeriodKey, &c.Amount, &c.LedgerID, &created)
-	if err == sql.ErrNoRows {
-		return nil, nil
+	return scanTaskClaim(row)
+}
+
+// ListTaskClaimsByPeriods returns claims for a user limited to the given period keys.
+// Keyed as taskID + "\x1f" + periodKey for O(1) lookup by callers.
+func (s *Store) ListTaskClaimsByPeriods(ctx context.Context, userID int64, periodKeys []string) (map[string]TaskClaim, error) {
+	out := make(map[string]TaskClaim)
+	if userID <= 0 || len(periodKeys) == 0 {
+		return out, nil
 	}
+	// de-dup period keys
+	uniq := make([]string, 0, len(periodKeys))
+	seen := map[string]struct{}{}
+	for _, k := range periodKeys {
+		k = strings.TrimSpace(k)
+		if k == "" {
+			continue
+		}
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		uniq = append(uniq, k)
+	}
+	if len(uniq) == 0 {
+		return out, nil
+	}
+
+	var b strings.Builder
+	args := make([]any, 0, 1+len(uniq))
+	b.WriteString(`SELECT id, user_id, task_id, period_key, amount, ledger_id, created_at
+FROM task_claims WHERE user_id=? AND period_key IN (`)
+	args = append(args, userID)
+	for i, k := range uniq {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte('?')
+		args = append(args, k)
+	}
+	b.WriteByte(')')
+
+	rows, err := s.db.QueryContext(ctx, b.String(), args...)
 	if err != nil {
 		return nil, err
 	}
-	if t, e := time.Parse(time.RFC3339Nano, created); e == nil {
-		c.CreatedAt = t
+	defer rows.Close()
+	for rows.Next() {
+		c, err := scanTaskClaimRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[TaskClaimKey(c.TaskID, c.PeriodKey)] = *c
 	}
-	return &c, nil
+	return out, rows.Err()
+}
+
+// TaskClaimKey builds the map key used by ListTaskClaimsByPeriods.
+func TaskClaimKey(taskID, periodKey string) string {
+	return taskID + "\x1f" + periodKey
 }
 
 func (s *Store) InsertTaskClaim(ctx context.Context, c TaskClaim) (int64, error) {
@@ -86,4 +135,32 @@ func (s *Store) CountLotteryInRange(ctx context.Context, userID int64, from, to 
 SELECT COUNT(1) FROM lottery_draws WHERE user_id=? AND draw_date>=? AND draw_date<=?
 `, userID, from, to).Scan(&n)
 	return n, err
+}
+
+func scanTaskClaim(row *sql.Row) (*TaskClaim, error) {
+	var c TaskClaim
+	var created string
+	err := row.Scan(&c.ID, &c.UserID, &c.TaskID, &c.PeriodKey, &c.Amount, &c.LedgerID, &created)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if t, e := time.Parse(time.RFC3339Nano, created); e == nil {
+		c.CreatedAt = t
+	}
+	return &c, nil
+}
+
+func scanTaskClaimRows(rows *sql.Rows) (*TaskClaim, error) {
+	var c TaskClaim
+	var created string
+	if err := rows.Scan(&c.ID, &c.UserID, &c.TaskID, &c.PeriodKey, &c.Amount, &c.LedgerID, &created); err != nil {
+		return nil, err
+	}
+	if t, e := time.Parse(time.RFC3339Nano, created); e == nil {
+		c.CreatedAt = t
+	}
+	return &c, nil
 }

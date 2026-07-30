@@ -18,10 +18,24 @@ import (
 // SetTasks attaches task settings. Safe to leave nil.
 func (h *Handler) SetTasks(s *tasks.Settings) { h.tasks = s }
 
+// taskUserState is a one-shot snapshot used to render / claim tasks without N+1 queries.
+type taskUserState struct {
+	checkedInToday bool
+	lotteryToday   bool
+	streak         int
+	weekCheckins   int
+	weekLottery    int
+	claims         map[string]store.TaskClaim
+}
+
 // TasksList GET /api/tasks
 func (h *Handler) TasksList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.limitStatus.Allow("tasks-list:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
 	if h.tasks == nil {
@@ -39,6 +53,12 @@ func (h *Handler) TasksList(w http.ResponseWriter, r *http.Request) {
 	loc := h.settings.Location()
 	now := time.Now()
 	today := h.settings.Today()
+
+	var st *taskUserState
+	if user != nil {
+		st = h.loadTaskUserState(r.Context(), user.ID, rt.Defs, today, loc, now)
+	}
+
 	items := make([]map[string]any, 0, len(rt.Defs))
 	for _, d := range rt.Defs {
 		if !rt.Enabled || !d.Enabled {
@@ -52,9 +72,9 @@ func (h *Handler) TasksList(w http.ResponseWriter, r *http.Request) {
 		progress, done := 0, false
 		claimed := false
 		claimAmount := 0.0
-		if user != nil {
-			progress, done = h.taskProgress(r.Context(), user.ID, d, today, loc, now)
-			if c, _ := h.store.GetTaskClaim(r.Context(), user.ID, d.ID, periodKey); c != nil {
+		if st != nil {
+			progress, done = taskProgressFromState(d, st, target)
+			if c, ok := st.claims[store.TaskClaimKey(d.ID, periodKey)]; ok {
 				claimed = true
 				claimAmount = c.Amount
 			}
@@ -75,42 +95,105 @@ func (h *Handler) TasksList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) taskProgress(ctx context.Context, userID int64, d tasks.Def, today string, loc *time.Location, now time.Time) (progress int, done bool) {
-	target := d.Target
-	if target <= 0 {
-		target = 1
+func (h *Handler) loadTaskUserState(ctx context.Context, userID int64, defs []tasks.Def, today string, loc *time.Location, now time.Time) *taskUserState {
+	st := &taskUserState{claims: map[string]store.TaskClaim{}}
+	needCheckin := false
+	needLottery := false
+	needStreak := false
+	needWeekCheckin := false
+	needWeekLottery := false
+	periodKeys := make([]string, 0, len(defs)+1)
+	periodKeys = append(periodKeys, "once")
+
+	for _, d := range defs {
+		if !d.Enabled {
+			continue
+		}
+		periodKeys = append(periodKeys, tasks.PeriodKey(d, loc, now))
+		switch d.Kind {
+		case "daily_checkin":
+			needCheckin = true
+		case "daily_lottery":
+			needLottery = true
+		case "streak":
+			needStreak = true
+			needCheckin = true
+		case "weekly_checkin":
+			needWeekCheckin = true
+		case "weekly_lottery":
+			needWeekLottery = true
+		}
+	}
+
+	if needCheckin {
+		ok, _ := h.store.HasCheckedIn(ctx, userID, today)
+		st.checkedInToday = ok
+	}
+	if needLottery {
+		if dr, _ := h.store.GetLotteryDraw(ctx, userID, today); dr != nil {
+			st.lotteryToday = true
+		}
+	}
+	if needStreak {
+		before, _ := h.store.CountStreakBefore(ctx, userID, today)
+		st.streak = before
+		if st.checkedInToday {
+			st.streak = before + 1
+		}
+	}
+	if needWeekCheckin || needWeekLottery {
+		from, to := tasks.WeekRange(loc, now)
+		if needWeekCheckin {
+			if n, err := h.store.CountCheckinsInRange(ctx, userID, from, to); err == nil {
+				st.weekCheckins = int(n)
+			}
+		}
+		if needWeekLottery {
+			if n, err := h.store.CountLotteryInRange(ctx, userID, from, to); err == nil {
+				st.weekLottery = int(n)
+			}
+		}
+	}
+	if claims, err := h.store.ListTaskClaimsByPeriods(ctx, userID, periodKeys); err == nil {
+		st.claims = claims
+	}
+	return st
+}
+
+func taskProgressFromState(d tasks.Def, st *taskUserState, target int) (progress int, done bool) {
+	if st == nil {
+		return 0, false
 	}
 	switch d.Kind {
 	case "daily_checkin":
-		ok, _ := h.store.HasCheckedIn(ctx, userID, today)
-		if ok {
+		if st.checkedInToday {
 			return 1, true
 		}
 		return 0, false
 	case "daily_lottery":
-		dr, _ := h.store.GetLotteryDraw(ctx, userID, today)
-		if dr != nil {
+		if st.lotteryToday {
 			return 1, true
 		}
 		return 0, false
 	case "streak":
-		before, _ := h.store.CountStreakBefore(ctx, userID, today)
-		streak := before
-		if ok, _ := h.store.HasCheckedIn(ctx, userID, today); ok {
-			streak = before + 1
-		}
-		return streak, streak >= target
+		return st.streak, st.streak >= target
 	case "weekly_checkin":
-		from, to := tasks.WeekRange(loc, now)
-		n, _ := h.store.CountCheckinsInRange(ctx, userID, from, to)
-		return int(n), int(n) >= target
+		return st.weekCheckins, st.weekCheckins >= target
 	case "weekly_lottery":
-		from, to := tasks.WeekRange(loc, now)
-		n, _ := h.store.CountLotteryInRange(ctx, userID, from, to)
-		return int(n), int(n) >= target
+		return st.weekLottery, st.weekLottery >= target
 	default:
 		return 0, false
 	}
+}
+
+// taskProgress keeps a single-task path for claim validation.
+func (h *Handler) taskProgress(ctx context.Context, userID int64, d tasks.Def, today string, loc *time.Location, now time.Time) (progress int, done bool) {
+	st := h.loadTaskUserState(ctx, userID, []tasks.Def{d}, today, loc, now)
+	target := d.Target
+	if target <= 0 {
+		target = 1
+	}
+	return taskProgressFromState(d, st, target)
 }
 
 // TasksClaim POST /api/tasks/claim
@@ -179,6 +262,8 @@ func (h *Handler) TasksClaim(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"status": "already_claimed", "amount": c.Amount})
 		return
 	}
+	// Grant first (idempotent). Claim row is written after so a crash mid-flight
+	// still allows a safe retry: credit skips, claim inserts.
 	h.syncAdminCred()
 	res, err := h.credit.Grant(r.Context(), credit.Request{
 		UserID: user.ID, Amount: def.Reward, Source: credit.SourceTask,
@@ -203,7 +288,6 @@ func (h *Handler) TasksClaim(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.store.InsertTaskClaim(r.Context(), store.TaskClaim{
 		UserID: user.ID, TaskID: def.ID, PeriodKey: periodKey, Amount: def.Reward, LedgerID: ledgerID,
 	}); err != nil {
-		// if duplicate, treat as already claimed
 		if strings.Contains(err.Error(), "already claimed") {
 			writeJSON(w, http.StatusOK, map[string]any{"status": "already_claimed", "amount": def.Reward})
 			return
@@ -230,6 +314,10 @@ func (h *Handler) AdminTasksSettings(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, h.tasks.Get())
 	case http.MethodPut, http.MethodPost:
+		if !h.limitAdminWrite.Allow("AdminTasksSettings:" + clientIP(r)) {
+			writeErr(w, http.StatusTooManyRequests, "rate limited")
+			return
+		}
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		var rt tasks.Runtime
 		if err := json.Unmarshal(body, &rt); err != nil {
