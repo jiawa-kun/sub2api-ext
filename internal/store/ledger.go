@@ -59,6 +59,25 @@ type LedgerDayStat struct {
 }
 
 // LedgerStatusSummary aggregates counts/amounts by status for a date window.
+
+// ledgerCreatedBounds converts inclusive YYYY-MM-DD filters into [from, toExclusive)
+// bounds that keep created_at index-friendly without substr().
+func ledgerCreatedBounds(from, to string) (fromBound, toExclusive string) {
+	from = strings.TrimSpace(from)
+	to = strings.TrimSpace(to)
+	if from != "" {
+		fromBound = from // RFC3339 starts with YYYY-MM-DD, so >= date is correct
+	}
+	if to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			toExclusive = t.AddDate(0, 0, 1).Format("2006-01-02")
+		} else {
+			toExclusive = to + "\x7f" // fallback: still upper-bound the day prefix
+		}
+	}
+	return fromBound, toExclusive
+}
+
 type LedgerStatusSummary struct {
 	SuccessCount  int64   `json:"success_count"`
 	SuccessAmount float64 `json:"success_amount"`
@@ -89,6 +108,8 @@ CREATE INDEX IF NOT EXISTS idx_ledger_user
   ON credit_ledger(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_source_date
   ON credit_ledger(source, created_at);
+CREATE INDEX IF NOT EXISTS idx_ledger_status_created
+  ON credit_ledger(status, created_at);
 `)
 	return err
 }
@@ -119,11 +140,19 @@ func (s *Store) HasLedgerIdem(ctx context.Context, key string) (bool, error) {
 	if strings.TrimSpace(key) == "" {
 		return false, nil
 	}
-	var n int
+	var one int
 	err := s.db.QueryRowContext(ctx, `
-SELECT COUNT(1) FROM credit_ledger WHERE idempotency_key = ? AND status IN ('success','skipped')
-`, key).Scan(&n)
-	return n > 0, err
+SELECT 1 FROM credit_ledger
+WHERE idempotency_key = ? AND status IN ('success','skipped')
+LIMIT 1
+`, key).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // GetLedgerByIdem returns the row for an idempotency key.
@@ -158,13 +187,14 @@ func (s *Store) ListLedger(ctx context.Context, f LedgerFilter) ([]LedgerEntry, 
 		b.WriteString(` AND user_id = ?`)
 		args = append(args, f.UserID)
 	}
-	if f.From != "" {
-		b.WriteString(` AND substr(created_at,1,10) >= ?`)
-		args = append(args, f.From)
+	fromBound, toExclusive := ledgerCreatedBounds(f.From, f.To)
+	if fromBound != "" {
+		b.WriteString(` AND created_at >= ?`)
+		args = append(args, fromBound)
 	}
-	if f.To != "" {
-		b.WriteString(` AND substr(created_at,1,10) <= ?`)
-		args = append(args, f.To)
+	if toExclusive != "" {
+		b.WriteString(` AND created_at < ?`)
+		args = append(args, toExclusive)
 	}
 	b.WriteString(` ORDER BY id DESC LIMIT ? OFFSET ?`)
 	args = append(args, f.Limit, f.Offset)
@@ -202,13 +232,14 @@ func (s *Store) CountLedger(ctx context.Context, f LedgerFilter) (int64, error) 
 		b.WriteString(` AND user_id = ?`)
 		args = append(args, f.UserID)
 	}
-	if f.From != "" {
-		b.WriteString(` AND substr(created_at,1,10) >= ?`)
-		args = append(args, f.From)
+	fromBound, toExclusive := ledgerCreatedBounds(f.From, f.To)
+	if fromBound != "" {
+		b.WriteString(` AND created_at >= ?`)
+		args = append(args, fromBound)
 	}
-	if f.To != "" {
-		b.WriteString(` AND substr(created_at,1,10) <= ?`)
-		args = append(args, f.To)
+	if toExclusive != "" {
+		b.WriteString(` AND created_at < ?`)
+		args = append(args, toExclusive)
 	}
 	var n int64
 	err := s.db.QueryRowContext(ctx, b.String(), args...).Scan(&n)
@@ -222,13 +253,14 @@ SELECT substr(created_at,1,10) AS d, source, COUNT(1), COALESCE(SUM(CASE WHEN st
 FROM credit_ledger
 WHERE 1=1`
 	args := []any{}
-	if from != "" {
-		q += ` AND substr(created_at,1,10) >= ?`
-		args = append(args, from)
+	fromBound, toExclusive := ledgerCreatedBounds(from, to)
+	if fromBound != "" {
+		q += ` AND created_at >= ?`
+		args = append(args, fromBound)
 	}
-	if to != "" {
-		q += ` AND substr(created_at,1,10) <= ?`
-		args = append(args, to)
+	if toExclusive != "" {
+		q += ` AND created_at < ?`
+		args = append(args, toExclusive)
 	}
 	q += ` GROUP BY d, source ORDER BY d DESC, source`
 	rows, err := s.db.QueryContext(ctx, q, args...)
@@ -251,11 +283,12 @@ WHERE 1=1`
 func (s *Store) SumLedgerSuccessByDate(ctx context.Context, date string) (float64, int64, error) {
 	var amount sql.NullFloat64
 	var n int64
+	fromBound, toExclusive := ledgerCreatedBounds(date, date)
 	err := s.db.QueryRowContext(ctx, `
 SELECT COALESCE(SUM(amount),0), COUNT(1)
 FROM credit_ledger
-WHERE status='success' AND substr(created_at,1,10)=?
-`, date).Scan(&amount, &n)
+WHERE status='success' AND created_at >= ? AND created_at < ?
+`, fromBound, toExclusive).Scan(&amount, &n)
 	return amount.Float64, n, err
 }
 
@@ -284,13 +317,14 @@ FROM credit_ledger WHERE 1=1`
 		q += ` AND user_id = ?`
 		args = append(args, f.UserID)
 	}
-	if f.From != "" {
-		q += ` AND substr(created_at,1,10) >= ?`
-		args = append(args, f.From)
+	fromBound, toExclusive := ledgerCreatedBounds(f.From, f.To)
+	if fromBound != "" {
+		q += ` AND created_at >= ?`
+		args = append(args, fromBound)
 	}
-	if f.To != "" {
-		q += ` AND substr(created_at,1,10) <= ?`
-		args = append(args, f.To)
+	if toExclusive != "" {
+		q += ` AND created_at < ?`
+		args = append(args, toExclusive)
 	}
 	err := s.db.QueryRowContext(ctx, q, args...).Scan(
 		&out.SuccessCount, &out.SuccessAmount, &out.FailedCount, &out.SkippedCount,
