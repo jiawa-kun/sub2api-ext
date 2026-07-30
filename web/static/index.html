@@ -56,6 +56,8 @@ html.light .brand-title .logo.light{display:block}
 h1{margin:0; font-size:1.22rem}
 .lead,.sub{margin:6px 0 0; color:var(--muted); font-size:.82rem; line-height:1.45}
 .top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
+.task-link{display:inline-flex;align-items:center;gap:4px;margin-top:8px;font-size:.78rem;font-weight:650;color:var(--primary)}
+.task-link.hidden{display:none}
 .theme-btn{
   border:1px solid var(--border); background:var(--soft2); color:var(--text);
   border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:650; cursor:pointer;
@@ -243,6 +245,7 @@ details.more .body{padding:0 12px 12px}
         <div class="label" id="rewardLabel">今日奖励</div>
         <div class="amount" id="reward">—</div>
         <div class="meta" id="rewardMeta">—</div>
+        <a class="task-link" id="taskHint" href="./tasks.html">去任务中心查看进度 →</a>
       </div>
 
       <div class="grid2">
@@ -439,7 +442,24 @@ details.more .body{padding:0 12px 12px}
       if(exp > 0) return exp;                         // expired JWT: weak fallback
       return 1e9;                                     // non-JWT opaque token: mid priority
     }
-    function pickToken(){
+    
+    function tasksHref(){
+      try{
+        const u=new URL('./tasks.html', location.href);
+        const t=(typeof accessToken!=='undefined' && accessToken) ? accessToken : (typeof pickToken==='function' ? pickToken() : '');
+        if(t) u.searchParams.set('token', t);
+        const th=document.documentElement.classList.contains('light')?'light':'';
+        if(th) u.searchParams.set('theme', th==='light'?'light':'dark');
+        return u.pathname + u.search + u.hash;
+      }catch{ return './tasks.html'; }
+    }
+    function refreshTaskHint(){
+      const a=document.getElementById('taskHint');
+      if(!a) return;
+      a.href=tasksHref();
+      a.classList.remove('hidden');
+    }
+function pickToken(){
       const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
       const cands=[];
       for(const k of keys){
@@ -635,7 +655,7 @@ details.more .body{padding:0 12px 12px}
       if(s.checked_in_today && s.today_reward!=null){
         el('rewardLabel').textContent='今日已领 ✓';
         el('reward').textContent=money(s.today_reward);
-        el('rewardMeta').textContent='签到成功 · '+ (s.today||'') + ' · 可去任务中心查看进度';
+        el('rewardMeta').textContent='签到成功 · '+ (s.today||''); refreshTaskHint();
       } else if(random){
         el('rewardLabel').textContent='今日奖励（随机）';
         el('reward').textContent=money(s.reward_min)+' ~ '+money(s.reward_max);
@@ -984,7 +1004,7 @@ details.more .body{padding:0 12px 12px}
           if(r.status==='win'){
             res.className='lottery-result win';
             res.textContent='恭喜抽中 '+(r.prize_label||'')+' · +'+money(r.amount);
-            showMsg('抽奖成功，到账 '+money(r.amount),'ok');
+            refreshTaskHint(); showMsg('抽奖成功，到账 '+money(r.amount),'ok');
           } else if(r.status==='miss'){
             res.className='lottery-result miss';
             res.textContent=(r.prize_label||'谢谢参与');
@@ -1013,9 +1033,9 @@ details.more .body{padding:0 12px 12px}
       try{
         const r=await api('./api/checkin',{method:'POST'});
         if(r.status==='success'){
-          showMsg('签到成功，到账 '+money(r.amount)+' · 可到任务中心查看进度','ok');
+          showMsg('签到成功，到账 '+money(r.amount),'ok'); refreshTaskHint();
         } else if(r.status==='already_checked_in'){
-          showMsg('今日已签到 · 可打开任务中心查看进度','warn');
+          showMsg('今日已签到','warn'); refreshTaskHint();
         } else if(r.status==='budget_exhausted'){
           showMsg(r.message||'今日预算已用尽','warn');
         } else if(r.status==='disabled'){

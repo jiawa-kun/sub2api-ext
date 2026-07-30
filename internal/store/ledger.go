@@ -42,6 +42,7 @@ type LedgerEntry struct {
 // LedgerFilter lists ledger rows.
 type LedgerFilter struct {
 	Source string
+	Status string // success|failed|skipped, optional
 	UserID int64
 	From   string // YYYY-MM-DD inclusive, optional
 	To     string
@@ -140,6 +141,10 @@ func (s *Store) ListLedger(ctx context.Context, f LedgerFilter) ([]LedgerEntry, 
 		b.WriteString(` AND source = ?`)
 		args = append(args, f.Source)
 	}
+	if f.Status != "" {
+		b.WriteString(` AND status = ?`)
+		args = append(args, f.Status)
+	}
 	if f.UserID > 0 {
 		b.WriteString(` AND user_id = ?`)
 		args = append(args, f.UserID)
@@ -179,6 +184,10 @@ func (s *Store) CountLedger(ctx context.Context, f LedgerFilter) (int64, error) 
 	if f.Source != "" {
 		b.WriteString(` AND source = ?`)
 		args = append(args, f.Source)
+	}
+	if f.Status != "" {
+		b.WriteString(` AND status = ?`)
+		args = append(args, f.Status)
 	}
 	if f.UserID > 0 {
 		b.WriteString(` AND user_id = ?`)

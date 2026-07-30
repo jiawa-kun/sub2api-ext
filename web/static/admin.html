@@ -813,7 +813,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <option value="backfill">回填</option>
             <option value="manual">手工</option>
           </select>
-          <input id="ledgerUserId" type="number" min="0" placeholder="用户 ID" style="width:110px" />
+          <select id="ledgerStatus" class="sm">
+            <option value="">全部状态</option>
+            <option value="success">成功</option>
+            <option value="failed">失败</option>
+            <option value="skipped">跳过</option>
+          </select>
+          <button type="button" class="secondary sm" id="btnLedgerFailed">只看失败</button>
+          <input id="ledgerUserId" type="number" min="0" placeholder="用户 ID" style="width:110px" title="点击表格用户可填入" />
           <input id="ledgerFrom" type="date" title="开始日期" />
           <span class="sub">至</span>
           <input id="ledgerTo" type="date" title="结束日期" />
@@ -849,7 +856,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="card-head">
           <div>
             <h2>排行活动结算</h2>
-            <p class="desc">MVP 仅支持「奖励榜」结算。可预览/结算/取消；失败标记 partial 可重试。取消不回滚已发放金额。</p>
+            <p class="desc">支持奖励榜 / 消费榜按名次结算发奖。建议先预览再结算；失败标记 partial 可重试。取消不回滚已发放金额。</p>
           </div>
           <span class="badge" id="campaignBadge">—</span>
         </div>
@@ -861,8 +868,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <div class="field">
               <label for="campBoard">榜单</label>
               <select id="campBoard">
-                <option value="rewards">奖励榜（可结算）</option>
-                <option value="consumption">消费榜（仅展示，不可结算）</option>
+                <option value="rewards">奖励榜（按扩展奖励排行结算发奖）</option>
+                <option value="consumption">消费榜（按消费排行结算发奖）</option>
               </select>
             </div>
             <div class="field"><label for="campStart">开始日期</label><input id="campStart" type="date" /></div>
@@ -2229,10 +2236,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function ledgerQueryParams(extra={}){
       const q=new URLSearchParams();
       const src=(el('ledgerSource')?.value||'').trim();
+      const st=(el('ledgerStatus')?.value||'').trim();
       const uid=(el('ledgerUserId')?.value||'').trim();
       const from=(el('ledgerFrom')?.value||'').trim();
       const to=(el('ledgerTo')?.value||'').trim();
       if(src) q.set('source',src);
+      if(st) q.set('status',st);
       if(uid) q.set('user_id',uid);
       if(from) q.set('from',from);
       if(to) q.set('to',to);
@@ -2281,7 +2290,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           const stClass=st==='success'?'ok':(st==='failed'?'err':'');
           return `<tr>
           <td>${escapeHtml(String(e.created_at||'').replace('T',' ').slice(0,19))}</td>
-          <td>${e.user_id||''}</td>
+          <td><a href="#" data-ledger-user="${e.user_id||''}" style="color:inherit;text-decoration:underline;text-underline-offset:2px">${e.user_id||''}</a></td>
           <td>${escapeHtml(ledgerSourceLabel(e.source))}</td>
           <td>${Number(e.amount||0).toFixed(4)}</td>
           <td><span class="${stClass}">${escapeHtml(ledgerStatusLabel(st))}</span></td>
@@ -2327,21 +2336,27 @@ function defaultCampRewards(){
       el('campaignBadge').textContent=items.length+' 个';
       const body=el('campaignBody');
       if(!items.length){ body.innerHTML='<tr><td colspan="8" class="sub">暂无活动</td></tr>'; return; }
-      body.innerHTML=items.map(c=>`<tr>
+      body.innerHTML=items.map(c=>{
+        const st=c.status||'';
+        const stLabel=({draft:'草稿',active:'进行中',partial:'部分成功',settled:'已结算',cancelled:'已取消'})[st]||st;
+        const stClass=st==='partial'?'err':(st==='settled'?'ok':(st==='cancelled'?'sub':''));
+        const boardLabel=c.board==='consumption'?'消费榜':'奖励榜';
+        return `<tr>
         <td>${c.id}</td>
         <td>${escapeHtml(c.name||'')}</td>
-        <td>${escapeHtml(c.board||'')}</td>
+        <td>${escapeHtml(boardLabel)}</td>
         <td>${escapeHtml((c.start_date||'')+' ~ '+(c.end_date||''))}</td>
         <td>${c.top_n||0}</td>
         <td>${Number(c.budget_cap||0).toFixed(4)}</td>
-        <td>${escapeHtml(c.status||'')}</td>
+        <td><span class="${stClass}">${escapeHtml(stLabel)}</span></td>
         <td>
           <button type="button" class="secondary sm" data-camp-awards="${c.id}">明细</button>
-          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>`}
-          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${c.status==='partial'?'重试结算':'结算'}</button>`}
-          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="secondary sm" data-camp-cancel="${c.id}">取消</button>`}
+          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>`}
+          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${st==='partial'?'重试结算':'结算'}</button>`}
+          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="secondary sm" data-camp-cancel="${c.id}">取消</button>`}
         </td>
-      </tr>`).join('');
+      </tr>`;
+      }).join('');
     }
     async function loadCampaignAwards(id){
       const data=await api('./api/admin/rank/campaigns/'+id+'/awards');
@@ -2375,7 +2390,10 @@ function defaultCampRewards(){
       await refreshCampaigns();
     }
     async function settleCampaign(id){
-      if(!confirm('确认结算活动 #'+id+'？已成功的名次会跳过；若有失败将标记为 partial 可重试。')) return;
+      const prev=await api('./api/admin/rank/campaigns/'+id+'/preview');
+      const board=prev.board==='consumption'?'消费榜':'奖励榜';
+      const msg=`【预览后确认结算】活动 #${id}（${board}）\n应付 ${prev.payable||0} 人 / 跳过 ${prev.skipped||0}\n计划花费 ${Number(prev.planned_spend||0).toFixed(4)} / 预算 ${Number(prev.budget_cap||0).toFixed(4)}\n\n已成功名次会跳过；失败将标记 partial 可重试。\n确认现在结算？`;
+      if(!confirm(msg)) return;
       const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:'{}'});
       const st=res.status||'';
       const lvl=(res.failed>0)?'warn':'ok';
@@ -2470,8 +2488,23 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnLedgerPrev=el('btnLedgerPrev'); if(btnLedgerPrev) btnLedgerPrev.onclick=()=>{ ledgerPage.offset=Math.max(0, ledgerPage.offset-ledgerPage.limit); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedgerNext=el('btnLedgerNext'); if(btnLedgerNext) btnLedgerNext.onclick=()=>{ ledgerPage.offset=ledgerPage.offset+ledgerPage.limit; refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
     const ledgerPageSize=el('ledgerPageSize'); if(ledgerPageSize) ledgerPageSize.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); };
-    ['ledgerSource','ledgerFrom','ledgerTo'].forEach(id=>{ const n=el(id); if(n) n.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); }; });
+    ['ledgerSource','ledgerStatus','ledgerFrom','ledgerTo'].forEach(id=>{ const n=el(id); if(n) n.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); }; });
     const ledgerUser=el('ledgerUserId'); if(ledgerUser) ledgerUser.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); };
+    const btnLedgerFailed=el('btnLedgerFailed'); if(btnLedgerFailed) btnLedgerFailed.onclick=()=>{ if(el('ledgerStatus')) el('ledgerStatus').value='failed'; ledgerResetPage(); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
+    const ledgerBodyEl=el('ledgerBody');
+    if(ledgerBodyEl && !ledgerBodyEl._userBound){
+      ledgerBodyEl._userBound=true;
+      ledgerBodyEl.addEventListener('click', (e)=>{
+        const a=e.target.closest('[data-ledger-user]');
+        if(!a) return;
+        e.preventDefault();
+        const uid=a.getAttribute('data-ledger-user')||'';
+        if(!uid) return;
+        if(el('ledgerUserId')) el('ledgerUserId').value=uid;
+        ledgerResetPage();
+        refreshLedger().catch(err=>show(err.message||String(err),'err'));
+      });
+    }
     const btnCampCreate=el('btnCampCreate'); if(btnCampCreate) btnCampCreate.onclick=()=>createCampaign().catch(e2=>show(e2.message||String(e2),'err'));
     const btnCampRefresh=el('btnCampRefresh'); if(btnCampRefresh) btnCampRefresh.onclick=()=>refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksSave=el('btnTasksSave'); if(btnTasksSave) btnTasksSave.onclick=()=>saveTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));

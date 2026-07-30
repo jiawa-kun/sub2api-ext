@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -68,12 +69,9 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		if board == "" {
 			board = store.CampaignBoardRewards
 		}
-		if board != store.CampaignBoardRewards {
-			// MVP: only rewards board is settleable; still allow create for display-only consumption later
-			if board != store.CampaignBoardConsumption {
-				writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
-				return
-			}
+		if board != store.CampaignBoardRewards && board != store.CampaignBoardConsumption {
+			writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
+			return
 		}
 		rj, _ := json.Marshal(in.Rewards)
 		if in.Rewards == nil {
@@ -250,14 +248,71 @@ func (h *Handler) adminCancelCampaign(w http.ResponseWriter, r *http.Request, id
 	writeJSON(w, http.StatusOK, out)
 }
 
+
+type campaignRankRow struct {
+	UserID int64
+	Amount float64
+}
+
+func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaign, topN int) ([]campaignRankRow, error) {
+	if c == nil {
+		return nil, fmt.Errorf("campaign required")
+	}
+	if topN <= 0 {
+		topN = 10
+	}
+	switch c.Board {
+	case store.CampaignBoardRewards, "":
+		rows, _, err := h.store.ListRewardRanking(ctx, c.StartDate, c.EndDate, topN)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]campaignRankRow, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, campaignRankRow{UserID: row.UserID, Amount: row.TotalAmount})
+		}
+		return out, nil
+	case store.CampaignBoardConsumption:
+		h.syncAdminCred()
+		if h.effectiveAdminCred() == "" {
+			return nil, fmt.Errorf("admin api key required for consumption ranking")
+		}
+		res, err := h.client.FetchUsageRanking(ctx, "", sub2api.ClientMeta{}, sub2api.UsageRankQuery{
+			FromDate: c.StartDate,
+			ToDate:   c.EndDate,
+			Limit:    topN,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if res == nil {
+			return nil, nil
+		}
+		out := make([]campaignRankRow, 0, len(res.Items))
+		for _, it := range res.Items {
+			uid := it.UserID
+			if uid <= 0 {
+				continue
+			}
+			out = append(out, campaignRankRow{UserID: uid, Amount: it.Amount})
+		}
+		if len(out) > topN {
+			out = out[:topN]
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("unsupported board: %s", c.Board)
+	}
+}
+
 func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, id int64) {
 	c, err := h.store.GetRankCampaign(r.Context(), id)
 	if err != nil || c == nil {
 		writeErr(w, http.StatusNotFound, "campaign not found")
 		return
 	}
-	if c.Board != store.CampaignBoardRewards {
-		writeErr(w, http.StatusBadRequest, "MVP only previews rewards board campaigns")
+	if c.Board != store.CampaignBoardRewards && c.Board != store.CampaignBoardConsumption {
+		writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
 		return
 	}
 	rules, err := c.ParseRewards()
@@ -269,9 +324,9 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 	if topN <= 0 {
 		topN = 10
 	}
-	rows, _, err := h.store.ListRewardRanking(r.Context(), c.StartDate, c.EndDate, topN)
+	rows, err := h.loadCampaignRankRows(r.Context(), c, topN)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, http.StatusBadGateway, "load ranking failed: "+err.Error())
 		return
 	}
 	existing, _ := h.store.CampaignAwardMap(r.Context(), c.ID)
@@ -306,7 +361,7 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 		}
 		details = append(details, map[string]any{
 			"user_id": row.UserID, "rank": rank, "amount": amt, "status": status,
-			"board_amount": row.TotalAmount,
+			"board_amount": row.Amount,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -339,8 +394,8 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 		writeErr(w, http.StatusBadRequest, "campaign status not settleable: "+c.Status)
 		return
 	}
-	if c.Board != store.CampaignBoardRewards {
-		writeErr(w, http.StatusBadRequest, "MVP only settles rewards board campaigns")
+	if c.Board != store.CampaignBoardRewards && c.Board != store.CampaignBoardConsumption {
+		writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
 		return
 	}
 	rules, err := c.ParseRewards()
@@ -352,9 +407,9 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 	if topN <= 0 {
 		topN = 10
 	}
-	rows, _, err := h.store.ListRewardRanking(r.Context(), c.StartDate, c.EndDate, topN)
+	rows, err := h.loadCampaignRankRows(r.Context(), c, topN)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
+		writeErr(w, http.StatusBadGateway, "load ranking failed: "+err.Error())
 		return
 	}
 	existing, err := h.store.CampaignAwardMap(r.Context(), c.ID)

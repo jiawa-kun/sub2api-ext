@@ -18,6 +18,7 @@ func ledgerFilterFromRequest(r *http.Request) store.LedgerFilter {
 	uid, _ := strconv.ParseInt(q.Get("user_id"), 10, 64)
 	return store.LedgerFilter{
 		Source: strings.TrimSpace(q.Get("source")),
+		Status: strings.TrimSpace(q.Get("status")),
 		UserID: uid,
 		From:   strings.TrimSpace(q.Get("from")),
 		To:     strings.TrimSpace(q.Get("to")),

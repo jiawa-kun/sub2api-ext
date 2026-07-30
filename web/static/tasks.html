@@ -111,7 +111,7 @@ html.light .brand-title .logo.light{display:block}
           <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
           <h1>任务中心</h1>
         </div>
-        <p class="lead">完成签到 / 抽奖等扩展行为，进度达标后可领取奖励（未配置奖励时仅展示进度）</p>
+        <p class="lead">完成签到 / 抽奖等扩展行为。奖励未开启时只统计进度；管理员配置奖励后可领取。</p>
       </div>
       <div class="top-meta">
         <button type="button" class="theme-btn" id="themeBtn">浅色</button>
@@ -232,12 +232,33 @@ html.light .brand-title .logo.light{display:block}
         const reward = Number(it.reward||0);
         let status = '进行中';
         let pill = 'pill';
-        if(it.claimed){ status='已领取'; pill='pill ok'; }
-        else if(it.done && reward>0){ status='可领取'; pill='pill ok'; }
-        else if(it.done){ status='已完成'; pill='pill'; }
-        else if(progress>0){ status='进行中'; pill='pill warn'; }
+        let rewardText = '';
+        let btnLabel = '';
         const can = !!it.can_claim;
-        const btnLabel = it.claimed ? '已领取' : (can ? `领取 ${reward}` : (reward>0 ? '未达标' : '仅进度'));
+        if(it.claimed){
+          status='已领取'; pill='pill ok';
+          rewardText=`已领 ${Number(it.claim_amount||reward).toFixed(4)}`;
+          btnLabel='已领取';
+        } else if(reward <= 0){
+          // 默认奖励为 0：只统计进度，不发奖
+          if(it.done){ status='已完成（仅进度）'; pill='pill'; }
+          else if(progress>0){ status='进行中（仅进度）'; pill='pill warn'; }
+          else { status='未开始（仅进度）'; pill='pill'; }
+          rewardText='奖励未开启';
+          btnLabel='仅进度';
+        } else if(it.done){
+          status='可领取'; pill='pill ok';
+          rewardText=`奖励 ${reward.toFixed(4)}`;
+          btnLabel=`领取 ${reward.toFixed(4)}`;
+        } else if(progress>0){
+          status='进行中'; pill='pill warn';
+          rewardText=`奖励 ${reward.toFixed(4)}`;
+          btnLabel='未达标';
+        } else {
+          status='未开始'; pill='pill';
+          rewardText=`奖励 ${reward.toFixed(4)}`;
+          btnLabel='未达标';
+        }
         return `<div class="task" data-id="${String(it.id||'').replace(/"/g,'')}">
           <div class="task-head">
             <div>
@@ -250,7 +271,7 @@ html.light .brand-title .logo.light{display:block}
           <div class="task-meta">
             <span class="${pill}">${status}</span>
             <span>进度 ${progress}/${target}</span>
-            <span>奖励 ${reward.toFixed(4)}</span>
+            <span>${escapeHtml(rewardText)}</span>
             <span>${escapeHtml(it.period||'')} · ${escapeHtml(it.period_key||'')}</span>
           </div>
         </div>`;

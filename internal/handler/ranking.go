@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -84,11 +85,17 @@ func (h *Handler) RankingRewards(w http.ResponseWriter, r *http.Request) {
 		myRank, myAmount, _ = h.store.RewardRankOfUser(r.Context(), from, to, me.ID)
 	}
 
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.UserID)
+	}
+	names := h.resolveRankDisplayNames(r.Context(), ids, me)
+
 	items := make([]rankingItem, 0, len(rows))
 	for i, row := range rows {
-		name := maskDisplayName(fmt.Sprintf("用户%d", row.UserID))
-		if me != nil && me.ID == row.UserID {
-			name = maskDisplayName(firstNonEmptyStr(me.Username, me.Email, fmt.Sprintf("用户%d", me.ID)))
+		name := names[row.UserID]
+		if name == "" {
+			name = maskDisplayName(fmt.Sprintf("用户%d", row.UserID))
 		}
 		items = append(items, rankingItem{
 			Rank:          i + 1,
@@ -257,6 +264,36 @@ func (h *Handler) officialRankURL() string {
 		return "/rank"
 	}
 	return origin + "/rank"
+}
+
+
+// resolveRankDisplayNames fills masked names for ranking rows.
+// Prefer current user profile for self; otherwise admin GetUserByAdmin when available.
+func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, me *sub2api.User) map[int64]string {
+	out := make(map[int64]string, len(userIDs))
+	h.syncAdminCred()
+	for _, id := range userIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := out[id]; ok {
+			continue
+		}
+		if me != nil && me.ID == id {
+			out[id] = maskDisplayName(firstNonEmptyStr(me.Username, me.Email, fmt.Sprintf("用户%d", id)))
+			continue
+		}
+		name := fmt.Sprintf("用户%d", id)
+		if h.client != nil && h.effectiveAdminCred() != "" {
+			if u, err := h.client.GetUserByAdmin(ctx, id); err == nil && u != nil {
+				if v := firstNonEmptyStr(u.Username, u.Email); v != "" {
+					name = v
+				}
+			}
+		}
+		out[id] = maskDisplayName(name)
+	}
+	return out
 }
 
 func maskDisplayName(name string) string {
