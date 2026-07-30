@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>任务中心 · Sub2API 扩展</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <style>
+:root {
+  --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
+  --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+  --border:rgba(255,255,255,.09); --soft:rgba(255,255,255,.04); --soft2:rgba(255,255,255,.07);
+  --shadow:0 16px 40px rgba(0,0,0,.28); --glow:rgba(91,140,255,.28);
+  --radius:18px; --radius-sm:12px;
+}
+html.light {
+  --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.96); --text:#0f172a; --muted:#64748b;
+  --border:rgba(15,23,42,.08); --soft:rgba(15,23,42,.03); --soft2:rgba(15,23,42,.06);
+  --shadow:0 12px 30px rgba(15,23,42,.08); --glow:rgba(59,130,246,.16);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:
+    radial-gradient(900px 420px at 10% -12%, var(--glow), transparent 58%),
+    radial-gradient(720px 340px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+    linear-gradient(180deg,var(--bg0),var(--bg1));
+  display:flex; justify-content:center; padding:16px 14px 40px;
+}
+.wrap{width:min(720px,100%); display:flex; flex-direction:column; gap:12px}
+a{color:var(--primary); text-decoration:none}
+.top{
+  display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px 14px 12px;
+}
+.topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
+.topnav a{
+  text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
+  border:1px solid var(--border); border-radius:999px; padding:6px 10px 6px 8px; background:var(--soft);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
+.topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+html.light .topnav a.active{color:#4f46e5}
+.topnav a.nav-extra{display:none}
+.brand-title{display:flex; align-items:center; gap:10px}
+.brand-title .logo{width:34px; height:34px; border-radius:10px; flex:none}
+.brand-title .logo.dark{display:block}
+.brand-title .logo.light{display:none}
+html.light .brand-title .logo.dark{display:none}
+html.light .brand-title .logo.light{display:block}
+.brand-title h1{margin:0; font-size:1.22rem}
+.lead{margin:6px 0 0; color:var(--muted); font-size:.82rem; line-height:1.45}
+.top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
+.theme-btn,.ghost-btn{
+  border:1px solid var(--border); background:var(--soft2); color:var(--text);
+  border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:650; cursor:pointer;
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px;
+}
+.card.loading{opacity:.72; pointer-events:none}
+.msg{display:none; margin-bottom:10px; padding:8px 10px; border-radius:10px; font-size:.8rem}
+.msg.show{display:block}
+.msg.ok{background:rgba(34,197,94,.12); color:var(--ok)}
+.msg.err{background:rgba(244,63,94,.12); color:var(--danger)}
+.task{
+  border:1px solid var(--border); border-radius:14px; padding:12px 12px 10px; background:var(--soft);
+  display:flex; flex-direction:column; gap:8px; margin-bottom:10px;
+}
+.task-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start}
+.task-title{font-weight:700; font-size:.95rem}
+.task-desc{color:var(--muted); font-size:.78rem; line-height:1.4}
+.task-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:.75rem; color:var(--muted)}
+.pill{
+  border:1px solid var(--border); border-radius:999px; padding:3px 8px; background:var(--soft2);
+  font-weight:650; color:var(--text);
+}
+.pill.ok{border-color:rgba(34,197,94,.35); color:var(--ok)}
+.pill.warn{border-color:rgba(245,158,11,.35); color:var(--warn)}
+.bar{height:8px; border-radius:999px; background:var(--soft2); overflow:hidden}
+.bar>i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--primary),var(--primary2))}
+.btn{
+  border:0; border-radius:999px; padding:7px 12px; font-size:.78rem; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg,var(--primary),var(--primary2)); color:#fff;
+}
+.btn:disabled{opacity:.45; cursor:not-allowed}
+.btn.secondary{background:var(--soft2); color:var(--text); border:1px solid var(--border)}
+.empty{text-align:center; color:var(--muted); padding:28px 8px; font-size:.86rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="topnav">
+          <a class="nav-extra" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a class="nav-extra" href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a class="active" href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</a>
+          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
+          <a class="nav-extra" id="adminTopLink" href="./admin.html#tasks"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
+        </div>
+        <div class="brand-title">
+          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <h1>任务中心</h1>
+        </div>
+        <p class="lead">完成签到 / 抽奖等扩展行为，进度达标后可领取奖励（未配置奖励时仅展示进度）</p>
+      </div>
+      <div class="top-meta">
+        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
+        <button type="button" class="ghost-btn" id="refreshBtn">刷新</button>
+      </div>
+    </header>
+
+    <section class="card" id="panel">
+      <div class="msg" id="msg"></div>
+      <div id="list"><div class="empty">加载中…</div></div>
+    </section>
+  </div>
+
+  <script>
+  (function(){
+    const params = new URLSearchParams(location.search);
+    const el = id => document.getElementById(id);
+    const THEME_KEY='sub2api_ext_theme';
+    let accessToken = '';
+
+    function cleanToken(v){
+      v = String(v||'').trim();
+      if(!v) return '';
+      if(/^bearer\s+/i.test(v)) v=v.replace(/^bearer\s+/i,'');
+      return v.trim();
+    }
+    function readStorage(k){
+      try{ return localStorage.getItem(k)||''; }catch{ return ''; }
+    }
+    function pickToken(){
+      const q = cleanToken(params.get('token')||'');
+      if(q) return q;
+      const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      for(const k of keys){
+        const v = cleanToken(readStorage(k));
+        if(v && v.split('.').length===3) return v;
+      }
+      try{
+        if(window.parent && window.parent !== window){
+          for(const k of keys){
+            const v = cleanToken(window.parent.localStorage.getItem(k)||'');
+            if(v && v.split('.').length===3) return v;
+          }
+        }
+      }catch{}
+      return '';
+    }
+    function authHeaders(){
+      const h = {'Accept':'application/json','Content-Type':'application/json'};
+      if(accessToken){
+        h['Authorization'] = 'Bearer '+accessToken;
+        h['X-User-Token'] = accessToken;
+      }
+      return h;
+    }
+    async function api(path, opts={}){
+      const res = await fetch(path, {...opts, headers:Object.assign(authHeaders(), opts.headers||{})});
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||data.message||('HTTP '+res.status));
+      return data;
+    }
+    function showMsg(text, type){
+      const m = el('msg');
+      if(!text){ m.className='msg'; m.textContent=''; return; }
+      m.textContent = text;
+      m.className = 'msg show '+(type||'');
+    }
+    function applyFavicon(light){
+      const link = document.getElementById('favicon');
+      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+    }
+    function initTheme(){
+      const q=(params.get('theme')||'').toLowerCase();
+      let saved='';
+      try{ saved=localStorage.getItem(THEME_KEY)||''; }catch{}
+      const light=q==='light' || (!q && saved==='light');
+      document.documentElement.classList.toggle('light', !!light);
+      applyFavicon(!!light);
+      el('themeBtn').textContent = light ? '深色' : '浅色';
+    }
+    function toggleTheme(){
+      const light=!document.documentElement.classList.contains('light');
+      document.documentElement.classList.toggle('light', light);
+      applyFavicon(light);
+      el('themeBtn').textContent = light ? '深色' : '浅色';
+      try{ localStorage.setItem(THEME_KEY, light?'light':'dark'); }catch{}
+    }
+    function wireInternalNav(){
+      document.querySelectorAll('.topnav a').forEach(a=>{
+        a.addEventListener('click', (e)=>{
+          const href=a.getAttribute('href')||'';
+          if(!href.startsWith('./')) return;
+          // keep token in query if present
+          if(accessToken && !href.includes('token=')){
+            e.preventDefault();
+            const u=new URL(href, location.href);
+            u.searchParams.set('token', accessToken);
+            location.href=u.pathname+u.search+u.hash;
+          }
+        });
+      });
+    }
+    function render(data){
+      const items = data.items||[];
+      const box = el('list');
+      if(!data.enabled){
+        box.innerHTML = '<div class="empty">任务中心已关闭</div>';
+        return;
+      }
+      if(!items.length){
+        box.innerHTML = '<div class="empty">暂无可用任务</div>';
+        return;
+      }
+      box.innerHTML = items.map(it=>{
+        const target = Math.max(1, Number(it.target||1));
+        const progress = Math.max(0, Number(it.progress||0));
+        const pct = Math.min(100, Math.round(progress/target*100));
+        const reward = Number(it.reward||0);
+        let status = '进行中';
+        let pill = 'pill';
+        if(it.claimed){ status='已领取'; pill='pill ok'; }
+        else if(it.done && reward>0){ status='可领取'; pill='pill ok'; }
+        else if(it.done){ status='已完成'; pill='pill'; }
+        else if(progress>0){ status='进行中'; pill='pill warn'; }
+        const can = !!it.can_claim;
+        const btnLabel = it.claimed ? '已领取' : (can ? `领取 ${reward}` : (reward>0 ? '未达标' : '仅进度'));
+        return `<div class="task" data-id="${String(it.id||'').replace(/"/g,'')}">
+          <div class="task-head">
+            <div>
+              <div class="task-title">${escapeHtml(it.name||it.id||'')}</div>
+              <div class="task-desc">${escapeHtml(it.description||'')}</div>
+            </div>
+            <button type="button" class="btn" data-claim="${escapeHtml(it.id||'')}" ${can?'':'disabled'}>${btnLabel}</button>
+          </div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+          <div class="task-meta">
+            <span class="${pill}">${status}</span>
+            <span>进度 ${progress}/${target}</span>
+            <span>奖励 ${reward.toFixed(4)}</span>
+            <span>${escapeHtml(it.period||'')} · ${escapeHtml(it.period_key||'')}</span>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    async function load(){
+      const panel=el('panel');
+      panel.classList.add('loading');
+      try{
+        const data = await api('./api/tasks');
+        render(data||{});
+        showMsg('');
+      }catch(e){
+        el('list').innerHTML = '<div class="empty">加载失败</div>';
+        showMsg(String(e.message||e), 'err');
+      }finally{
+        panel.classList.remove('loading');
+      }
+    }
+    async function claim(taskId){
+      try{
+        const res = await api('./api/tasks/claim', {method:'POST', body: JSON.stringify({task_id: taskId})});
+        showMsg(res.status==='already_claimed' ? '已经领取过了' : `领取成功 +${Number(res.amount||0).toFixed(4)}`, 'ok');
+        await load();
+      }catch(e){
+        showMsg(String(e.message||e), 'err');
+      }
+    }
+    async function resolveIsAdmin(){
+      if(!accessToken) return false;
+      try{
+        const s = await api('./api/status');
+        return !!(s && s.is_admin);
+      }catch{ return false; }
+    }
+    function applyNavForRole(isAdmin){
+      document.querySelectorAll('.topnav a.nav-extra').forEach(a=>{
+        a.style.display = isAdmin ? 'inline-flex' : 'none';
+      });
+    }
+
+    el('themeBtn').addEventListener('click', toggleTheme);
+    el('refreshBtn').addEventListener('click', load);
+    el('list').addEventListener('click', (e)=>{
+      const b = e.target.closest('[data-claim]');
+      if(!b || b.disabled) return;
+      claim(b.dataset.claim);
+    });
+
+    accessToken = pickToken();
+    initTheme();
+    wireInternalNav();
+    (async function boot(){
+      const isAdmin = await resolveIsAdmin();
+      applyNavForRole(isAdmin);
+      await load();
+    })();
+  })();
+  </script>
+</body>
+</html>

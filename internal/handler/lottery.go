@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/store"
@@ -241,16 +243,34 @@ func (h *Handler) LotteryDraw(w http.ResponseWriter, r *http.Request) {
 	}
 
 	notes := "lottery:" + picked.Label
-	credited, err := h.client.AddBalanceScoped(r.Context(), sub2api.IdempotencyScopeLottery, user.ID, result.Amount, notes, today)
-	if err != nil {
-		// Give the chance back rather than burning it on an upstream failure.
-		_ = h.store.ReleaseLotteryDraw(r.Context(), drawID)
-		writeErr(w, http.StatusBadGateway, "credit failed: "+err.Error())
-		return
-	}
 	newBalance := 0.0
-	if credited != nil {
-		newBalance = credited.Balance
+	if h.credit != nil {
+		res, err := h.credit.Grant(r.Context(), credit.Request{
+			UserID: user.ID, Amount: result.Amount, Source: credit.SourceLottery,
+			SourceRef: fmt.Sprintf("lottery:%d", drawID), Scope: sub2api.IdempotencyScopeLottery,
+			Slot: today, Notes: notes,
+		})
+		if err != nil {
+			_ = h.store.ReleaseLotteryDraw(r.Context(), drawID)
+			writeErr(w, http.StatusBadGateway, "credit failed: "+err.Error())
+			return
+		}
+		if res != nil {
+			newBalance = res.NewBalance
+			if res.User != nil {
+				newBalance = res.User.Balance
+			}
+		}
+	} else {
+		credited, err := h.client.AddBalanceScoped(r.Context(), sub2api.IdempotencyScopeLottery, user.ID, result.Amount, notes, today)
+		if err != nil {
+			_ = h.store.ReleaseLotteryDraw(r.Context(), drawID)
+			writeErr(w, http.StatusBadGateway, "credit failed: "+err.Error())
+			return
+		}
+		if credited != nil {
+			newBalance = credited.Balance
+		}
 	}
 	if err := h.store.FinalizeLotteryDraw(r.Context(), drawID, picked.Label, store.PrizeTypeBalance, result.Amount, newBalance); err != nil {
 		// Balance already moved; keep the row claimed and report success.

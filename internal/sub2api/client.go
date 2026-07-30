@@ -472,6 +472,8 @@ func truncate(b []byte, n int) string {
 const (
 	IdempotencyScopeCheckin = "checkin"
 	IdempotencyScopeLottery = "lottery"
+	IdempotencyScopeRankReward = "rankreward"
+	IdempotencyScopeTask = "task"
 )
 
 // IdempotencyKey builds the upstream Idempotency-Key header value.

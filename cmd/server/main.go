@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/handler"
 	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/modules"
@@ -19,6 +20,7 @@ import (
 	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
+	"sub2api-ext/internal/tasks"
 	"sub2api-ext/internal/sub2api"
 	"sub2api-ext/web"
 )
@@ -72,6 +74,16 @@ func main() {
 	h.SetLottery(lotterySettings)
 	h.SetReport(reportSvc)
 
+	creditSvc := credit.New(st, client)
+	if n, err := creditSvc.Backfill(context.Background()); err != nil {
+		log.Printf("ledger backfill: %v", err)
+	} else if n > 0 {
+		log.Printf("ledger backfill inserted %d rows", n)
+	}
+	h.SetCredit(creditSvc)
+	taskSettings := tasks.NewSettings(st)
+	h.SetTasks(taskSettings)
+
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
 
@@ -124,6 +136,15 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/notify/test", h.AdminNotifyTest)
 	mux.HandleFunc(base+"/api/lottery/status", h.LotteryStatus)
 	mux.HandleFunc(base+"/api/ranking/rewards", h.RankingRewards)
+
+	mux.HandleFunc(base+"/api/admin/ledger", h.AdminListLedger)
+	mux.HandleFunc(base+"/api/admin/ledger/stats", h.AdminLedgerStats)
+	mux.HandleFunc(base+"/api/admin/rank/campaigns", h.AdminRankCampaigns)
+	mux.HandleFunc(base+"/api/admin/rank/campaigns/", h.AdminRankCampaignByID)
+	mux.HandleFunc(base+"/api/ranking/campaigns", h.PublicRankCampaigns)
+	mux.HandleFunc(base+"/api/tasks", h.TasksList)
+	mux.HandleFunc(base+"/api/tasks/claim", h.TasksClaim)
+	mux.HandleFunc(base+"/api/admin/tasks/settings", h.AdminTasksSettings)
 	mux.HandleFunc(base+"/api/ranking/consumption", h.RankingConsumption)
 	mux.HandleFunc(base+"/api/lottery/draw", h.LotteryDraw)
 	mux.HandleFunc(base+"/api/admin/lottery/settings", func(w http.ResponseWriter, r *http.Request) {

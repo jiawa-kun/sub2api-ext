@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/metrics"
 	"sub2api-ext/internal/modules"
@@ -22,6 +23,7 @@ import (
 	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
+	"sub2api-ext/internal/tasks"
 	"sub2api-ext/internal/sub2api"
 )
 
@@ -37,6 +39,8 @@ type Handler struct {
 	notifier *notify.Notifier
 	lottery  *lottery.Settings
 	report   *report.Service
+	credit   *credit.Service
+	tasks    *tasks.Settings
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -66,6 +70,9 @@ func (h *Handler) SetNotifier(n *notify.Notifier) { h.notifier = n }
 
 // SetReport attaches the daily report service. Safe to leave nil.
 func (h *Handler) SetReport(s *report.Service) { h.report = s }
+
+// SetCredit attaches the unified credit/ledger service. Safe to leave nil.
+func (h *Handler) SetCredit(s *credit.Service) { h.credit = s }
 
 func (h *Handler) publish(ev notify.Event) {
 	if h.notifier == nil {
@@ -416,22 +423,36 @@ func (h *Handler) Checkin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// creditWithRetry: one retry on transient error; idempotent hit keeps success.
+// creditWithRetry credits via ledger service when available; falls back to direct AddBalance.
 func (h *Handler) creditWithRetry(ctx context.Context, userID int64, amount float64, notes, date string) (*sub2api.User, error) {
+	if h.credit != nil {
+		res, err := h.credit.Grant(ctx, credit.Request{
+			UserID: userID, Amount: amount, Source: credit.SourceCheckin,
+			SourceRef: "checkin:" + date, Scope: sub2api.IdempotencyScopeCheckin,
+			Slot: date, Notes: notes,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if res != nil && res.User != nil {
+			return res.User, nil
+		}
+		if u, e := h.client.GetUserByAdmin(ctx, userID); e == nil {
+			return u, nil
+		}
+		return &sub2api.User{ID: userID}, nil
+	}
 	u, err := h.client.AddBalance(ctx, userID, amount, notes, date)
 	if err == nil {
 		return u, nil
 	}
-	// retry once
 	metrics.CreditRetry.Add(1)
 	u2, err2 := h.client.AddBalance(ctx, userID, amount, notes, date)
 	if err2 == nil {
 		metrics.CreditIdempotent.Add(1)
 		return u2, nil
 	}
-	// if either error looks idempotent and we can load user, treat ok
 	if u3, e3 := h.client.GetUserByAdmin(ctx, userID); e3 == nil {
-		// only accept if second error mentions idempotency-ish, else still fail
 		msg := strings.ToLower(err2.Error() + " " + err.Error())
 		if strings.Contains(msg, "idempoten") || strings.Contains(msg, "duplicate") || strings.Contains(msg, "already") || strings.Contains(msg, "409") {
 			metrics.CreditIdempotent.Add(1)

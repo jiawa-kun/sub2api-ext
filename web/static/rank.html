@@ -65,6 +65,16 @@ html.light .brand-title .logo.light{display:block}
   box-shadow:var(--shadow); padding:16px;
 }
 .card.loading{opacity:.72; pointer-events:none}
+
+.campaign-box{
+  margin-bottom:12px; padding:10px 12px; border-radius:12px;
+  border:1px dashed rgba(91,140,255,.35); background:rgba(91,140,255,.08);
+  font-size:.8rem; line-height:1.45; color:var(--text);
+}
+.campaign-box .c-title{font-weight:750; margin-bottom:4px}
+.campaign-box .c-item{color:var(--muted); margin-top:2px}
+.campaign-box.hidden{display:none}
+
 .tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px}
 .tab{
   border:1px solid var(--border); background:var(--soft); color:var(--text);
@@ -227,7 +237,12 @@ tr.me{background:rgba(91,140,255,.08)}
         </div>
       </div>
 
-      <div class="table-wrap">
+      
+      <div class="campaign-box hidden" id="campaignBox">
+        <div class="c-title">进行中的排行活动</div>
+        <div id="campaignList"></div>
+      </div>
+<div class="table-wrap">
         <table>
           <thead>
             <tr id="headRow">
@@ -518,9 +533,35 @@ tr.me{background:rgba(91,140,255,.08)}
     setBoardTabs();
     setRangeLabel();
     wireInternalNav();
+    
+    async function loadCampaigns(){
+      try{
+        const data = await api('./api/ranking/campaigns');
+        const items = (data && data.items) || [];
+        const box = el('campaignBox');
+        const list = el('campaignList');
+        if(!items.length){ box.classList.add('hidden'); list.innerHTML=''; return; }
+        box.classList.remove('hidden');
+        const esc = (s)=>String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",""":"&quot;","'":"&#39;"}[c]));
+        list.innerHTML = items.map(c=>{
+          const board = c.board === 'consumption' ? '消费榜' : '奖励榜';
+          const rewards = Array.isArray(c.rewards) ? c.rewards : [];
+          const rewardText = rewards.length
+            ? rewards.slice(0,4).map(r=>{
+                if(r.rank) return `#${r.rank}=${Number(r.amount||0)}`;
+                if(r.rank_from) return `#${r.rank_from}-${r.rank_to}=${Number(r.amount||0)}`;
+                return `${Number(r.amount||0)}`;
+              }).join(' · ')
+            : '规则待定';
+          return `<div class="c-item"><b>${esc(c.name||'活动')}</b> · ${board} · ${esc(c.start_date||'')}~${esc(c.end_date||'')} · Top${c.top_n||10} · ${esc(rewardText)}</div>`;
+        }).join('');
+      }catch{}
+    }
+
     (async function boot(){
       const isAdmin = await resolveIsAdmin();
       applyNavForRole(isAdmin);
+      await loadCampaigns();
       await load();
     })();
   })();

@@ -5,7 +5,7 @@
 > 项目名 / 镜像 / 容器名：**`sub2api-ext`**  
 > 产品标识：**`sub2api-ext`**（Sub2API 扩展）  
 > 对外 HTTP 路径前缀为 **`/ext`**（不再使用 `/checkin`）。  
-> 当前内置模块：**每日签到**、**账号模型巡检**、**通知中心**、**幸运抽奖**、**运营日报**、**排行榜**。
+> 当前内置模块：**每日签到**、**账号模型巡检**、**通知中心**、**幸运抽奖**、**运营日报**、**排行榜**、**任务中心**、**发放总账**、**排行活动结算**。
 
 ## 定位
 
@@ -20,18 +20,46 @@
 |---|---|---|
 | 签到（默认菜单） | `/ext/` | 默认签到页（自定义菜单请改到此路径） |
 | 扩展中心 | `/ext/home.html` | 模块总览（新） |
-| 管理台 | `/ext/admin.html` | 扩展管理（签到 / 巡检 / 抽奖 / 通知 / 日报） |
+| 管理台 | `/ext/admin.html` | 扩展管理（签到 / 巡检 / 抽奖 / 通知 / 日报 / 总账 / 排行活动 / 任务） |
 | 巡检锚点 | `/ext/admin.html#patrol` | 直达账号模型巡检配置 |
 | 抽奖锚点 | `/ext/admin.html#lottery` | 直达幸运抽奖配置 |
 | 通知锚点 | `/ext/admin.html#notify` | 直达通知中心配置 |
 | 日报锚点 | `/ext/admin.html#report` | 直达运营日报配置 |
-| 排行榜 | `/ext/rank.html` | 消费榜 + 奖励榜 |
+| 排行榜 | `/ext/rank.html` | 消费榜 + 奖励榜（展示进行中活动） |
+| 任务中心 | `/ext/tasks.html` | 用户任务进度与领取 |
+| 发放总账 | `/ext/admin.html#ledger` | 扩展侧统一发放流水 |
+| 排行活动 | `/ext/admin.html#campaign` | 奖励榜活动创建与结算 |
+| 任务配置 | `/ext/admin.html#tasks` | 任务开关与奖励额度 |
 | 健康检查 | `/ext/healthz` | 含 `product` / `modules` 字段 |
 | 模块列表 API | `/ext/api/modules` | 公开，供首页渲染 |
 
 自定义菜单 URL 必须带尾斜杠：`https://your-sub2api.example.com/ext/`  
 若希望侧栏先看扩展总览，可改为：`https://your-sub2api.example.com/ext/home.html`
 
+
+
+
+## 发放总账 / 排行活动 / 任务中心
+
+### 发放总账（ledger）
+- 统一记录签到、抽奖、排行发奖、任务领取的成功/失败/跳过流水
+- 启动时回填历史签到/抽奖到总账（幂等，不重复加款）
+- 管理台：`/ext/admin.html#ledger`
+- API：`GET /ext/api/admin/ledger`、`GET /ext/api/admin/ledger/stats`
+
+### 排行活动结算（campaign）
+- MVP **仅结算奖励榜**；可创建消费榜活动但不可 settle
+- 管理台创建活动 → 到点后一键结算，按名次规则发奖并写入总账
+- 用户排行页展示进行中的活动横幅
+- API：
+  - 管理：`/ext/api/admin/rank/campaigns`、`.../{id}/settle`、`.../{id}/awards`
+  - 公开：`GET /ext/api/ranking/campaigns`
+
+### 任务中心（tasks）
+- 默认任务奖励均为 **0**（只展示进度）；管理台配置 >0 后可领取
+- 内置：今日签到、今日抽奖、连签 3 天、本周签到 5 天、本周抽奖 3 次
+- 用户页：`/ext/tasks.html`
+- API：`GET /ext/api/tasks`、`POST /ext/api/tasks/claim`、`GET|PUT /ext/api/admin/tasks/settings`
 
 ## 目录结构
 
@@ -46,12 +74,16 @@ internal/
   lottery/                 幸运抽奖（可配置奖池 + 日预算）
   notify/                  通知中心（Webhook / 企业微信 / Telegram）
   report/                  运营日报（定时汇总 + 走通知渠道送达）
+  credit/                  统一发放服务（加余额 + 写入总账，幂等）
+  tasks/                   任务中心定义与周期键
   sub2api/                 调 Sub2API（用户识别 / 加余额 / 账号测活）
   handler/                 HTTP API（平台 + 各模块）
 web/static/
   index.html               用户签到页（含抽奖卡片，默认入口）
   home.html                扩展中心（模块总览）
-  admin.html               扩展管理台（签到 / 巡检 / 抽奖 / 通知 / 日报）
+  rank.html                排行榜（消费 / 奖励 + 活动横幅）
+  tasks.html               任务中心用户页
+  admin.html               扩展管理台（签到 / 巡检 / 抽奖 / 通知 / 日报 / 总账 / 活动 / 任务）
 configs/                   配置示例
 deploy/                    Nginx 完整配置 / 片段
 scripts/deploy-server.ps1  一键部署/更新脚本（远程拉镜像）
