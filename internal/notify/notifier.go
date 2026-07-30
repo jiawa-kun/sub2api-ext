@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -31,20 +32,27 @@ type Notifier struct {
 	stop    chan struct{}
 	wg      sync.WaitGroup
 
-	// stats
+	// stats (hot path uses atomics; lastErr/lastSent still mutex-guarded)
+	sent     atomic.Int64
+	failed   atomic.Int64
+	dropped  atomic.Int64
 	statMu   sync.Mutex
-	sent     int64
-	failed   int64
-	dropped  int64
 	lastErr  string
 	lastSent time.Time
 }
 
 func NewNotifier(s *Settings) *Notifier {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 32
+	transport.MaxIdleConnsPerHost = 8
+	transport.IdleConnTimeout = 90 * time.Second
 	return &Notifier{
 		settings: s,
-		client:   &http.Client{Timeout: sendTimeout},
-		queue:    make(chan Event, queueSize),
+		client: &http.Client{
+			Timeout:   sendTimeout,
+			Transport: transport,
+		},
+		queue: make(chan Event, queueSize),
 	}
 }
 
@@ -115,9 +123,7 @@ func (n *Notifier) Publish(ev Event) {
 	select {
 	case n.queue <- ev:
 	default:
-		n.statMu.Lock()
-		n.dropped++
-		n.statMu.Unlock()
+		n.dropped.Add(1)
 		log.Printf("notify queue full, dropped event %s", ev.Type)
 	}
 }
@@ -157,8 +163,8 @@ func (n *Notifier) deliver(stop <-chan struct{}, ev Event) {
 		}
 		err := n.Send(ctx, rt, ev)
 		if err == nil {
+			n.sent.Add(1)
 			n.statMu.Lock()
-			n.sent++
 			n.lastSent = time.Now()
 			n.lastErr = ""
 			n.statMu.Unlock()
@@ -166,8 +172,8 @@ func (n *Notifier) deliver(stop <-chan struct{}, ev Event) {
 		}
 		lastErr = err
 	}
+	n.failed.Add(1)
 	n.statMu.Lock()
-	n.failed++
 	n.lastErr = lastErr.Error()
 	n.statMu.Unlock()
 	log.Printf("notify send failed after retries: %v", lastErr)
@@ -223,16 +229,18 @@ type Stats struct {
 
 func (n *Notifier) Stats() Stats {
 	n.statMu.Lock()
-	defer n.statMu.Unlock()
+	lastErr := n.lastErr
+	lastSent := n.lastSent
+	n.statMu.Unlock()
 	out := Stats{
-		Sent:    n.sent,
-		Failed:  n.failed,
-		Dropped: n.dropped,
-		LastErr: n.lastErr,
+		Sent:    n.sent.Load(),
+		Failed:  n.failed.Load(),
+		Dropped: n.dropped.Load(),
+		LastErr: lastErr,
 		Queued:  len(n.queue),
 	}
-	if !n.lastSent.IsZero() {
-		out.LastSent = n.lastSent.UTC().Format(time.RFC3339)
+	if !lastSent.IsZero() {
+		out.LastSent = lastSent.UTC().Format(time.RFC3339)
 	}
 	return out
 }

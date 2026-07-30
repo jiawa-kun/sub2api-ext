@@ -42,12 +42,13 @@ type Service struct {
 	schedStop chan struct{}
 	schedWG   sync.WaitGroup
 
-	statMu     sync.Mutex
-	sent       int64
-	failed     int64
-	lastDate   string
-	lastSentAt time.Time
-	lastErr    string
+	statMu       sync.Mutex
+	sent         int64
+	failed       int64
+	lastDate     string
+	lastSentDate string // covered date already delivered (memory cache of KeyLastSent)
+	lastSentAt   time.Time
+	lastErr      string
 }
 
 func NewService(st *store.Store, settings *Settings, notifier *notify.Notifier, deps Deps) *Service {
@@ -110,18 +111,36 @@ func (s *Service) tick(now time.Time) {
 		return
 	}
 	date := rt.CoverDate(local)
+	if s.alreadySent(date) {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	if last, ok, err := s.store.GetSetting(ctx, KeyLastSent); err == nil && ok && last == date {
-		return
-	}
 	if _, err := s.deliver(ctx, rt, date, local, "schedule"); err != nil {
 		log.Printf("report scheduled send failed: %v", err)
-		return
 	}
-	if err := s.store.SetSetting(ctx, KeyLastSent, date); err != nil {
-		log.Printf("report mark sent failed: %v", err)
+}
+
+// alreadySent reports whether the covered date was already delivered.
+// Memory is checked first; SQLite is the source of truth across restarts.
+func (s *Service) alreadySent(date string) bool {
+	s.statMu.Lock()
+	if s.lastSentDate == date {
+		s.statMu.Unlock()
+		return true
 	}
+	s.statMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	last, ok, err := s.store.GetSetting(ctx, KeyLastSent)
+	if err != nil || !ok || last != date {
+		return false
+	}
+	s.statMu.Lock()
+	s.lastSentDate = date
+	s.statMu.Unlock()
+	return true
 }
 
 // DueAt returns today's scheduled moment in the given local time.
@@ -134,9 +153,6 @@ func DueAt(rt Runtime, local time.Time) (time.Time, bool) {
 }
 
 // DueNow reports whether a local moment falls inside today's send window.
-// A window instead of an exact match is what makes the schedule survive a
-// restart: a short outage still gets the report, while a long one skips the
-// day rather than delivering a stale digest at an arbitrary hour.
 func DueNow(rt Runtime, local time.Time) bool {
 	due, ok := DueAt(rt, local)
 	if !ok {
@@ -200,9 +216,15 @@ func (s *Service) deliver(ctx context.Context, rt Runtime, date string, local ti
 		s.recordFailure(date, err)
 		return d, err
 	}
+	// Persist de-dupe key only after successful delivery so a failed send can
+	// still retry inside the window. Manual and scheduled paths share this.
+	if err := s.store.SetSetting(ctx, KeyLastSent, date); err != nil {
+		log.Printf("report mark sent failed date=%s: %v", date, err)
+	}
 	s.statMu.Lock()
 	s.sent++
 	s.lastDate = date
+	s.lastSentDate = date
 	s.lastSentAt = time.Now()
 	s.lastErr = ""
 	s.statMu.Unlock()

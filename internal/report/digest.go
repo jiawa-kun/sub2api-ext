@@ -141,14 +141,12 @@ func Build(ctx context.Context, st *store.Store, rt Runtime, deps Deps, date str
 	summary := make([]string, 0, 3)
 
 	if rt.HasSection(SectionCheckin) {
-		today, err := st.StatsByDate(ctx, date)
+		byDate, err := st.StatsByDates(ctx, []string{date, prev})
 		if err != nil {
 			return d, fmt.Errorf("统计签到失败: %w", err)
 		}
-		yday, err := st.StatsByDate(ctx, prev)
-		if err != nil {
-			return d, fmt.Errorf("统计签到(前日)失败: %w", err)
-		}
+		today := byDate[date]
+		yday := byDate[prev]
 		blk := &CheckinBlock{
 			Count:      today.Count,
 			Amount:     today.TotalAmount,
@@ -170,14 +168,12 @@ func Build(ctx context.Context, st *store.Store, rt Runtime, deps Deps, date str
 	}
 
 	if rt.HasSection(SectionLottery) {
-		today, err := st.LotteryStatsByDate(ctx, date)
+		byDate, err := st.LotteryStatsByDates(ctx, []string{date, prev})
 		if err != nil {
 			return d, fmt.Errorf("统计抽奖失败: %w", err)
 		}
-		yday, err := st.LotteryStatsByDate(ctx, prev)
-		if err != nil {
-			return d, fmt.Errorf("统计抽奖(前日)失败: %w", err)
-		}
+		today := byDate[date]
+		yday := byDate[prev]
 		blk := &LotteryBlock{
 			Draws:      today.Draws,
 			Winners:    today.Winners,
@@ -237,23 +233,23 @@ func Build(ctx context.Context, st *store.Store, rt Runtime, deps Deps, date str
 	}
 
 	if rt.HasSection(SectionLedger) {
-		stats, err := st.LedgerStatsBySource(ctx, date, date)
+		// One range query covers today + previous day.
+		stats, err := st.LedgerStatsBySource(ctx, prev, date)
 		if err != nil {
 			return d, fmt.Errorf("统计扩展发放失败: %w", err)
 		}
-		prevStats, err := st.LedgerStatsBySource(ctx, prev, prev)
-		if err != nil {
-			return d, fmt.Errorf("统计扩展发放(前日)失败: %w", err)
-		}
 		blk := &LedgerBlock{BySource: make([]LedgerSourceStat, 0, len(stats))}
 		for _, s := range stats {
-			blk.Count += s.Count
-			blk.Amount += s.Amount
-			blk.BySource = append(blk.BySource, LedgerSourceStat{Source: s.Source, Count: s.Count, Amount: s.Amount})
-		}
-		for _, s := range prevStats {
-			blk.PrevCount += s.Count
-			blk.PrevAmount += s.Amount
+			if s.Date == date {
+				blk.Count += s.Count
+				blk.Amount += s.Amount
+				blk.BySource = append(blk.BySource, LedgerSourceStat{Source: s.Source, Count: s.Count, Amount: s.Amount})
+				continue
+			}
+			if s.Date == prev {
+				blk.PrevCount += s.Count
+				blk.PrevAmount += s.Amount
+			}
 		}
 		d.Ledger = blk
 		d.Items = append(d.Items,
