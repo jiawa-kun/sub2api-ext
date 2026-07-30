@@ -11,7 +11,7 @@
 
 - 通过 Sub2API **自定义菜单 iframe** 挂载扩展能力
 - 共享用户 JWT 识别、管理员 API Key、加余额等基础设施
-- 按模块扩展：现在是签到，后续可继续加兑换、邀请、公告等
+- 按模块扩展：签到/抽奖/排行/任务/总账等玩法与运营能力由扩展提供；兑换码与公告以 Sub2API 主站能力为准，本扩展不重复实现
 - Sub2API 继续 `docker pull` 官方镜像；本服务单独升级
 
 ### 入口
@@ -20,7 +20,7 @@
 |---|---|---|
 | 签到（默认菜单） | `/ext/` | 默认签到页（自定义菜单请改到此路径） |
 | 扩展中心 | `/ext/home.html` | 模块总览（新） |
-| 管理台 | `/ext/admin.html` | 扩展管理（签到 / 巡检 / 抽奖 / 通知 / 日报 / 总账 / 排行活动 / 任务） |
+| 管理台 | `/ext/admin.html` | 扩展管理，按「玩法 / 运营 / 运维」分组（签到/抽奖/任务/排行活动 · 总账/日报 · 巡检/通知） |
 | 巡检锚点 | `/ext/admin.html#patrol` | 直达账号模型巡检配置 |
 | 抽奖锚点 | `/ext/admin.html#lottery` | 直达幸运抽奖配置 |
 | 通知锚点 | `/ext/admin.html#notify` | 直达通知中心配置 |
@@ -44,15 +44,17 @@
 ### 发放总账（ledger）
 - 统一记录签到、抽奖、排行发奖、任务领取的成功/失败/跳过流水
 - 启动时回填历史签到/抽奖到总账（幂等，不重复加款）
-- 管理台：`/ext/admin.html#ledger`
+- 管理台：`/ext/admin.html#ledger`（支持来源/状态/用户筛选、失败快捷、分页与 CSV 导出）
 - API：`GET /ext/api/admin/ledger`、`GET /ext/api/admin/ledger/stats`
 
 ### 排行活动结算（campaign）
-- MVP **仅结算奖励榜**；可创建消费榜活动但不可 settle
-- 管理台创建活动 → 到点后一键结算，按名次规则发奖并写入总账
+- **奖励榜**与**消费榜**均可预览/结算发奖（消费榜依赖 Admin API Key 拉取 Sub2API 用量榜）
+- 管理台创建活动 → 预览应付名单 → 确认结算；按名次规则发奖并写入总账
+- 结算前校验：日期合法、奖励规则有效、排行非空且存在应付名次；空榜/无应付会拒绝 settle
+- 支持取消未完成结算的活动（已成功发放不回滚）；失败可标记 `partial` 后重试
 - 用户排行页展示进行中的活动横幅
 - API：
-  - 管理：`/ext/api/admin/rank/campaigns`、`.../{id}/settle`、`.../{id}/awards`
+  - 管理：`/ext/api/admin/rank/campaigns`、`.../{id}/preview`、`.../{id}/settle`、`.../{id}/cancel`、`.../{id}/awards`
   - 公开：`GET /ext/api/ranking/campaigns`
 
 ### 任务中心（tasks）

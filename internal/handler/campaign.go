@@ -254,6 +254,111 @@ type campaignRankRow struct {
 	Amount float64
 }
 
+
+// validateCampaignMeta checks board/status/date/reward rules before preview or settle.
+// requireSettleable=true enforces draft/active/partial status.
+func validateCampaignMeta(c *store.RankCampaign, requireSettleable bool) error {
+	if c == nil {
+		return fmt.Errorf("campaign required")
+	}
+	if c.Board != store.CampaignBoardRewards && c.Board != store.CampaignBoardConsumption && c.Board != "" {
+		return fmt.Errorf("board must be rewards or consumption")
+	}
+	board := c.Board
+	if board == "" {
+		board = store.CampaignBoardRewards
+	}
+	if board != store.CampaignBoardRewards && board != store.CampaignBoardConsumption {
+		return fmt.Errorf("board must be rewards or consumption")
+	}
+	if requireSettleable {
+		if c.Status == store.CampaignStatusSettled {
+			return fmt.Errorf("already settled")
+		}
+		if c.Status == store.CampaignStatusCancelled {
+			return fmt.Errorf("campaign status not settleable: %s", c.Status)
+		}
+		if c.Status != store.CampaignStatusActive && c.Status != store.CampaignStatusPartial && c.Status != store.CampaignStatusDraft {
+			return fmt.Errorf("campaign status not settleable: %s", c.Status)
+		}
+	}
+	start := strings.TrimSpace(c.StartDate)
+	end := strings.TrimSpace(c.EndDate)
+	if start == "" || end == "" {
+		return fmt.Errorf("start_date/end_date required")
+	}
+	if start > end {
+		return fmt.Errorf("start_date must be <= end_date")
+	}
+	rules, err := c.ParseRewards()
+	if err != nil {
+		return fmt.Errorf("invalid rewards json")
+	}
+	if !hasPositiveRewardRule(rules) {
+		return fmt.Errorf("rewards must include at least one positive amount")
+	}
+	return nil
+}
+
+func hasPositiveRewardRule(rules []store.RankRewardRule) bool {
+	for _, r := range rules {
+		if r.Amount > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// planCampaignAwards computes payable/skipped counts for preview and settle gates.
+func planCampaignAwards(c *store.RankCampaign, rows []campaignRankRow, rules []store.RankRewardRule, existing map[int64]store.RankCampaignAward) (payable, skipped int, plannedSpend float64, details []map[string]any) {
+	if existing == nil {
+		existing = map[int64]store.RankCampaignAward{}
+	}
+	details = make([]map[string]any, 0, len(rows))
+	spentPlan := 0.0
+	for i, row := range rows {
+		rank := i + 1
+		amt := store.AmountForRank(rules, rank)
+		status := "planned"
+		if amt <= 0 {
+			status = "no_reward"
+			skipped++
+		} else if c != nil && c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
+			status = "budget_cut"
+			skipped++
+		} else if prev, ok := existing[row.UserID]; ok {
+			if prev.Status == "success" || prev.Status == "skipped" {
+				status = "already_" + prev.Status
+				skipped++
+			} else {
+				status = "retry_" + prev.Status
+				spentPlan += amt
+				payable++
+			}
+		} else {
+			spentPlan += amt
+			payable++
+		}
+		details = append(details, map[string]any{
+			"user_id": row.UserID, "rank": rank, "amount": amt, "status": status,
+			"board_amount": row.Amount,
+		})
+	}
+	return payable, skipped, spentPlan, details
+}
+
+// validateCampaignSettleReady enforces non-empty ranking and at least one payable award.
+func validateCampaignSettleReady(rows []campaignRankRow, payable int) error {
+	if len(rows) == 0 {
+		return fmt.Errorf("ranking is empty, nothing to settle")
+	}
+	if payable <= 0 {
+		return fmt.Errorf("no payable awards (all skipped or zero reward)")
+	}
+	return nil
+}
+
+
 func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaign, topN int) ([]campaignRankRow, error) {
 	if c == nil {
 		return nil, fmt.Errorf("campaign required")
@@ -311,8 +416,8 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 		writeErr(w, http.StatusNotFound, "campaign not found")
 		return
 	}
-	if c.Board != store.CampaignBoardRewards && c.Board != store.CampaignBoardConsumption {
-		writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
+	if err := validateCampaignMeta(c, false); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	rules, err := c.ParseRewards()
@@ -330,44 +435,18 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 	existing, _ := h.store.CampaignAwardMap(r.Context(), c.ID)
-	spentPlan := 0.0
-	payable := 0
-	skipped := 0
-	details := make([]map[string]any, 0, len(rows))
-	for i, row := range rows {
-		rank := i + 1
-		amt := store.AmountForRank(rules, rank)
-		status := "planned"
-		if amt <= 0 {
-			status = "no_reward"
-			skipped++
-		} else if c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
-			status = "budget_cut"
-			skipped++
-		} else {
-			if prev, ok := existing[row.UserID]; ok {
-				if prev.Status == "success" || prev.Status == "skipped" {
-					status = "already_" + prev.Status
-					skipped++
-				} else {
-					status = "retry_" + prev.Status
-					spentPlan += amt
-					payable++
-				}
-			} else {
-				spentPlan += amt
-				payable++
-			}
-		}
-		details = append(details, map[string]any{
-			"user_id": row.UserID, "rank": rank, "amount": amt, "status": status,
-			"board_amount": row.Amount,
-		})
+	payable, skipped, spentPlan, details := planCampaignAwards(c, rows, rules, existing)
+	warning := ""
+	if len(rows) == 0 {
+		warning = "ranking is empty"
+	} else if payable <= 0 {
+		warning = "no payable awards"
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"campaign_id": c.ID, "board": c.Board, "top_n": topN,
 		"payable": payable, "skipped": skipped, "planned_spend": spentPlan,
-		"budget_cap": c.BudgetCap, "details": details,
+		"budget_cap": c.BudgetCap, "details": details, "row_count": len(rows),
+		"warning": warning,
 	})
 }
 
@@ -386,16 +465,8 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 		writeErr(w, http.StatusNotFound, "campaign not found")
 		return
 	}
-	if c.Status == store.CampaignStatusSettled {
-		writeErr(w, http.StatusBadRequest, "already settled")
-		return
-	}
-	if c.Status != store.CampaignStatusActive && c.Status != store.CampaignStatusPartial && c.Status != store.CampaignStatusDraft {
-		writeErr(w, http.StatusBadRequest, "campaign status not settleable: "+c.Status)
-		return
-	}
-	if c.Board != store.CampaignBoardRewards && c.Board != store.CampaignBoardConsumption {
-		writeErr(w, http.StatusBadRequest, "board must be rewards or consumption")
+	if err := validateCampaignMeta(c, true); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	rules, err := c.ParseRewards()
@@ -415,6 +486,12 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 	existing, err := h.store.CampaignAwardMap(r.Context(), c.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Gate empty / non-payable settles up front (preview still allowed).
+	payable, _, _, _ := planCampaignAwards(c, rows, rules, existing)
+	if err := validateCampaignSettleReady(rows, payable); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

@@ -28,6 +28,7 @@ const (
 
 // Builtin returns the currently shipped modules.
 // Status "active" modules are available now; keep planned modules out until implemented.
+// Redeem codes and announcements stay on Sub2API main product — do not re-implement here.
 func Builtin() []Module {
 	return []Module{
 		{

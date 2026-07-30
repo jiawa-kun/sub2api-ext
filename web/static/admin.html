@@ -81,10 +81,18 @@ html.light .brand-title .logo.light{display:block}
 .auth-status{font-size:.75rem; color:var(--muted); padding:5px 10px; border-radius:999px; border:1px solid var(--border); background:var(--soft)}
 .auth-status.ok{color:var(--ok); border-color:rgba(34,197,94,.3); background:rgba(34,197,94,.08)}
 .auth-status.err{color:var(--danger); border-color:rgba(244,63,94,.3); background:rgba(244,63,94,.08)}
-.modnav{display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:4px; border-radius:14px; border:1px solid var(--border); background:rgba(127,127,127,.05)}
+.modnav{display:grid; grid-template-columns:1fr; gap:10px; padding:0; border:0; background:transparent}
+.modnav-group{padding:8px; border-radius:14px; border:1px solid var(--border); background:rgba(127,127,127,.05)}
+.modnav-group-title{font-size:.72rem; font-weight:700; letter-spacing:.04em; color:var(--muted); margin:2px 6px 8px; text-transform:none}
+.modnav-group-btns{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .modnav button{width:100%; border:0; box-shadow:none; background:transparent; color:var(--muted); padding:11px 12px; border-radius:11px; font-size:.86rem}
 .modnav button.active{color:var(--text); background:linear-gradient(135deg, rgba(91,140,255,.2), rgba(124,92,255,.12)); border:1px solid rgba(91,140,255,.28)}
 html.light .modnav button.active{background:#fff; border-color:rgba(15,23,42,.08); box-shadow:0 1px 4px rgba(15,23,42,.06)}
+@media (min-width: 900px){
+  .modnav{grid-template-columns:1.4fr 1fr 1fr; gap:10px; align-items:start}
+  .modnav-group-btns{grid-template-columns:1fr 1fr}
+  .modnav-group[data-group="play"] .modnav-group-btns{grid-template-columns:1fr 1fr}
+}
 .card{background:var(--card); backdrop-filter:blur(14px); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
 .card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin:0 0 12px}
 .card-head h2{margin:0; font-size:1rem; font-weight:750}
@@ -108,7 +116,9 @@ input:focus, select:focus, textarea:focus{border-color:rgba(91,140,255,.55); box
 .grid4{display:grid; grid-template-columns:repeat(4,1fr); gap:8px}
 .auth-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 @media (max-width:760px){
-  .grid2,.grid3,.grid4,.auth-grid,.modnav{grid-template-columns:1fr}
+  .grid2,.grid3,.grid4,.auth-grid{grid-template-columns:1fr}
+  .modnav{grid-template-columns:1fr}
+  .modnav-group-btns{grid-template-columns:1fr 1fr}
   .top{flex-direction:column}
   .top-meta{justify-content:flex-start}
   body{padding-bottom:120px}
@@ -252,14 +262,29 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     </header>
 
     <div class="modnav" role="tablist" aria-label="管理模块">
-      <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
-      <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
-<button type="button" id="nav-lottery"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 8.7l5.4-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>幸运抽奖</button>
-<button type="button" id="nav-report"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>运营日报</button>
-<button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
-<button type="button" id="nav-ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>发放总账</button>
-<button type="button" id="nav-campaign"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行活动</button>
-<button type="button" id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</button>
+      <div class="modnav-group" data-group="play">
+        <div class="modnav-group-title">玩法</div>
+        <div class="modnav-group-btns">
+          <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
+          <button type="button" id="nav-lottery"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 8.7l5.4-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>幸运抽奖</button>
+          <button type="button" id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</button>
+          <button type="button" id="nav-campaign"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行活动</button>
+        </div>
+      </div>
+      <div class="modnav-group" data-group="ops">
+        <div class="modnav-group-title">运营</div>
+        <div class="modnav-group-btns">
+          <button type="button" id="nav-ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>发放总账</button>
+          <button type="button" id="nav-report"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>运营日报</button>
+        </div>
+      </div>
+      <div class="modnav-group" data-group="sre">
+        <div class="modnav-group-title">运维</div>
+        <div class="modnav-group-btns">
+          <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
+          <button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
+        </div>
+      </div>
     </div>
 
     <details class="fold" id="authDetails" open>
@@ -2392,6 +2417,11 @@ function defaultCampRewards(){
     async function settleCampaign(id){
       const prev=await api('./api/admin/rank/campaigns/'+id+'/preview');
       const board=prev.board==='consumption'?'消费榜':'奖励榜';
+      if(prev.warning){ show('预览警告：'+prev.warning,'warn'); }
+      if(!(prev.payable>0)){
+        show('无法结算：排行空或没有应付奖励（应付 '+(prev.payable||0)+' / 行数 '+(prev.row_count||0)+'）','err');
+        return;
+      }
       const msg=`【预览后确认结算】活动 #${id}（${board}）\n应付 ${prev.payable||0} 人 / 跳过 ${prev.skipped||0}\n计划花费 ${Number(prev.planned_spend||0).toFixed(4)} / 预算 ${Number(prev.budget_cap||0).toFixed(4)}\n\n已成功名次会跳过；失败将标记 partial 可重试。\n确认现在结算？`;
       if(!confirm(msg)) return;
       const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:'{}'});

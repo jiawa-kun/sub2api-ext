@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"sub2api-ext/internal/config"
@@ -46,6 +47,10 @@ type Handler struct {
 	limitStatus     *ratelimit.Limiter
 	limitAdminWrite *ratelimit.Limiter
 	limitAdminRead  *ratelimit.Limiter
+
+	// rank display-name cache (userID -> masked-ready raw name)
+	nameCacheMu sync.Mutex
+	nameCache   map[int64]nameCacheEntry
 }
 
 func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settings.Service, patrolSvc *patrol.Service) *Handler {
@@ -1004,6 +1009,13 @@ func (h *Handler) adminCredSource() string {
 }
 
 func (h *Handler) syncAdminCred() {
+	if h == nil || h.client == nil {
+		return
+	}
+	// Keep client token when settings not wired (unit tests / partial handlers).
+	if h.settings == nil {
+		return
+	}
 	h.client.SetAdminToken(h.effectiveAdminCred())
 }
 

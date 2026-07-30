@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -267,33 +268,156 @@ func (h *Handler) officialRankURL() string {
 }
 
 
+type nameCacheEntry struct {
+	name string
+	exp  time.Time
+}
+
+const (
+	rankNameCacheTTL = 10 * time.Minute
+	rankNameWorkers  = 6
+)
+
 // resolveRankDisplayNames fills masked names for ranking rows.
 // Prefer current user profile for self; otherwise admin GetUserByAdmin when available.
+// Uses a short TTL cache and limited concurrency to avoid N serial admin calls.
 func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, me *sub2api.User) map[int64]string {
 	out := make(map[int64]string, len(userIDs))
+	if h == nil {
+		return out
+	}
 	h.syncAdminCred()
+	now := time.Now()
+
+	// unique positive ids, preserve first-seen order
+	needFetch := make([]int64, 0, len(userIDs))
+	seen := make(map[int64]struct{}, len(userIDs))
 	for _, id := range userIDs {
 		if id <= 0 {
 			continue
 		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+
+		if me != nil && me.ID == id {
+			raw := firstNonEmptyStr(me.Username, me.Email, fmt.Sprintf("用户%d", id))
+			out[id] = maskDisplayName(raw)
+			h.putRankNameCache(id, raw, now)
+			continue
+		}
+		if raw, ok := h.getRankNameCache(id, now); ok {
+			out[id] = maskDisplayName(raw)
+			continue
+		}
+		needFetch = append(needFetch, id)
+	}
+
+	if len(needFetch) == 0 {
+		return out
+	}
+
+	canAdmin := false
+	if h.client != nil {
+		if h.settings != nil && h.effectiveAdminCred() != "" {
+			canAdmin = true
+		} else if h.client.AdminToken() != "" {
+			canAdmin = true
+		}
+	}
+	if !canAdmin {
+		for _, id := range needFetch {
+			raw := fmt.Sprintf("用户%d", id)
+			out[id] = maskDisplayName(raw)
+			// do not cache bare fallbacks long-term? still cache briefly to avoid stampede
+			h.putRankNameCache(id, raw, now)
+		}
+		return out
+	}
+
+	type fetched struct {
+		id  int64
+		raw string
+	}
+	jobs := make(chan int64, len(needFetch))
+	results := make(chan fetched, len(needFetch))
+	workers := rankNameWorkers
+	if workers > len(needFetch) {
+		workers = len(needFetch)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for id := range jobs {
+				raw := fmt.Sprintf("用户%d", id)
+				if u, err := h.client.GetUserByAdmin(ctx, id); err == nil && u != nil {
+					if v := firstNonEmptyStr(u.Username, u.Email); v != "" {
+						raw = v
+					}
+				}
+				results <- fetched{id: id, raw: raw}
+			}
+		}()
+	}
+	for _, id := range needFetch {
+		jobs <- id
+	}
+	close(jobs)
+	wg.Wait()
+	close(results)
+
+	for item := range results {
+		out[item.id] = maskDisplayName(item.raw)
+		h.putRankNameCache(item.id, item.raw, now)
+	}
+	// ensure every requested id has an entry even if context cancelled mid-flight
+	for _, id := range needFetch {
 		if _, ok := out[id]; ok {
 			continue
 		}
-		if me != nil && me.ID == id {
-			out[id] = maskDisplayName(firstNonEmptyStr(me.Username, me.Email, fmt.Sprintf("用户%d", id)))
-			continue
-		}
-		name := fmt.Sprintf("用户%d", id)
-		if h.client != nil && h.effectiveAdminCred() != "" {
-			if u, err := h.client.GetUserByAdmin(ctx, id); err == nil && u != nil {
-				if v := firstNonEmptyStr(u.Username, u.Email); v != "" {
-					name = v
-				}
-			}
-		}
-		out[id] = maskDisplayName(name)
+		raw := fmt.Sprintf("用户%d", id)
+		out[id] = maskDisplayName(raw)
 	}
 	return out
+}
+
+func (h *Handler) getRankNameCache(id int64, now time.Time) (string, bool) {
+	h.nameCacheMu.Lock()
+	defer h.nameCacheMu.Unlock()
+	if h.nameCache == nil {
+		return "", false
+	}
+	ent, ok := h.nameCache[id]
+	if !ok || now.After(ent.exp) {
+		if ok {
+			delete(h.nameCache, id)
+		}
+		return "", false
+	}
+	return ent.name, true
+}
+
+func (h *Handler) putRankNameCache(id int64, raw string, now time.Time) {
+	if id <= 0 || strings.TrimSpace(raw) == "" {
+		return
+	}
+	h.nameCacheMu.Lock()
+	defer h.nameCacheMu.Unlock()
+	if h.nameCache == nil {
+		h.nameCache = make(map[int64]nameCacheEntry)
+	}
+	h.nameCache[id] = nameCacheEntry{name: raw, exp: now.Add(rankNameCacheTTL)}
+	// soft bound to avoid unbounded growth
+	if len(h.nameCache) > 2000 {
+		for k, v := range h.nameCache {
+			if now.After(v.exp) {
+				delete(h.nameCache, k)
+			}
+		}
+	}
 }
 
 func maskDisplayName(name string) string {
