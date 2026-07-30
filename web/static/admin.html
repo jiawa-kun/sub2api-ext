@@ -820,6 +820,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" class="secondary sm" id="btnLedgerToday">今日</button>
           <button type="button" class="secondary sm" id="btnLedger7d">近7天</button>
           <button type="button" class="secondary sm" id="btnLedgerRefresh">刷新</button>
+          <button type="button" class="secondary sm" id="btnLedgerExport">导出 CSV</button>
+          <select id="ledgerPageSize" class="sm" title="每页条数">
+            <option value="20">20条/页</option>
+            <option value="50" selected>50条/页</option>
+            <option value="100">100条/页</option>
+          </select>
         </div>
         <div class="tbl-wrap">
           <table class="tbl">
@@ -827,7 +833,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <tbody id="ledgerBody"><tr><td colspan="7" class="sub">加载中…</td></tr></tbody>
           </table>
         </div>
-        <div class="hint" id="ledgerFoot" style="margin-top:8px">列表最多显示 80 条，按时间倒序。</div>
+        <div class="toolbar" style="margin-top:10px;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div class="hint" id="ledgerFoot" style="margin:0">—</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button type="button" class="secondary sm" id="btnLedgerPrev">上一页</button>
+            <span class="sub" id="ledgerPageInfo">第 1 页</span>
+            <button type="button" class="secondary sm" id="btnLedgerNext">下一页</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2184,7 +2197,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
     // section nav + deep link #patrol
     
-    function ledgerSourceLabel(src){
+        function ledgerSourceLabel(src){
       return ({
         checkin:'签到', lottery:'抽奖', rank_reward:'排行发奖',
         task:'任务', backfill:'回填', manual:'手工'
@@ -2198,15 +2211,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!Number.isFinite(n)) return '0';
       return n.toFixed(4).replace(/\.?0+$/,'') || '0';
     }
+    let ledgerPage={offset:0, limit:50, total:0};
     function ledgerEnsureDefaultRange(){
       const fromEl=el('ledgerFrom'), toEl=el('ledgerTo');
       if(!fromEl || !toEl) return;
       if((fromEl.value||'').trim() || (toEl.value||'').trim()) return;
-      const now=new Date();
-      const to=now.toISOString().slice(0,10);
-      const fromDate=new Date(now.getTime()-6*24*3600*1000);
-      const from=fromDate.toISOString().slice(0,10);
-      fromEl.value=from; toEl.value=to;
+      ledgerSetRangeDays(7);
     }
     function ledgerSetRangeDays(days){
       const now=new Date();
@@ -2214,9 +2224,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const fromDate=new Date(now.getTime()-(Math.max(1,days)-1)*24*3600*1000);
       el('ledgerFrom').value=fromDate.toISOString().slice(0,10);
       el('ledgerTo').value=to;
+      ledgerPage.offset=0;
     }
-    async function refreshLedger(){
-      ledgerEnsureDefaultRange();
+    function ledgerQueryParams(extra={}){
       const q=new URLSearchParams();
       const src=(el('ledgerSource')?.value||'').trim();
       const uid=(el('ledgerUserId')?.value||'').trim();
@@ -2226,17 +2236,29 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(uid) q.set('user_id',uid);
       if(from) q.set('from',from);
       if(to) q.set('to',to);
-      q.set('limit','80');
-      const sq=new URLSearchParams();
-      if(from) sq.set('from',from);
-      if(to) sq.set('to',to);
+      Object.entries(extra).forEach(([k,v])=>{ if(v!==undefined && v!==null && v!=='') q.set(k,String(v)); });
+      return q;
+    }
+    function ledgerResetPage(){ ledgerPage.offset=0; }
+    async function refreshLedger(){
+      ledgerEnsureDefaultRange();
+      const size=Number(el('ledgerPageSize')?.value||50);
+      ledgerPage.limit = [20,50,100].includes(size)?size:50;
+      const q=ledgerQueryParams({limit:ledgerPage.limit, offset:ledgerPage.offset});
+      const sq=ledgerQueryParams();
+      // stats should not carry pagination
+      sq.delete('limit'); sq.delete('offset');
       const [list, stats]=await Promise.all([
         api('./api/admin/ledger?'+q.toString()),
         api('./api/admin/ledger/stats?'+sq.toString())
       ]);
       const items=list.items||[];
-      el('ledgerBadge').textContent=items.length+' 条';
-      const rangeText=(stats.from&&stats.to)?(stats.from+' ~ '+stats.to):((from||'…')+' ~ '+(to||'…'));
+      const total=Number(list.total||0);
+      ledgerPage.total=total;
+      const page=Math.floor(ledgerPage.offset/ledgerPage.limit)+1;
+      const pages=Math.max(1, Math.ceil(total/ledgerPage.limit)||1);
+      el('ledgerBadge').textContent=total+' 条';
+      const rangeText=(stats.from&&stats.to)?(stats.from+' ~ '+stats.to):((el('ledgerFrom')?.value||'…')+' ~ '+(el('ledgerTo')?.value||'…'));
       if(el('ledgerRange')) el('ledgerRange').textContent=rangeText;
       if(el('ledgerTotalCount')) el('ledgerTotalCount').textContent=String(stats.total_count??0);
       if(el('ledgerTotalAmount')) el('ledgerTotalAmount').textContent=ledgerFmtMoney(stats.total_amount);
@@ -2252,22 +2274,51 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         }).join('');
       }
       const body=el('ledgerBody');
-      if(!items.length){ body.innerHTML='<tr><td colspan="7" class="sub">暂无流水</td></tr>'; return; }
-      body.innerHTML=items.map(e=>{
-        const st=e.status||'';
-        const stClass=st==='success'?'ok':(st==='failed'?'err':'');
-        return `<tr>
-        <td>${escapeHtml(String(e.created_at||'').replace('T',' ').slice(0,19))}</td>
-        <td>${e.user_id||''}</td>
-        <td>${escapeHtml(ledgerSourceLabel(e.source))}</td>
-        <td>${Number(e.amount||0).toFixed(4)}</td>
-        <td><span class="${stClass}">${escapeHtml(ledgerStatusLabel(st))}</span></td>
-        <td class="sub" style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(e.idempotency_key||'')}">${escapeHtml(e.idempotency_key||'')}</td>
-        <td class="sub">${escapeHtml(e.notes||e.error||'')}</td>
-      </tr>`;
-      }).join('');
+      if(!items.length){ body.innerHTML='<tr><td colspan="7" class="sub">暂无流水</td></tr>'; }
+      else {
+        body.innerHTML=items.map(e=>{
+          const st=e.status||'';
+          const stClass=st==='success'?'ok':(st==='failed'?'err':'');
+          return `<tr>
+          <td>${escapeHtml(String(e.created_at||'').replace('T',' ').slice(0,19))}</td>
+          <td>${e.user_id||''}</td>
+          <td>${escapeHtml(ledgerSourceLabel(e.source))}</td>
+          <td>${Number(e.amount||0).toFixed(4)}</td>
+          <td><span class="${stClass}">${escapeHtml(ledgerStatusLabel(st))}</span></td>
+          <td class="sub" style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(e.idempotency_key||'')}">${escapeHtml(e.idempotency_key||'')}</td>
+          <td class="sub">${escapeHtml(e.notes||e.error||'')}</td>
+        </tr>`;
+        }).join('');
+      }
+      const fromIdx=total===0?0:(ledgerPage.offset+1);
+      const toIdx=Math.min(ledgerPage.offset+items.length, total);
+      if(el('ledgerFoot')) el('ledgerFoot').textContent=`显示 ${fromIdx}-${toIdx} / 共 ${total} 条（按时间倒序）`;
+      if(el('ledgerPageInfo')) el('ledgerPageInfo').textContent=`第 ${page} / ${pages} 页`;
+      const prev=el('btnLedgerPrev'), next=el('btnLedgerNext');
+      if(prev) prev.disabled = ledgerPage.offset<=0;
+      if(next) next.disabled = (ledgerPage.offset+ledgerPage.limit)>=total;
     }
-    function defaultCampRewards(){
+    async function exportLedgerCSV(){
+      ledgerEnsureDefaultRange();
+      resolveAuth();
+      const q=ledgerQueryParams({limit:5000});
+      const res=await fetch('./api/admin/ledger/export?'+q.toString(),{headers:authHeaders()});
+      if(!res.ok){
+        const data=await res.json().catch(()=>({}));
+        throw new Error(data.error||data.message||('HTTP '+res.status));
+      }
+      const blob=await res.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      const disp=res.headers.get('Content-Disposition')||'';
+      const m=/filename="?([^";]+)"?/.exec(disp);
+      a.href=url;
+      a.download=(m && m[1]) ? m[1] : ('ledger_'+new Date().toISOString().slice(0,10)+'.csv');
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      show('CSV 已开始下载（最多 5000 条）','ok');
+    }
+function defaultCampRewards(){
       return [{"rank":1,"amount":5},{"rank_from":2,"rank_to":5,"amount":1},{"rank_from":6,"rank_to":10,"amount":0.5}];
     }
     async function refreshCampaigns(){
@@ -2415,8 +2466,12 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnLedgerRefresh=el('btnLedgerRefresh'); if(btnLedgerRefresh) btnLedgerRefresh.onclick=()=>refreshLedger().catch(e2=>show(e2.message||String(e2),'err'));
     const btnLedgerToday=el('btnLedgerToday'); if(btnLedgerToday) btnLedgerToday.onclick=()=>{ ledgerSetRangeDays(1); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedger7d=el('btnLedger7d'); if(btnLedger7d) btnLedger7d.onclick=()=>{ ledgerSetRangeDays(7); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
-    ['ledgerSource','ledgerFrom','ledgerTo'].forEach(id=>{ const n=el(id); if(n) n.onchange=()=>refreshLedger().catch(()=>{}); });
-    const ledgerUser=el('ledgerUserId'); if(ledgerUser) ledgerUser.onchange=()=>refreshLedger().catch(()=>{});
+    const btnLedgerExport=el('btnLedgerExport'); if(btnLedgerExport) btnLedgerExport.onclick=()=>exportLedgerCSV().catch(e2=>show(e2.message||String(e2),'err'));
+    const btnLedgerPrev=el('btnLedgerPrev'); if(btnLedgerPrev) btnLedgerPrev.onclick=()=>{ ledgerPage.offset=Math.max(0, ledgerPage.offset-ledgerPage.limit); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
+    const btnLedgerNext=el('btnLedgerNext'); if(btnLedgerNext) btnLedgerNext.onclick=()=>{ ledgerPage.offset=ledgerPage.offset+ledgerPage.limit; refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
+    const ledgerPageSize=el('ledgerPageSize'); if(ledgerPageSize) ledgerPageSize.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); };
+    ['ledgerSource','ledgerFrom','ledgerTo'].forEach(id=>{ const n=el(id); if(n) n.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); }; });
+    const ledgerUser=el('ledgerUserId'); if(ledgerUser) ledgerUser.onchange=()=>{ ledgerResetPage(); refreshLedger().catch(()=>{}); };
     const btnCampCreate=el('btnCampCreate'); if(btnCampCreate) btnCampCreate.onclick=()=>createCampaign().catch(e2=>show(e2.message||String(e2),'err'));
     const btnCampRefresh=el('btnCampRefresh'); if(btnCampRefresh) btnCampRefresh.onclick=()=>refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksSave=el('btnTasksSave'); if(btnTasksSave) btnTasksSave.onclick=()=>saveTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));

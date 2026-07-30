@@ -139,6 +139,7 @@ func main() {
 
 	mux.HandleFunc(base+"/api/admin/ledger", h.AdminListLedger)
 	mux.HandleFunc(base+"/api/admin/ledger/stats", h.AdminLedgerStats)
+	mux.HandleFunc(base+"/api/admin/ledger/export", h.AdminExportLedger)
 	mux.HandleFunc(base+"/api/admin/rank/campaigns", h.AdminRankCampaigns)
 	mux.HandleFunc(base+"/api/admin/rank/campaigns/", h.AdminRankCampaignByID)
 	mux.HandleFunc(base+"/api/ranking/campaigns", h.PublicRankCampaigns)

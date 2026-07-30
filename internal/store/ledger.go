@@ -130,8 +130,8 @@ func (s *Store) ListLedger(ctx context.Context, f LedgerFilter) ([]LedgerEntry, 
 	if f.Limit <= 0 {
 		f.Limit = 50
 	}
-	if f.Limit > 200 {
-		f.Limit = 200
+	if f.Limit > 5000 {
+		f.Limit = 5000
 	}
 	var b strings.Builder
 	args := make([]any, 0, 8)
@@ -169,6 +169,32 @@ func (s *Store) ListLedger(ctx context.Context, f LedgerFilter) ([]LedgerEntry, 
 		out = append(out, *e)
 	}
 	return out, rows.Err()
+}
+
+// CountLedger counts rows matching filter (ignores Limit/Offset).
+func (s *Store) CountLedger(ctx context.Context, f LedgerFilter) (int64, error) {
+	var b strings.Builder
+	args := make([]any, 0, 6)
+	b.WriteString(`SELECT COUNT(1) FROM credit_ledger WHERE 1=1`)
+	if f.Source != "" {
+		b.WriteString(` AND source = ?`)
+		args = append(args, f.Source)
+	}
+	if f.UserID > 0 {
+		b.WriteString(` AND user_id = ?`)
+		args = append(args, f.UserID)
+	}
+	if f.From != "" {
+		b.WriteString(` AND substr(created_at,1,10) >= ?`)
+		args = append(args, f.From)
+	}
+	if f.To != "" {
+		b.WriteString(` AND substr(created_at,1,10) <= ?`)
+		args = append(args, f.To)
+	}
+	var n int64
+	err := s.db.QueryRowContext(ctx, b.String(), args...).Scan(&n)
+	return n, err
 }
 
 // LedgerStatsBySource sums success amounts grouped by source for a date range (UTC date prefix of created_at or local dates passed as from/to on created_at text).
