@@ -132,6 +132,10 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		h.adminPreviewCampaign(w, r, id)
 		return
 	}
+	if action == "cancel" && r.Method == http.MethodPost {
+		h.adminCancelCampaign(w, r, id)
+		return
+	}
 	if action == "awards" && r.Method == http.MethodGet {
 		list, err := h.store.ListCampaignAwards(r.Context(), id)
 		if err != nil {
@@ -162,6 +166,10 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 	if r.Method == http.MethodPut || r.Method == http.MethodPost {
 		if c.Status == store.CampaignStatusSettled {
 			writeErr(w, http.StatusBadRequest, "settled campaign is immutable")
+			return
+		}
+		if c.Status == store.CampaignStatusCancelled {
+			writeErr(w, http.StatusBadRequest, "cancelled campaign is immutable")
 			return
 		}
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
@@ -202,6 +210,44 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
+func (h *Handler) adminCancelCampaign(w http.ResponseWriter, r *http.Request, id int64) {
+	c, err := h.store.GetRankCampaign(r.Context(), id)
+	if err != nil || c == nil {
+		writeErr(w, http.StatusNotFound, "campaign not found")
+		return
+	}
+	switch c.Status {
+	case store.CampaignStatusCancelled:
+		writeJSON(w, http.StatusOK, map[string]any{
+			"campaign_id": c.ID, "status": c.Status, "message": "already cancelled",
+		})
+		return
+	case store.CampaignStatusSettled:
+		writeErr(w, http.StatusBadRequest, "settled campaign cannot be cancelled")
+		return
+	case store.CampaignStatusDraft, store.CampaignStatusActive, store.CampaignStatusPartial:
+		// ok
+	default:
+		writeErr(w, http.StatusBadRequest, "campaign status not cancellable: "+c.Status)
+		return
+	}
+	// Cancel only stops further settle/display; already-granted awards are not clawed back.
+	if err := h.store.MarkCampaignStatus(r.Context(), c.ID, store.CampaignStatusCancelled, false); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	c2, _ := h.store.GetRankCampaign(r.Context(), id)
+	out := campaignJSON(*c)
+	if c2 != nil {
+		out = campaignJSON(*c2)
+	}
+	out["message"] = "cancelled"
+	if c.Status == store.CampaignStatusPartial {
+		out["note"] = "already granted awards were not reversed; check ledger/awards for paid rows"
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, id int64) {

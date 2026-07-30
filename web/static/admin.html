@@ -825,7 +825,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="card-head">
           <div>
             <h2>排行活动结算</h2>
-            <p class="desc">MVP 仅支持「奖励榜」结算。可先预览再结算；失败会标记 partial，可重试且跳过已成功名次。</p>
+            <p class="desc">MVP 仅支持「奖励榜」结算。可预览/结算/取消；失败标记 partial 可重试。取消不回滚已发放金额。</p>
           </div>
           <span class="badge" id="campaignBadge">—</span>
         </div>
@@ -2224,8 +2224,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <td>${escapeHtml(c.status||'')}</td>
         <td>
           <button type="button" class="secondary sm" data-camp-awards="${c.id}">明细</button>
-          <button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>
-          ${c.status==='settled'?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${c.status==='partial'?'重试结算':'结算'}</button>`}
+          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>`}
+          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${c.status==='partial'?'重试结算':'结算'}</button>`}
+          ${['settled','cancelled'].includes(c.status)?'':`<button type="button" class="secondary sm" data-camp-cancel="${c.id}">取消</button>`}
         </td>
       </tr>`).join('');
     }
@@ -2275,7 +2276,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const more=(res.details||[]).length>15?('\n…共 '+(res.details||[]).length+' 行'):'';
       alert(`预览 #${id}\n应付 ${res.payable||0} 人 / 跳过 ${res.skipped||0}\n计划花费 ${Number(res.planned_spend||0).toFixed(4)} / 预算 ${Number(res.budget_cap||0).toFixed(4)}\n\n${lines}${more}`);
     }
-    let tasksAdminCache={enabled:true,defs:[]};
+    
+    async function cancelCampaign(id){
+      if(!confirm('确认取消活动 #'+id+'？取消后不可再结算；已成功发放的奖励不会自动扣回。')) return;
+      const res=await api('./api/admin/rank/campaigns/'+id+'/cancel',{method:'POST',body:'{}'});
+      show(res.message==='already cancelled'?'活动已是取消状态':'活动已取消'+(res.note?('（'+res.note+'）'):''),'ok');
+      await refreshCampaigns();
+      await loadCampaignAwards(id);
+    }
+let tasksAdminCache={enabled:true,defs:[]};
     async function refreshTasksAdmin(){
       const data=await api('./api/admin/tasks/settings');
       tasksAdminCache=data||{enabled:true,defs:[]};
@@ -2324,9 +2333,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const a=e.target.closest('[data-camp-awards]');
       const s=e.target.closest('[data-camp-settle]');
       const p=e.target.closest('[data-camp-preview]');
+      const cxl=e.target.closest('[data-camp-cancel]');
       if(a){ loadCampaignAwards(a.dataset.campAwards).catch(err=>show(err.message||String(err),'err')); }
       if(s){ settleCampaign(s.dataset.campSettle).catch(err=>show(err.message||String(err),'err')); }
       if(p){ previewCampaign(p.dataset.campPreview).catch(err=>show(err.message||String(err),'err')); }
+      if(cxl){ cancelCampaign(cxl.dataset.campCancel).catch(err=>show(err.message||String(err),'err')); }
     });
 
 

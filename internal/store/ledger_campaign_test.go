@@ -258,3 +258,39 @@ func TestMarkCampaignPartialAndUpdateAward(t *testing.T) {
 		t.Fatalf("status=%s", c.Status)
 	}
 }
+
+
+func TestCancelCampaignStatus(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	id, err := st.CreateRankCampaign(ctx, store.RankCampaign{
+		Name: "to-cancel", Board: store.CampaignBoardRewards,
+		StartDate: "2026-07-01", EndDate: "2026-07-31",
+		Status: store.CampaignStatusActive, RewardsJSON: `[]`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.MarkCampaignStatus(ctx, id, store.CampaignStatusCancelled, false); err != nil {
+		t.Fatal(err)
+	}
+	c, err := st.GetRankCampaign(ctx, id)
+	if err != nil || c == nil || c.Status != store.CampaignStatusCancelled {
+		t.Fatalf("got=%+v err=%v", c, err)
+	}
+	// cancelled must not appear as active in window
+	active, err := st.ListActiveRankCampaigns(ctx, "2026-07-15")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range active {
+		if a.ID == id {
+			t.Fatal("cancelled campaign still active")
+		}
+	}
+}
