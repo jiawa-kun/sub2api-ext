@@ -52,6 +52,45 @@ type Snapshot struct {
 	NextCronAt  string    `json:"next_cron_hint,omitempty"`
 }
 
+// liveStats holds hot counters updated by worker goroutines without the run mutex.
+type liveStats struct {
+	total    atomic.Int64
+	checked  atomic.Int64
+	ok       atomic.Int64
+	failed   atomic.Int64
+	skipped  atomic.Int64
+	enabled  atomic.Int64
+	disabled atomic.Int64
+	deleted  atomic.Int64
+	pending  atomic.Int64
+}
+
+func (ls *liveStats) reset() {
+	ls.total.Store(0)
+	ls.checked.Store(0)
+	ls.ok.Store(0)
+	ls.failed.Store(0)
+	ls.skipped.Store(0)
+	ls.enabled.Store(0)
+	ls.disabled.Store(0)
+	ls.deleted.Store(0)
+	ls.pending.Store(0)
+}
+
+func (ls *liveStats) snapshot() Stats {
+	return Stats{
+		Total:    int(ls.total.Load()),
+		Checked:  int(ls.checked.Load()),
+		OK:       int(ls.ok.Load()),
+		Failed:   int(ls.failed.Load()),
+		Skipped:  int(ls.skipped.Load()),
+		Enabled:  int(ls.enabled.Load()),
+		Disabled: int(ls.disabled.Load()),
+		Deleted:  int(ls.deleted.Load()),
+		Pending:  int(ls.pending.Load()),
+	}
+}
+
 type runnerState struct {
 	mu         sync.Mutex
 	running    bool
@@ -61,7 +100,7 @@ type runnerState struct {
 	startedAt  time.Time
 	finishedAt time.Time
 	status     string
-	stats      Stats
+	stats      liveStats
 	errText    string
 	logs       []LogLine
 }
@@ -103,20 +142,41 @@ func (s *Service) publish(ev notify.Event) {
 func (s *Service) Snapshot() Snapshot {
 	rt := s.settings.Get()
 	s.state.mu.Lock()
-	defer s.state.mu.Unlock()
 	logs := append([]LogLine{}, s.state.logs...)
-	return Snapshot{
+	out := Snapshot{
 		Running:    s.state.running,
 		RunID:      s.state.runID,
 		Trigger:    s.state.trigger,
 		StartedAt:  s.state.startedAt,
 		FinishedAt: s.state.finishedAt,
 		Status:     s.state.status,
-		Stats:      s.state.stats,
+		Stats:      s.state.stats.snapshot(),
 		Error:      s.state.errText,
 		RecentLogs: logs,
 		Config:     rt,
 	}
+	s.state.mu.Unlock()
+	out.NextCronAt = nextCronHint(rt, time.Now())
+	return out
+}
+
+func nextCronHint(rt Runtime, now time.Time) string {
+	if !rt.Enabled {
+		return ""
+	}
+	expr, err := ParseCron(rt.Cron)
+	if err != nil {
+		return ""
+	}
+	loc, err := time.LoadLocation(rt.Timezone)
+	if err != nil {
+		loc = time.Local
+	}
+	next := expr.Next(now.In(loc))
+	if next.IsZero() {
+		return ""
+	}
+	return next.Format(time.RFC3339)
 }
 
 // StartScheduler begins minute-ticker cron evaluation.
@@ -149,10 +209,16 @@ func (s *Service) StopScheduler() {
 }
 
 func (s *Service) cronLoop(stop <-chan struct{}) {
-	// align roughly to minute boundary
+	// Second ticker keeps StopScheduler responsive; heavy work runs at most once per minute.
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var lastFireMinute string
+	var (
+		lastCheckedMinute string
+		cachedCron        string
+		cachedTZ          string
+		expr              *CronExpr
+		loc               *time.Location
+	)
 	for {
 		select {
 		case <-stop:
@@ -162,24 +228,32 @@ func (s *Service) cronLoop(stop <-chan struct{}) {
 			if !rt.Enabled {
 				continue
 			}
-			expr, err := ParseCron(rt.Cron)
-			if err != nil {
-				continue
+			if rt.Cron != cachedCron || expr == nil {
+				e, err := ParseCron(rt.Cron)
+				if err != nil {
+					continue
+				}
+				expr = e
+				cachedCron = rt.Cron
 			}
-			loc, err := time.LoadLocation(rt.Timezone)
-			if err != nil {
-				loc = time.Local
+			if rt.Timezone != cachedTZ || loc == nil {
+				l, err := time.LoadLocation(rt.Timezone)
+				if err != nil {
+					l = time.Local
+				}
+				loc = l
+				cachedTZ = rt.Timezone
 			}
 			local := now.In(loc)
-			// fire at most once per minute
+			// Evaluate at most once per local minute.
 			key := local.Format("2006-01-02 15:04")
-			if key == lastFireMinute {
+			if key == lastCheckedMinute {
 				continue
 			}
+			lastCheckedMinute = key
 			if !expr.Matches(local) {
 				continue
 			}
-			lastFireMinute = key
 			if _, err := s.Trigger(context.Background(), "cron"); err != nil {
 				// already running or misconfigured is fine
 				if !strings.Contains(err.Error(), "already running") {
@@ -214,7 +288,7 @@ func (s *Service) Trigger(ctx context.Context, trigger string) (int64, error) {
 	s.state.startedAt = time.Now().UTC()
 	s.state.finishedAt = time.Time{}
 	s.state.status = "running"
-	s.state.stats = Stats{}
+	s.state.stats.reset()
 	s.state.errText = ""
 	s.state.logs = nil
 	s.state.mu.Unlock()
@@ -507,6 +581,7 @@ func (s *Service) finish(status string, runErr error) Snapshot {
 		}
 	}
 	logs := append([]LogLine{}, s.state.logs...)
+	rt := s.settings.Get()
 	return Snapshot{
 		Running:    false,
 		RunID:      s.state.runID,
@@ -514,10 +589,11 @@ func (s *Service) finish(status string, runErr error) Snapshot {
 		StartedAt:  s.state.startedAt,
 		FinishedAt: s.state.finishedAt,
 		Status:     s.state.status,
-		Stats:      s.state.stats,
+		Stats:      s.state.stats.snapshot(),
 		Error:      s.state.errText,
 		RecentLogs: logs,
-		Config:     s.settings.Get(),
+		Config:     rt,
+		NextCronAt: nextCronHint(rt, time.Now()),
 	}
 }
 
@@ -558,51 +634,17 @@ func (s *Service) appendLogLocked(level, msg string) {
 }
 
 func (s *Service) setTotal(n int) {
-	s.state.mu.Lock()
-	s.state.stats.Total = n
-	s.state.mu.Unlock()
+	s.state.stats.total.Store(int64(n))
 }
 
-func (s *Service) incChecked() {
-	s.state.mu.Lock()
-	s.state.stats.Checked++
-	s.state.mu.Unlock()
-}
-func (s *Service) incOK() {
-	s.state.mu.Lock()
-	s.state.stats.OK++
-	s.state.mu.Unlock()
-}
-func (s *Service) incFailed() {
-	s.state.mu.Lock()
-	s.state.stats.Failed++
-	s.state.mu.Unlock()
-}
-func (s *Service) incSkipped() {
-	s.state.mu.Lock()
-	s.state.stats.Skipped++
-	s.state.mu.Unlock()
-}
-func (s *Service) incEnabled() {
-	s.state.mu.Lock()
-	s.state.stats.Enabled++
-	s.state.mu.Unlock()
-}
-func (s *Service) incDisabled() {
-	s.state.mu.Lock()
-	s.state.stats.Disabled++
-	s.state.mu.Unlock()
-}
-func (s *Service) incDeleted() {
-	s.state.mu.Lock()
-	s.state.stats.Deleted++
-	s.state.mu.Unlock()
-}
-func (s *Service) incPending() {
-	s.state.mu.Lock()
-	s.state.stats.Pending++
-	s.state.mu.Unlock()
-}
+func (s *Service) incChecked()  { s.state.stats.checked.Add(1) }
+func (s *Service) incOK()       { s.state.stats.ok.Add(1) }
+func (s *Service) incFailed()   { s.state.stats.failed.Add(1) }
+func (s *Service) incSkipped()  { s.state.stats.skipped.Add(1) }
+func (s *Service) incEnabled()  { s.state.stats.enabled.Add(1) }
+func (s *Service) incDisabled() { s.state.stats.disabled.Add(1) }
+func (s *Service) incDeleted()  { s.state.stats.deleted.Add(1) }
+func (s *Service) incPending()  { s.state.stats.pending.Add(1) }
 
 // AccountStates returns per-account patrol health rows from SQLite.
 func (s *Service) AccountStates(ctx context.Context, onlyProblem bool, limit int) ([]store.PatrolAccountState, error) {

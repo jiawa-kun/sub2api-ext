@@ -88,6 +88,23 @@ func (c *CronExpr) Matches(t time.Time) bool {
 	return true
 }
 
+// Next returns the next matching minute strictly after t.
+// Scans at most 8 days; returns zero time if none found.
+func (c *CronExpr) Next(after time.Time) time.Time {
+	if c == nil {
+		return time.Time{}
+	}
+	t := after.Truncate(time.Minute).Add(time.Minute)
+	limit := t.Add(8 * 24 * time.Hour)
+	for !t.After(limit) {
+		if c.Matches(t) {
+			return t
+		}
+		t = t.Add(time.Minute)
+	}
+	return time.Time{}
+}
+
 func (f field) match(v int) bool {
 	if f.any {
 		return true
