@@ -18,7 +18,7 @@ func TestLotteryModuleRegistered(t *testing.T) {
 		t.Fatalf("lottery not in active modules: %v", ids)
 	}
 	// previously shipped modules must stay registered
-	for _, want := range []string{"checkin", "account-patrol", "notify"} {
+	for _, want := range []string{"checkin", "ranking", "account-patrol", "notify"} {
 		ok := false
 		for _, id := range ids {
 			if id == want {
@@ -55,4 +55,26 @@ func TestDailyReportModuleRegistered(t *testing.T) {
 		return
 	}
 	t.Fatal("daily-report module not in Builtin()")
+}
+
+func TestRankingModuleRegistered(t *testing.T) {
+	found := false
+	for _, m := range modules.Builtin() {
+		if m.ID != "ranking" {
+			continue
+		}
+		found = true
+		if m.UserPath != "./rank.html" {
+			t.Fatalf("user path=%s", m.UserPath)
+		}
+		if m.Status != "active" || !m.Enabled {
+			t.Fatalf("ranking should be active: %+v", m)
+		}
+		if m.APIBase == "" {
+			t.Fatal("api base empty")
+		}
+	}
+	if !found {
+		t.Fatal("ranking module missing")
+	}
 }

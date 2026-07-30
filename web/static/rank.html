@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>排行榜 · Sub2API 扩展</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <style>
+:root {
+  --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
+  --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+  --border:rgba(255,255,255,.09); --soft:rgba(255,255,255,.04); --soft2:rgba(255,255,255,.07);
+  --shadow:0 16px 40px rgba(0,0,0,.28); --glow:rgba(91,140,255,.28);
+  --radius:18px; --radius-sm:12px;
+}
+html.light {
+  --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.96); --text:#0f172a; --muted:#64748b;
+  --border:rgba(15,23,42,.08); --soft:rgba(15,23,42,.03); --soft2:rgba(15,23,42,.06);
+  --shadow:0 12px 30px rgba(15,23,42,.08); --glow:rgba(59,130,246,.16);
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:
+    radial-gradient(900px 420px at 10% -12%, var(--glow), transparent 58%),
+    radial-gradient(720px 340px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+    linear-gradient(180deg,var(--bg0),var(--bg1));
+  display:flex; justify-content:center; padding:16px 14px 40px;
+}
+.wrap{width:min(920px,100%); display:flex; flex-direction:column; gap:12px}
+a{color:var(--primary); text-decoration:none}
+.top{
+  display:flex; justify-content:space-between; align-items:flex-start; gap:12px;
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:14px 14px 12px;
+}
+.topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
+.topnav a{
+  text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
+  border:1px solid var(--border); border-radius:999px; padding:6px 10px 6px 8px; background:var(--soft);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
+.topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+html.light .topnav a.active{color:#4f46e5}
+.brand-title{display:flex; align-items:center; gap:10px}
+.brand-title .logo{width:34px; height:34px; border-radius:10px; flex:none}
+.brand-title .logo.dark{display:block}
+.brand-title .logo.light{display:none}
+html.light .brand-title .logo.dark{display:none}
+html.light .brand-title .logo.light{display:block}
+.brand-title h1{margin:0; font-size:1.22rem}
+.lead{margin:6px 0 0; color:var(--muted); font-size:.82rem; line-height:1.45}
+.top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
+.theme-btn,.chip,.ghost-btn{
+  border:1px solid var(--border); background:var(--soft2); color:var(--text);
+  border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:650; cursor:pointer;
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px;
+}
+.card.loading{opacity:.72; pointer-events:none}
+.tabs{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px}
+.tab{
+  border:1px solid var(--border); background:var(--soft); color:var(--text);
+  border-radius:999px; padding:7px 12px; font-size:.8rem; font-weight:700; cursor:pointer;
+}
+.tab.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.14); color:#9db7ff}
+html.light .tab.active{color:#4f46e5}
+.stats{
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px;
+}
+@media (max-width:800px){ .stats{grid-template-columns:repeat(2,minmax(0,1fr));} }
+.stat{
+  border:1px solid var(--border); border-radius:14px; padding:12px; background:var(--soft);
+  display:flex; gap:10px; align-items:flex-start;
+}
+.stat .ico{
+  width:34px; height:34px; border-radius:10px; display:grid; place-items:center; flex:none;
+  font-size:.9rem; font-weight:800;
+}
+.stat .ico.g{background:rgba(34,197,94,.14); color:var(--ok)}
+.stat .ico.b{background:rgba(91,140,255,.14); color:var(--primary)}
+.stat .ico.y{background:rgba(245,158,11,.14); color:var(--warn)}
+.stat .ico.p{background:rgba(124,92,255,.14); color:#b9a6ff}
+.stat .k{color:var(--muted); font-size:.72rem; margin:0 0 4px}
+.stat .v{margin:0; font-size:1.05rem; font-weight:780; letter-spacing:.2px}
+.stat .v.green{color:var(--ok)}
+.stat .s{margin:3px 0 0; color:var(--muted); font-size:.68rem}
+.toolbar{
+  display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;
+  margin-bottom:12px; padding:10px 12px; border:1px solid var(--border); border-radius:14px; background:var(--soft);
+}
+.range-wrap{position:relative}
+.range-btn{
+  border:1px solid var(--border); background:var(--card); color:var(--text);
+  border-radius:10px; padding:8px 12px; font-size:.8rem; font-weight:700; cursor:pointer;
+  min-width:120px; text-align:left; display:flex; justify-content:space-between; gap:12px; align-items:center;
+}
+.range-menu{
+  position:absolute; top:calc(100% + 6px); left:0; z-index:20; min-width:140px;
+  background:var(--card); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow);
+  padding:6px; display:none;
+}
+.range-menu.open{display:block}
+.range-menu button{
+  width:100%; text-align:left; border:0; background:transparent; color:var(--text);
+  border-radius:8px; padding:8px 10px; font-size:.8rem; font-weight:650; cursor:pointer;
+}
+.range-menu button:hover,.range-menu button.active{background:rgba(91,140,255,.12)}
+.meta-right{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:.75rem}
+.table-wrap{overflow:auto; border:1px solid var(--border); border-radius:14px}
+table{width:100%; border-collapse:collapse; min-width:560px}
+th,td{padding:11px 12px; text-align:left; font-size:.82rem; border-bottom:1px solid var(--border)}
+th{color:var(--muted); font-weight:700; background:var(--soft); position:sticky; top:0}
+tr:last-child td{border-bottom:0}
+tr.me{background:rgba(91,140,255,.08)}
+.rank-pill{
+  display:inline-grid; place-items:center; min-width:28px; height:28px; border-radius:8px;
+  font-weight:800; font-size:.78rem; background:var(--soft2); color:var(--muted);
+}
+.rank-pill.r1{background:rgba(245,158,11,.18); color:#f59e0b}
+.rank-pill.r2{background:rgba(148,163,184,.18); color:#94a3b8}
+.rank-pill.r3{background:rgba(249,115,22,.16); color:#f97316}
+.user-cell{display:flex; align-items:center; gap:10px}
+.avatar{
+  width:28px; height:28px; border-radius:999px; background:var(--soft2); border:1px solid var(--border);
+  display:grid; place-items:center; color:var(--muted); font-size:.72rem; flex:none;
+}
+.amt{color:var(--ok); font-weight:750}
+.sub{color:var(--muted); font-size:.7rem; margin-top:2px}
+.msg{
+  display:none; margin-top:10px; padding:10px 12px; border-radius:12px; font-size:.8rem; line-height:1.45;
+  border:1px solid var(--border); background:var(--soft);
+}
+.msg.show{display:block}
+.msg.warn{border-color:rgba(245,158,11,.28); background:rgba(245,158,11,.08); color:#fbbf24}
+.msg.err{border-color:rgba(244,63,94,.28); background:rgba(244,63,94,.08); color:#fb7185}
+.empty{padding:28px 12px; text-align:center; color:var(--muted); font-size:.85rem}
+.foot{color:var(--muted); font-size:.72rem; text-align:center; padding:4px 0 8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="topnav">
+          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a class="active" href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
+          <a id="adminTopLink" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
+        </div>
+        <div class="brand-title">
+          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <div>
+            <h1>排行榜</h1>
+            <p class="lead" id="lead">查看不同时间范围内的用户排行</p>
+          </div>
+        </div>
+      </div>
+      <div class="top-meta">
+        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
+      </div>
+    </header>
+
+    <section class="card" id="panel">
+      <div class="tabs">
+        <button type="button" class="tab active" data-board="consumption">消费榜</button>
+        <button type="button" class="tab" data-board="rewards">奖励榜</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="ico g">$</div>
+          <div>
+            <p class="k" id="s1k">总消费</p>
+            <p class="v green" id="s1v">—</p>
+            <p class="s" id="s1s">当前范围</p>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="ico b">#</div>
+          <div>
+            <p class="k">展示条目</p>
+            <p class="v" id="s2v">—</p>
+            <p class="s" id="s2s">Top N</p>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="ico y">↑</div>
+          <div>
+            <p class="k" id="s3k">榜首</p>
+            <p class="v" id="s3v">—</p>
+            <p class="s">当前范围第一名</p>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="ico p">★</div>
+          <div>
+            <p class="k">我的排名</p>
+            <p class="v" id="s4v">—</p>
+            <p class="s" id="s4s">登录后显示</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <div class="range-wrap">
+          <button type="button" class="range-btn" id="rangeBtn">今日 <span>▾</span></button>
+          <div class="range-menu" id="rangeMenu">
+            <button type="button" data-range="today" class="active">今日</button>
+            <button type="button" data-range="yesterday">昨日</button>
+            <button type="button" data-range="7d">近 7 天</button>
+            <button type="button" data-range="30d">近 30 天</button>
+          </div>
+        </div>
+        <div class="meta-right">
+          <span id="dateSpan">—</span>
+          <button type="button" class="ghost-btn" id="refreshBtn">刷新</button>
+          <a class="ghost-btn" id="officialLink" href="/rank" target="_blank" rel="noopener" style="display:none">官方排行</a>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr id="headRow">
+              <th style="width:64px">排名</th>
+              <th>用户</th>
+              <th>消费</th>
+              <th>请求数</th>
+              <th>TOKEN</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="5" class="empty">加载中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="msg" id="msg"></div>
+    </section>
+    <div class="foot">消费榜对接 Sub2API 用量；奖励榜统计签到+抽奖获得总额 · 用户名已脱敏</div>
+  </div>
+
+  <script>
+  (function(){
+    const params = new URLSearchParams(location.search);
+    const THEME_KEY = 'sub2api_ext_theme';
+    const THEME_KEY_LEGACY = 'sub2api_admin_theme';
+    const RANGE_LABEL = {today:'今日', yesterday:'昨日', '7d':'近 7 天', '30d':'近 30 天'};
+    let board = (params.get('board') || 'consumption').toLowerCase() === 'rewards' ? 'rewards' : 'consumption';
+    let range = params.get('range') || 'today';
+    if(!RANGE_LABEL[range]) range = 'today';
+    let accessToken = '';
+
+    const el = id => document.getElementById(id);
+    function money(n){
+      const x = Number(n||0);
+      if(!isFinite(x)) return '$0';
+      return '$' + x.toFixed(4).replace(/\.?0+$/,'');
+    }
+    function fmtToken(n){
+      const x = Number(n||0);
+      if(!isFinite(x) || x<=0) return '0';
+      if(x >= 1e9) return (x/1e9).toFixed(2).replace(/\.0+$/,'') + 'B';
+      if(x >= 1e6) return (x/1e6).toFixed(2).replace(/\.0+$/,'') + 'M';
+      if(x >= 1e3) return (x/1e3).toFixed(2).replace(/\.0+$/,'') + 'K';
+      return String(Math.round(x));
+    }
+    function fmtInt(n){
+      const x = Math.round(Number(n||0));
+      return isFinite(x) ? x.toLocaleString('en-US') : '0';
+    }
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function keepQuery(href){
+      try{
+        const u = new URL(href, location.href);
+        for(const k of ['token','theme']){
+          const v = params.get(k);
+          if(v && !u.searchParams.get(k)) u.searchParams.set(k, v);
+        }
+        let rel;
+        const curDir = location.pathname.replace(/[^/]*$/, '');
+        if(u.origin === location.origin && u.pathname.startsWith(curDir)){
+          const rest = u.pathname.slice(curDir.length);
+          rel = rest ? './' + rest : './';
+        } else {
+          rel = u.pathname;
+        }
+        return rel + u.search + u.hash;
+      }catch{ return href; }
+    }
+    function wireInternalNav(){
+      document.querySelectorAll('a[href]').forEach(a=>{
+        const href = a.getAttribute('href');
+        if(!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('javascript:')) return;
+        if(/^https?:/i.test(href) || href.startsWith('/rank')) return;
+        a.setAttribute('href', keepQuery(href));
+      });
+    }
+    function applyFavicon(light){
+      const link = document.getElementById('favicon');
+      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+    }
+    function initTheme(){
+      const q=(params.get('theme')||'').toLowerCase();
+      let saved='';
+      try{ saved=localStorage.getItem(THEME_KEY)||localStorage.getItem(THEME_KEY_LEGACY)||''; }catch{}
+      const light = q==='light' || (!q && saved==='light');
+      document.documentElement.classList.toggle('light', !!light);
+      const b=el('themeBtn');
+      if(b) b.textContent = light ? '深色' : '浅色';
+      applyFavicon(!!light);
+    }
+    function toggleTheme(){
+      const light = !document.documentElement.classList.contains('light');
+      document.documentElement.classList.toggle('light', light);
+      try{
+        localStorage.setItem(THEME_KEY, light?'light':'dark');
+        localStorage.setItem(THEME_KEY_LEGACY, light?'light':'dark');
+      }catch{}
+      const b=el('themeBtn');
+      if(b) b.textContent = light ? '深色' : '浅色';
+      applyFavicon(light);
+    }
+    function readStorage(key){ try{return localStorage.getItem(key)||''}catch{return ''} }
+    function cleanToken(raw){
+      raw = String(raw||'').trim();
+      if(/^Bearer\s+/i.test(raw)) raw = raw.replace(/^Bearer\s+/i,'');
+      return raw.replace(/^["']|["']$/g,'');
+    }
+    function pickToken(){
+      const q = cleanToken(params.get('token')||'');
+      if(q) return q;
+      const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      for(const k of keys){
+        const v = cleanToken(readStorage(k));
+        if(v && v.split('.').length===3) return v;
+      }
+      try{
+        if(window.parent && window.parent !== window){
+          for(const k of keys){
+            const v = cleanToken(window.parent.localStorage.getItem(k)||'');
+            if(v && v.split('.').length===3) return v;
+          }
+        }
+      }catch{}
+      return '';
+    }
+    function showMsg(text, type){
+      const m = el('msg');
+      if(!text){ m.className='msg'; m.textContent=''; return; }
+      m.textContent = text;
+      m.className = 'msg show ' + (type||'');
+    }
+    function setRangeLabel(){
+      el('rangeBtn').innerHTML = (RANGE_LABEL[range]||range) + ' <span>▾</span>';
+      el('rangeMenu').querySelectorAll('button').forEach(b=>{
+        b.classList.toggle('active', b.dataset.range === range);
+      });
+    }
+    function setBoardTabs(){
+      document.querySelectorAll('.tab').forEach(b=>{
+        b.classList.toggle('active', b.dataset.board === board);
+      });
+      el('lead').textContent = board === 'rewards'
+        ? '签到 + 抽奖获得余额排行'
+        : '查看不同时间范围内的用户消费排行';
+      el('s1k').textContent = board === 'rewards' ? '总获得' : '总消费';
+      el('s3k').textContent = board === 'rewards' ? '榜首获得' : '榜首消费';
+      if(board === 'rewards'){
+        el('headRow').innerHTML = '<th style="width:64px">排名</th><th>用户</th><th>获得总额</th><th>签到</th><th>抽奖</th>';
+      } else {
+        el('headRow').innerHTML = '<th style="width:64px">排名</th><th>用户</th><th>消费</th><th>请求数</th><th>TOKEN</th>';
+      }
+    }
+    function rankClass(r){
+      if(r===1) return 'r1';
+      if(r===2) return 'r2';
+      if(r===3) return 'r3';
+      return '';
+    }
+    function render(data){
+      const s = data.summary || {};
+      el('s1v').textContent = money(s.total_amount);
+      el('s1s').textContent = RANGE_LABEL[data.range] || data.range || '当前范围';
+      el('s2v').textContent = String(s.display_count ?? (data.items||[]).length ?? 0);
+      el('s2s').textContent = 'Top' + (data.limit || 20);
+      el('s3v').textContent = money(s.top_amount);
+      if(s.my_rank > 0){
+        el('s4v').textContent = '#' + s.my_rank;
+        el('s4s').textContent = '我的' + (board==='rewards'?'获得 ':'消费 ') + money(s.my_amount);
+      } else {
+        el('s4v').textContent = accessToken ? '未上榜' : '—';
+        el('s4s').textContent = accessToken ? ('我的 ' + money(s.my_amount||0)) : '登录后显示';
+      }
+      el('dateSpan').textContent = (data.from||'') + (data.to && data.to !== data.from ? (' - ' + data.to) : '');
+
+      const official = el('officialLink');
+      if(data.fallback_url){
+        official.href = data.fallback_url;
+        official.style.display = board === 'consumption' ? 'inline-flex' : 'none';
+      } else {
+        official.style.display = 'none';
+      }
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      const tb = el('tbody');
+      if(!items.length){
+        tb.innerHTML = '<tr><td colspan="5" class="empty">暂无排行数据</td></tr>';
+      } else if(board === 'rewards'){
+        tb.innerHTML = items.map(it => {
+          return `<tr class="${it.is_me?'me':''}">
+            <td><span class="rank-pill ${rankClass(it.rank)}">${it.rank}</span></td>
+            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':'已脱敏展示'}</div></div></div></td>
+            <td class="amt">${money(it.amount)}</td>
+            <td>${money(it.checkin_amount)} <span class="sub">×${fmtInt(it.checkin_count)}</span></td>
+            <td>${money(it.lottery_amount)} <span class="sub">×${fmtInt(it.lottery_count)}</span></td>
+          </tr>`;
+        }).join('');
+      } else {
+        tb.innerHTML = items.map(it => {
+          return `<tr class="${it.is_me?'me':''}">
+            <td><span class="rank-pill ${rankClass(it.rank)}">${it.rank}</span></td>
+            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':'已脱敏展示'}</div></div></div></td>
+            <td class="amt">${money(it.amount)}</td>
+            <td>${fmtInt(it.request_count)}</td>
+            <td>${fmtToken(it.token_count)}</td>
+          </tr>`;
+        }).join('');
+      }
+
+      if(data.warning){
+        showMsg(data.warning + (data.fallback_url ? ' 可打开官方排行页。' : ''), 'warn');
+      } else {
+        showMsg('', '');
+      }
+    }
+    async function api(path){
+      const headers = { 'Accept':'application/json' };
+      if(accessToken) headers['Authorization'] = 'Bearer ' + accessToken;
+      const r = await fetch(path, { credentials:'same-origin', headers });
+      const text = await r.text();
+      let data = null;
+      try{ data = text ? JSON.parse(text) : null; }catch{}
+      if(!r.ok){
+        const msg = (data && (data.error || data.message)) || ('HTTP ' + r.status);
+        throw new Error(msg);
+      }
+      return data;
+    }
+    async function load(){
+      const panel = el('panel');
+      panel.classList.add('loading');
+      try{
+        const q = new URLSearchParams({ range, limit:'20' });
+        const path = board === 'rewards'
+          ? './api/ranking/rewards?' + q.toString()
+          : './api/ranking/consumption?' + q.toString();
+        const data = await api(path);
+        render(data || {});
+      }catch(e){
+        el('tbody').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
+        showMsg(String(e.message || e), 'err');
+      }finally{
+        panel.classList.remove('loading');
+      }
+    }
+
+    // events
+    el('themeBtn').addEventListener('click', toggleTheme);
+    el('refreshBtn').addEventListener('click', load);
+    el('rangeBtn').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      el('rangeMenu').classList.toggle('open');
+    });
+    document.addEventListener('click', ()=> el('rangeMenu').classList.remove('open'));
+    el('rangeMenu').addEventListener('click', (e)=>{
+      const b = e.target.closest('button[data-range]');
+      if(!b) return;
+      range = b.dataset.range;
+      setRangeLabel();
+      el('rangeMenu').classList.remove('open');
+      load();
+    });
+    document.querySelectorAll('.tab').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        board = b.dataset.board;
+        setBoardTabs();
+        load();
+      });
+    });
+
+    accessToken = pickToken();
+    initTheme();
+    setBoardTabs();
+    setRangeLabel();
+    wireInternalNav();
+    load();
+  })();
+  </script>
+</body>
+</html>

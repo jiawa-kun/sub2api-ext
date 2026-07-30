@@ -123,6 +123,8 @@ func main() {
 	})
 	mux.HandleFunc(base+"/api/admin/notify/test", h.AdminNotifyTest)
 	mux.HandleFunc(base+"/api/lottery/status", h.LotteryStatus)
+	mux.HandleFunc(base+"/api/ranking/rewards", h.RankingRewards)
+	mux.HandleFunc(base+"/api/ranking/consumption", h.RankingConsumption)
 	mux.HandleFunc(base+"/api/lottery/draw", h.LotteryDraw)
 	mux.HandleFunc(base+"/api/admin/lottery/settings", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -248,4 +250,5 @@ func withEmbedHeaders(cfg config.Config, next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
 
