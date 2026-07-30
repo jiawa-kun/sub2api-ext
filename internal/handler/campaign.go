@@ -44,6 +44,10 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
+		if !h.limitAdminRead.Allow("campaign-r:" + clientIP(r)) {
+			writeErr(w, http.StatusTooManyRequests, "rate limited")
+			return
+		}
 		list, err := h.store.ListRankCampaigns(r.Context(), 100)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
@@ -55,6 +59,10 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
 	case http.MethodPost:
+		if !h.limitAdminWrite.Allow("campaign-w:" + clientIP(r)) {
+			writeErr(w, http.StatusTooManyRequests, "rate limited")
+			return
+		}
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		var in campaignBody
 		if err := json.Unmarshal(body, &in); err != nil {
@@ -120,6 +128,23 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 	action := ""
 	if len(parts) > 1 {
 		action = parts[1]
+	}
+
+	writeAction := action == "settle" || action == "cancel" || r.Method == http.MethodPut || (r.Method == http.MethodPost && action == "")
+	// preview uses POST or GET but is read-only planning
+	if action == "preview" {
+		writeAction = false
+	}
+	if writeAction {
+		if !h.limitAdminWrite.Allow("campaign-w:" + clientIP(r)) {
+			writeErr(w, http.StatusTooManyRequests, "rate limited")
+			return
+		}
+	} else {
+		if !h.limitAdminRead.Allow("campaign-r:" + clientIP(r)) {
+			writeErr(w, http.StatusTooManyRequests, "rate limited")
+			return
+		}
 	}
 
 	if action == "settle" && r.Method == http.MethodPost {

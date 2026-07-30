@@ -133,6 +133,11 @@ func (h *Handler) TasksClaim(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid token: "+err.Error())
 		return
 	}
+	key := fmt.Sprintf("task-claim:%s:%d", clientIP(r), user.ID)
+	if !h.limitCheckin.Allow(key) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
 	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
 	var req struct {
 		TaskID string `json:"task_id"`

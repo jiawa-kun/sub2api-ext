@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="排行榜">
+  <path d="M6 20V10"/>
+  <path d="M12 20V4"/>
+  <path d="M18 20v-7"/>
+  <path d="M4 20h16"/>
+  <path d="M10 6l2-2 2 2"/>
+</svg>

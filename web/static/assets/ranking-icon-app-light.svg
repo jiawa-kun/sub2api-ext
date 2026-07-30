@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="排行榜">
+  <defs>
+    <linearGradient id="g" x1="18" y1="14" x2="110" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="50" y1="40" x2="78" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6C945"/><stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(15,23,42,.08)" stroke-width="1.5"/>
+  <rect x="28" y="58" width="20" height="42" rx="6" fill="url(#g)" opacity=".75"/>
+  <rect x="54" y="36" width="20" height="64" rx="6" fill="url(#gold)"/>
+  <rect x="80" y="48" width="20" height="52" rx="6" fill="url(#g)" opacity=".9"/>
+  <rect x="24" y="102" width="80" height="4" rx="2" fill="#64748b" opacity=".25"/>
+  <path d="M56 28 L60 34 L64 27 L68 34 L72 28 L71 36 H57 Z" fill="url(#gold)"/>
+</svg>

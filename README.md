@@ -511,13 +511,25 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## Sub2API 自定义菜单
 
-Admin → 自定义菜单：
+Admin → 自定义菜单（可挂多条）：
 
-| 项 | 值 |
+| 名称 | URL | 图标建议 | visibility |
+|---|---|---|---|
+| 每日签到 | `https://your-sub2api.example.com/ext/` | 主站已有签到图，或扩展中心图标 | user |
+| 排行榜 | `https://your-sub2api.example.com/ext/rank.html` | 仓库 `web/static/assets/ranking-icon.svg`（侧栏 icon_svg 粘贴全文） | user |
+| 任务中心 | `https://your-sub2api.example.com/ext/tasks.html` | 可用扩展中心图标或任务线稿 | user |
+| 扩展中心 | `https://your-sub2api.example.com/ext/home.html` | `web/static/assets/ext-center-icon.svg` | user |
+
+排行榜图标文件（随镜像提供，也可直接打开静态路径核对）：
+
+| 文件 | 用途 |
 |---|---|
-| 名称 | 每日签到 |
-| URL | `https://your-sub2api.example.com/ext/` |
-| visibility | user |
+| `/ext/assets/ranking-icon.svg` | **侧栏自定义菜单**（推荐，256 风格） |
+| `/ext/assets/ranking-icon-app.svg` | 排行页深色 logo / favicon |
+| `/ext/assets/ranking-icon-app-light.svg` | 排行页浅色 logo / favicon |
+| `/ext/assets/ranking-icon-line.svg` | 24×24 线稿（顶栏/小图标） |
+
+> 自定义菜单的 `icon_svg` 一般要求粘贴 SVG 原文，不能只填 URL。
 
 ## 架构与鉴权说明
 

@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>排行榜 · Sub2API 扩展</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
-  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ranking-icon-app.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ranking-icon-app-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ranking-icon-app.svg" />
   <style>
 :root {
   --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
@@ -168,8 +168,8 @@ tr.me{background:rgba(91,140,255,.08)}
         </div>
 
         <div class="brand-title">
-          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
-          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <img class="logo dark" src="./assets/ranking-icon-app.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ranking-icon-app-light.svg" alt="" width="34" height="34" />
           <div>
             <h1>排行榜</h1>
             <p class="lead" id="lead">查看不同时间范围内的用户排行</p>
@@ -325,7 +325,7 @@ tr.me{background:rgba(91,140,255,.08)}
     }
     function applyFavicon(light){
       const link = document.getElementById('favicon');
-      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+      if(link) link.href = light ? './assets/ranking-icon-app-light.svg' : './assets/ranking-icon-app.svg';
     }
     function initTheme(){
       const q=(params.get('theme')||'').toLowerCase();
