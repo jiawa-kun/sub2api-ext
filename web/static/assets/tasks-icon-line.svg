@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="任务中心">
+  <rect x="5" y="4" width="12" height="16" rx="2.2"/>
+  <path d="M9 2.8h4a1.2 1.2 0 0 1 1.2 1.2V5H7.8V4A1.2 1.2 0 0 1 9 2.8z"/>
+  <path d="M8 10.2l1.4 1.4 2.8-3"/>
+  <path d="M8 15.5l1.4 1.4 2.8-3"/>
+  <path d="M14.2 10.5h2.6M14.2 16h2.6"/>
+</svg>

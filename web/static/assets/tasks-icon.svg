@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">任务中心图标</title>
+  <desc id="desc">待办清单与完成勾选，表示扩展任务中心</desc>
+  <defs>
+    <linearGradient id="bgGradient" x1="40" y1="28" x2="218" y2="228" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5B8CFF"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+    <linearGradient id="ok" x1="150" y1="150" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34D399"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="70" y1="40" x2="170" y2="200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <filter id="softShadow" x="20" y="18" width="216" height="224" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="8"/>
+      <feGaussianBlur stdDeviation="10"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.067 0 0 0 0 0.145 0 0 0 0 0.231 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="48" fill="#F6FAFF"/>
+
+  <g filter="url(#softShadow)">
+    <!-- clipboard body -->
+    <rect x="58" y="54" width="140" height="156" rx="22" fill="url(#paper)"/>
+    <!-- clip top -->
+    <rect x="92" y="38" width="72" height="28" rx="10" fill="url(#bgGradient)"/>
+    <rect x="110" y="46" width="36" height="12" rx="6" fill="#fff" opacity=".85"/>
+
+    <!-- row 1 done -->
+    <rect x="78" y="92" width="22" height="22" rx="7" fill="url(#ok)"/>
+    <path d="M84 103l5 5 10-11" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <rect x="112" y="98" width="66" height="10" rx="5" fill="#CBD5E1"/>
+
+    <!-- row 2 done -->
+    <rect x="78" y="128" width="22" height="22" rx="7" fill="url(#ok)"/>
+    <path d="M84 139l5 5 10-11" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <rect x="112" y="134" width="78" height="10" rx="5" fill="#E2E8F0"/>
+
+    <!-- row 3 pending -->
+    <rect x="78" y="164" width="22" height="22" rx="7" fill="none" stroke="url(#bgGradient)" stroke-width="3"/>
+    <rect x="112" y="170" width="54" height="10" rx="5" fill="#E2E8F0"/>
+  </g>
+
+  <!-- progress badge -->
+  <g filter="url(#softShadow)">
+    <circle cx="188" cy="188" r="34" fill="url(#bgGradient)"/>
+    <circle cx="188" cy="188" r="26" fill="none" stroke="#E8EEFF" stroke-width="3" opacity=".55"/>
+    <path d="M174 188l8 8 18-20" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+</svg>

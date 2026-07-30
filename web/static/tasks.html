@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>任务中心 · Sub2API 扩展</title>
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
-  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
-  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <link rel="icon" type="image/svg+xml" href="./assets/tasks-icon-app.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/tasks-icon-app-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/tasks-icon-app.svg" />
   <style>
 :root {
   --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
@@ -108,8 +108,8 @@ html.light .brand-title .logo.light{display:block}
         </div>
 
         <div class="brand-title">
-          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
-          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <img class="logo dark" src="./assets/tasks-icon-app.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/tasks-icon-app-light.svg" alt="" width="34" height="34" />
           <h1>任务中心</h1>
         </div>
         <p class="lead">完成签到 / 抽奖等扩展行为。奖励未开启时只统计进度；管理员配置奖励后可领取。</p>
@@ -182,7 +182,7 @@ html.light .brand-title .logo.light{display:block}
     }
     function applyFavicon(light){
       const link = document.getElementById('favicon');
-      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+      if(link) link.href = light ? './assets/tasks-icon-app-light.svg' : './assets/tasks-icon-app.svg';
     }
     function initTheme(){
       const q=(params.get('theme')||'').toLowerCase();

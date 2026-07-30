@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="任务中心">
+  <defs>
+    <linearGradient id="g" x1="18" y1="14" x2="110" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#121a2f"/>
+      <stop offset="1" stop-color="#070b16"/>
+    </linearGradient>
+    <linearGradient id="ok" x1="70" y1="70" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#34D399"/><stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="1.5"/>
+  <!-- board -->
+  <rect x="30" y="30" width="56" height="68" rx="10" fill="url(#g)" opacity=".16"/>
+  <rect x="30" y="30" width="56" height="68" rx="10" fill="none" stroke="url(#g)" stroke-width="2"/>
+  <rect x="44" y="22" width="28" height="14" rx="5" fill="url(#g)"/>
+  <!-- checks -->
+  <rect x="38" y="46" width="12" height="12" rx="3.5" fill="url(#ok)"/>
+  <path d="M41 52l2.2 2.2 4.5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <rect x="56" y="49" width="22" height="5" rx="2.5" fill="#9db7ff" opacity=".8"/>
+  <rect x="38" y="64" width="12" height="12" rx="3.5" fill="url(#ok)"/>
+  <path d="M41 70l2.2 2.2 4.5-5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <rect x="56" y="67" width="26" height="5" rx="2.5" fill="#9db7ff" opacity=".55"/>
+  <rect x="38" y="82" width="12" height="12" rx="3.5" fill="none" stroke="url(#g)" stroke-width="2"/>
+  <rect x="56" y="85" width="18" height="5" rx="2.5" fill="#9db7ff" opacity=".4"/>
+  <!-- badge -->
+  <circle cx="92" cy="92" r="18" fill="url(#g)"/>
+  <path d="M84 92l5.5 5.5 12-13" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
