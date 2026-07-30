@@ -137,6 +137,8 @@ func main() {
 	mux.HandleFunc(base+"/api/lottery/status", h.LotteryStatus)
 	mux.HandleFunc(base+"/api/ranking/rewards", h.RankingRewards)
 
+	mux.HandleFunc(base+"/api/me/ledger", h.MeLedger)
+	mux.HandleFunc(base+"/api/admin/overview", h.AdminOverview)
 	mux.HandleFunc(base+"/api/admin/ledger", h.AdminListLedger)
 	mux.HandleFunc(base+"/api/admin/ledger/stats", h.AdminLedgerStats)
 	mux.HandleFunc(base+"/api/admin/ledger/export", h.AdminExportLedger)

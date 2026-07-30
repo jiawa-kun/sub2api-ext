@@ -235,3 +235,79 @@ func (h *Handler) AdminLedgerStats(w http.ResponseWriter, r *http.Request) {
 		"stats":     stats,
 	})
 }
+
+// MeLedger GET /api/me/ledger — current user's own reward ledger (read-only).
+func (h *Handler) MeLedger(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.limitStatus.Allow("me-ledger:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	token := extractToken(r)
+	if token == "" {
+		writeErr(w, http.StatusUnauthorized, "missing token")
+		return
+	}
+	user, err := h.client.ResolveUser(r.Context(), token, clientMetaFromRequest(r))
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "invalid token: "+err.Error())
+		return
+	}
+
+	f := ledgerFilterFromRequest(r)
+	// Always pin to the authenticated user; ignore client-supplied user_id.
+	f.UserID = user.ID
+	if f.Limit <= 0 {
+		f.Limit = 50
+	}
+	if f.Limit > 100 {
+		f.Limit = 100
+	}
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	// Default window: last 30 local days inclusive.
+	if f.From == "" && f.To == "" {
+		loc := h.settings.Location()
+		now := time.Now().In(loc)
+		f.To = now.Format("2006-01-02")
+		f.From = now.AddDate(0, 0, -29).Format("2006-01-02")
+	}
+
+	total, err := h.store.CountLedger(r.Context(), f)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	list, err := h.store.ListLedger(r.Context(), f)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	sum, err := h.store.SummarizeLedgerByStatus(r.Context(), f)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	items := make([]map[string]any, 0, len(list))
+	for _, e := range list {
+		row := ledgerEntryJSON(e)
+		row["source_label"] = ledgerSourceLabel(e.Source)
+		row["status_label"] = ledgerStatusLabel(e.Status)
+		delete(row, "idempotency_key")
+		items = append(items, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user_id": user.ID,
+		"from": f.From, "to": f.To,
+		"items": items, "count": len(items),
+		"total": total, "limit": f.Limit, "offset": f.Offset,
+		"success_amount": sum.SuccessAmount,
+		"success_count": sum.SuccessCount,
+		"failed_count": sum.FailedCount,
+	})
+}

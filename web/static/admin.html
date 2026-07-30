@@ -123,7 +123,8 @@ input:focus, select:focus, textarea:focus{border-color:rgba(91,140,255,.55); box
   .top-meta{justify-content:flex-start}
   body{padding-bottom:120px}
 }
-.stat{border:1px solid var(--border); border-radius:14px; padding:12px; background:linear-gradient(180deg, rgba(91,140,255,.08), var(--panel))}
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px;}
+    .stat{border:1px solid var(--border); border-radius:14px; padding:12px; background:linear-gradient(180deg, rgba(91,140,255,.08), var(--panel))}
 .stat .k{font-size:.7rem; color:var(--muted); font-weight:650}
 .stat .v{margin-top:4px; font-size:1.08rem; font-weight:780; letter-spacing:.2px}
 .metric{border:1px solid var(--border); border-radius:12px; padding:10px 11px; background:var(--panel)}
@@ -262,10 +263,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     </header>
 
     <div class="modnav" role="tablist" aria-label="管理模块">
+      <div class="modnav-group" data-group="home">
+        <div class="modnav-group-title">总览</div>
+        <div class="modnav-group-btns">
+          <button type="button" class="active" id="nav-overview"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>运营摘要</button>
+        </div>
+      </div>
       <div class="modnav-group" data-group="play">
         <div class="modnav-group-title">玩法</div>
         <div class="modnav-group-btns">
-          <button type="button" class="active" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
+          <button type="button" id="nav-checkin"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</button>
           <button type="button" id="nav-lottery"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 8.7l5.4-.8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>幸运抽奖</button>
           <button type="button" id="nav-tasks"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</button>
           <button type="button" id="nav-campaign"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行活动</button>
@@ -320,7 +327,24 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </details>
 
-    <div id="sec-checkin">
+    <div id="sec-overview">
+      <div class="card">
+        <div class="section-title">
+          <h3>运营摘要</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="sm" id="btnOverviewRefresh">刷新</button>
+          </div>
+        </div>
+        <p class="desc" style="margin-top:0">今日（配置时区）发放、预算、活动与巡检一览。点卡片可跳到对应模块。</p>
+        <div id="overviewGrid" class="stats" style="margin-top:10px">
+          <div class="stat"><div class="k">加载中</div><div class="v">…</div></div>
+        </div>
+        <div id="overviewCampaigns" style="margin-top:14px"></div>
+        <div class="msg" id="overviewMsg" style="margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div id="sec-checkin" class="hidden">
       <div class="card">
         <div class="card-head">
           <div>
@@ -976,7 +1000,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
-      const secs=['checkin','patrol','notify','lottery','report','ledger','campaign','tasks'];
+      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','campaign','tasks'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -984,11 +1008,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(tab) tab.classList.toggle('active', s===name);
       });
       const dock=el('checkinSaveDock'); if(dock) dock.style.display=(name==='checkin')?'flex':'none';
-      if(name==='patrol' || name==='notify' || name==='lottery' || name==='report' || name==='ledger' || name==='campaign' || name==='tasks'){
+      if(secs.includes(name)){
         try{ history.replaceState(null,'','#'+name); }catch{}
-      } else {
-        const h=(location.hash||'').toLowerCase();
-        try{ if(h==='#patrol'||h==='#notify'||h==='#lottery'||h==='#report'||h==='#ledger'||h==='#campaign'||h==='#tasks') history.replaceState(null,'',location.pathname+location.search); }catch{}
       }
     }
     const THEME_KEY='sub2api_ext_theme';
@@ -2502,6 +2523,62 @@ let tasksAdminCache={enabled:true,defs:[]};
     });
 
 
+
+    async function refreshOverview(){
+      const box = el('overviewGrid');
+      const campBox = el('overviewCampaigns');
+      const msg = el('overviewMsg');
+      if(msg){ msg.className='msg'; msg.textContent=''; }
+      try{
+        const d = await api('./api/admin/overview');
+        const led = d.ledger_today||{};
+        const ck = d.checkin||{};
+        const lot = d.lottery||{};
+        const cam = d.campaigns||{};
+        const pat = d.patrol||{};
+        const fmt = (v)=>{
+          if(v===null||v===undefined||v==='') return '—';
+          const n=Number(v); if(Number.isFinite(n)) return (Math.round(n*10000)/10000).toString();
+          return String(v);
+        };
+        const card = (title, value, sub, hash)=>{
+          const jump = hash ? ` data-hash="${hash}" style="cursor:pointer"` : '';
+          return `<div class="stat ov-card"${jump}><div class="k">${title}</div><div class="v">${value}</div>${sub?`<div class="sub" style="margin-top:4px;color:var(--muted);font-size:.78rem">${sub}</div>`:''}</div>`;
+        };
+        const lotSub = lot.available===false ? '模块未挂载' : (`预算 ${fmt(lot.daily_budget)} · 剩余 ${fmt(lot.daily_remaining)}`);
+        box.innerHTML = [
+          card('今日成功发放', fmt(led.success_amount), `${fmt(led.success_count)} 笔成功 · ${fmt(led.failed_count)} 笔失败`, '#ledger'),
+          card('签到预算', ck.daily_budget>0?fmt(ck.daily_remaining):'不限', `今日 ${fmt(ck.count)} 人 / ${fmt(ck.total_amount)} · 预算 ${fmt(ck.daily_budget)}`, '#checkin'),
+          card('抽奖发放', lot.available===false?'—':fmt(lot.today_amount), lotSub, '#lottery'),
+          card('排行活动', `${fmt(cam.active_count)} 进行中`, `partial ${fmt(cam.partial_count)}`, '#campaign'),
+          card('巡检问题账号', pat.available===false?'—':fmt(pat.problem_accounts), pat.available===false?'暂无数据':'consecutive_fail > 0', '#patrol'),
+        ].join('');
+        box.querySelectorAll('.ov-card[data-hash]').forEach(node=>{
+          node.onclick = ()=>{
+            const h = node.getAttribute('data-hash')||'';
+            const name = h.replace('#','');
+            if(name==='ledger'){ setAdminSection('ledger'); refreshLedger().catch(()=>{}); }
+            else if(name==='checkin'){ setAdminSection('checkin'); }
+            else if(name==='lottery'){ setAdminSection('lottery'); refreshLotteryAll().catch(()=>{}); }
+            else if(name==='campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
+            else if(name==='patrol'){ setAdminSection('patrol'); }
+          };
+        });
+        const recent = cam.recent||[];
+        if(!recent.length){
+          campBox.innerHTML = '<div class="sub">暂无活动</div>';
+        }else{
+          campBox.innerHTML = '<div class="section-title"><h3 style="font-size:.9rem;margin:0">最近活动</h3></div><table style="width:100%;border-collapse:collapse;font-size:.86rem"><thead><tr><th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">名称</th><th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">榜</th><th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">状态</th><th style="text-align:left;padding:6px;border-bottom:1px solid var(--border)">区间</th></tr></thead><tbody>' +
+            recent.map(c=>`<tr><td style="padding:6px;border-bottom:1px solid var(--border)">${escapeHtml(c.name||'')}</td><td style="padding:6px;border-bottom:1px solid var(--border)">${escapeHtml(c.board||'')}</td><td style="padding:6px;border-bottom:1px solid var(--border)">${escapeHtml(c.status||'')}</td><td style="padding:6px;border-bottom:1px solid var(--border)">${escapeHtml((c.start_date||'')+' ~ '+(c.end_date||''))}</td></tr>`).join('') +
+            '</tbody></table>';
+        }
+      }catch(e){
+        if(box) box.innerHTML = `<div class="stat"><div class="k">加载失败</div><div class="v" style="font-size:.95rem">${escapeHtml(e.message||e)}</div></div>`;
+        if(msg){ msg.textContent=e.message||String(e); msg.className='msg show err'; }
+      }
+    }
+
+    const navOverview=el('nav-overview'); if(navOverview) navOverview.onclick=(e)=>{ e.preventDefault(); setAdminSection('overview'); refreshOverview().catch(()=>{}); };
     const navCheckin=el('nav-checkin'); if(navCheckin) navCheckin.onclick=(e)=>{ e.preventDefault(); setAdminSection('checkin'); };
     const navPatrol=el('nav-patrol'); if(navPatrol) navPatrol.onclick=(e)=>{ e.preventDefault(); setAdminSection('patrol'); };
     const navNotify=el('nav-notify'); if(navNotify) navNotify.onclick=(e)=>{ e.preventDefault(); setAdminSection('notify'); refreshNotify().catch(e2=>show(e2.message||String(e2),'err')); };
@@ -2562,6 +2639,7 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnLotDraws=el('btnLotteryDrawsRefresh'); if(btnLotDraws) btnLotDraws.onclick=()=>Promise.all([refreshLotteryStats(),refreshLotteryDraws()]).then(()=>show('记录已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnLotAdd=el('btnLotteryAddPrize'); if(btnLotAdd) btnLotAdd.onclick=()=>{ if(lotteryPrizes.length>=12){ show('最多 12 个奖项','err'); return; } lotteryPrizes.push({label:'新奖项',amount:0,weight:1}); renderLotteryPrizes(); };
     const btnLotReset=el('btnLotteryResetPrize'); if(btnLotReset) btnLotReset.onclick=()=>{ lotteryPrizes=LOTTERY_DEFAULT_PRIZES.map(p=>({...p})); renderLotteryPrizes(); };
+    const btnOverviewRefresh=el('btnOverviewRefresh'); if(btnOverviewRefresh) btnOverviewRefresh.onclick=()=>refreshOverview().then(()=>show('摘要已刷新','ok')).catch(e=>show(e.message||e,'err'));
     const themeBtn=el('themeBtn'); if(themeBtn) themeBtn.onclick=()=>toggleTheme();
     const initHash=(location.hash||'').toLowerCase();
     if(initHash==='#patrol') setAdminSection('patrol');
@@ -2571,7 +2649,9 @@ let tasksAdminCache={enabled:true,defs:[]};
     else if(initHash==='#ledger'){ setAdminSection('ledger'); refreshLedger().catch(()=>{}); }
     else if(initHash==='#campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
     else if(initHash==='#tasks'){ setAdminSection('tasks'); refreshTasksAdmin().catch(()=>{}); }
-    else setAdminSection('checkin');
+    else if(initHash==='#checkin') setAdminSection('checkin');
+    else if(initHash==='#overview'){ setAdminSection('overview'); refreshOverview().catch(()=>{}); }
+    else { setAdminSection('overview'); refreshOverview().catch(()=>{}); }
 
     const stored=loadStoredCred(); if(stored) el('cred').value=stored;
     try { load(); } catch (e) {

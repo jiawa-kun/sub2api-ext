@@ -58,6 +58,15 @@ type LedgerDayStat struct {
 	Amount float64 `json:"amount"`
 }
 
+// LedgerStatusSummary aggregates counts/amounts by status for a date window.
+type LedgerStatusSummary struct {
+	SuccessCount  int64   `json:"success_count"`
+	SuccessAmount float64 `json:"success_amount"`
+	FailedCount   int64   `json:"failed_count"`
+	SkippedCount  int64   `json:"skipped_count"`
+}
+
+
 func (s *Store) ensureLedgerSchema() error {
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS credit_ledger (
@@ -248,6 +257,45 @@ FROM credit_ledger
 WHERE status='success' AND substr(created_at,1,10)=?
 `, date).Scan(&amount, &n)
 	return amount.Float64, n, err
+}
+
+
+// SummarizeLedgerByStatus totals rows matching the filter (ignores Limit/Offset).
+// When Status is set, only that status contributes; success_* may be zero if Status!=success.
+func (s *Store) SummarizeLedgerByStatus(ctx context.Context, f LedgerFilter) (LedgerStatusSummary, error) {
+	var out LedgerStatusSummary
+	q := `
+SELECT
+  COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END),0),
+  COALESCE(SUM(CASE WHEN status='success' THEN amount ELSE 0 END),0),
+  COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0),
+  COALESCE(SUM(CASE WHEN status='skipped' THEN 1 ELSE 0 END),0)
+FROM credit_ledger WHERE 1=1`
+	args := []any{}
+	if f.Source != "" {
+		q += ` AND source = ?`
+		args = append(args, f.Source)
+	}
+	if f.Status != "" {
+		q += ` AND status = ?`
+		args = append(args, f.Status)
+	}
+	if f.UserID > 0 {
+		q += ` AND user_id = ?`
+		args = append(args, f.UserID)
+	}
+	if f.From != "" {
+		q += ` AND substr(created_at,1,10) >= ?`
+		args = append(args, f.From)
+	}
+	if f.To != "" {
+		q += ` AND substr(created_at,1,10) <= ?`
+		args = append(args, f.To)
+	}
+	err := s.db.QueryRowContext(ctx, q, args...).Scan(
+		&out.SuccessCount, &out.SuccessAmount, &out.FailedCount, &out.SkippedCount,
+	)
+	return out, err
 }
 
 // BackfillLedgerFromLegacy copies historical checkin/lottery success rows.

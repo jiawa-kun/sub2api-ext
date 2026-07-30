@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>我的奖励 · Sub2API 扩展</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <style>
+    :root{
+      --bg:#0b1220; --card:#121a2b; --text:#e8eefc; --muted:#93a0b8; --border:rgba(255,255,255,.08);
+      --accent:#5b8cff; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    }
+    html.light{
+      --bg:#f4f7fb; --card:#fff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,.1);
+      --accent:#3b82f6;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--text);}
+    .wrap{max-width:920px; margin:0 auto; padding:18px 16px 40px}
+    header{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px}
+    .brand-title{display:flex; align-items:center; gap:10px}
+    .brand-title h1{margin:0; font-size:1.25rem}
+    .brand-title .logo{border-radius:10px}
+    html:not(.light) .logo.light, html.light .logo.dark{display:none}
+    .lead{margin:8px 0 0; color:var(--muted); font-size:.92rem}
+    .topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px}
+    .topnav a{
+      display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:999px;
+      border:1px solid var(--border); color:var(--text); text-decoration:none; font-size:.86rem; background:rgba(127,127,127,.06);
+    }
+    .topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
+    .topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+    html.light .topnav a.active{color:#4f46e5}
+    .topnav a.nav-extra{display:none}
+    .top-meta{display:flex; gap:8px; align-items:flex-start}
+    .theme-btn,.ghost-btn{
+      border:1px solid var(--border); background:transparent; color:var(--text);
+      border-radius:10px; padding:8px 10px; cursor:pointer; font-size:.86rem;
+    }
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 14px 10px}
+    .msg{display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; font-size:.9rem}
+    .msg.show{display:block}
+    .msg.ok{background:rgba(34,197,94,.12); color:var(--ok)}
+    .msg.err{background:rgba(239,68,68,.12); color:var(--err)}
+    .msg.warn{background:rgba(245,158,11,.12); color:var(--warn)}
+    .stats{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px}
+    .stat{border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:rgba(127,127,127,.04)}
+    .stat .k{color:var(--muted); font-size:.75rem}
+    .stat .v{font-size:1.1rem; font-weight:700; margin-top:4px}
+    .filters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; align-items:center}
+    .filters select,.filters button{
+      border:1px solid var(--border); background:transparent; color:var(--text);
+      border-radius:10px; padding:7px 10px; font-size:.86rem;
+    }
+    .filters button{cursor:pointer; background:rgba(91,140,255,.14); border-color:rgba(91,140,255,.35)}
+    table{width:100%; border-collapse:collapse; font-size:.9rem}
+    th,td{padding:9px 8px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top}
+    th{color:var(--muted); font-weight:600; font-size:.78rem}
+    .amt{font-variant-numeric:tabular-nums; font-weight:650}
+    .st{display:inline-flex; padding:2px 8px; border-radius:999px; font-size:.75rem; border:1px solid var(--border)}
+    .st.success{color:var(--ok); background:rgba(34,197,94,.1)}
+    .st.failed{color:var(--err); background:rgba(239,68,68,.1)}
+    .st.skipped{color:var(--muted)}
+    .sub{color:var(--muted); font-size:.78rem; margin-top:2px}
+    .empty{color:var(--muted); padding:18px 6px; text-align:center}
+    .pager{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:12px; color:var(--muted); font-size:.84rem}
+    .pager button{border:1px solid var(--border); background:transparent; color:var(--text); border-radius:10px; padding:6px 10px; cursor:pointer}
+    .pager button:disabled{opacity:.45; cursor:not-allowed}
+    @media (max-width:640px){
+      .stats{grid-template-columns:1fr}
+      table{display:block; overflow-x:auto}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="topnav">
+          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>签到</a>
+          <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>任务中心</a>
+          <a class="active" href="./rewards.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>我的奖励</a>
+          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
+          <a class="nav-extra" id="adminTopLink" href="./admin.html#ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
+        </div>
+        <div class="brand-title">
+          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <h1>我的奖励</h1>
+        </div>
+        <p class="lead">查看本人在扩展侧的签到 / 抽奖 / 任务 / 排行发放记录（只读）。</p>
+      </div>
+      <div class="top-meta">
+        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
+        <button type="button" class="ghost-btn" id="refreshBtn">刷新</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="msg" id="msg"></div>
+      <div class="stats">
+        <div class="stat"><div class="k">成功到账</div><div class="v" id="sumOk">—</div></div>
+        <div class="stat"><div class="k">成功笔数</div><div class="v" id="sumOkN">—</div></div>
+        <div class="stat"><div class="k">失败笔数</div><div class="v" id="sumFail">—</div></div>
+      </div>
+      <div class="filters">
+        <label>来源
+          <select id="source">
+            <option value="">全部</option>
+            <option value="checkin">签到</option>
+            <option value="lottery">抽奖</option>
+            <option value="task">任务</option>
+            <option value="rank_reward">排行发奖</option>
+            <option value="manual">手工</option>
+            <option value="backfill">回填</option>
+          </select>
+        </label>
+        <label>状态
+          <select id="status">
+            <option value="">全部</option>
+            <option value="success">成功</option>
+            <option value="failed">失败</option>
+            <option value="skipped">跳过</option>
+          </select>
+        </label>
+        <button type="button" id="applyBtn">筛选</button>
+      </div>
+      <div id="tableWrap"><div class="empty">加载中…</div></div>
+      <div class="pager">
+        <span id="pageInfo">—</span>
+        <div>
+          <button type="button" id="prevBtn">上一页</button>
+          <button type="button" id="nextBtn">下一页</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+  (function(){
+    const params = new URLSearchParams(location.search);
+    const el = id => document.getElementById(id);
+    const THEME_KEY='sub2api_ext_theme';
+    const LIMIT = 50;
+    let accessToken = '';
+    let offset = 0;
+    let total = 0;
+
+    function cleanToken(v){
+      v = String(v||'').trim();
+      if(!v) return '';
+      if(/^bearer\s+/i.test(v)) v=v.replace(/^bearer\s+/i,'');
+      return v.trim();
+    }
+    function readStorage(k){ try{ return localStorage.getItem(k)||''; }catch{ return ''; } }
+    function pickToken(){
+      const q = cleanToken(params.get('token')||'');
+      if(q) return q;
+      const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
+      for(const k of keys){
+        const v = cleanToken(readStorage(k));
+        if(v && v.split('.').length===3) return v;
+      }
+      try{
+        if(window.parent && window.parent !== window){
+          for(const k of keys){
+            const v = cleanToken(window.parent.localStorage.getItem(k)||'');
+            if(v && v.split('.').length===3) return v;
+          }
+        }
+      }catch{}
+      return '';
+    }
+    function authHeaders(){
+      const h={'Accept':'application/json'};
+      if(accessToken){ h['Authorization']='Bearer '+accessToken; h['X-User-Token']=accessToken; }
+      return h;
+    }
+    async function api(path){
+      const res = await fetch(path, {headers:authHeaders()});
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||data.message||('HTTP '+res.status));
+      return data;
+    }
+    function showMsg(text, type){
+      const m=el('msg');
+      if(!text){ m.className='msg'; m.textContent=''; return; }
+      m.textContent=text; m.className='msg show '+(type||'');
+    }
+    function applyFavicon(light){
+      const link=document.getElementById('favicon');
+      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+    }
+    function initTheme(){
+      const q=(params.get('theme')||'').toLowerCase();
+      let saved=''; try{ saved=localStorage.getItem(THEME_KEY)||''; }catch{}
+      const light=q==='light' || (!q && saved==='light');
+      document.documentElement.classList.toggle('light', !!light);
+      applyFavicon(!!light);
+      el('themeBtn').textContent = light ? '深色' : '浅色';
+    }
+    function toggleTheme(){
+      const light=!document.documentElement.classList.contains('light');
+      document.documentElement.classList.toggle('light', light);
+      applyFavicon(light);
+      el('themeBtn').textContent = light ? '深色' : '浅色';
+      try{ localStorage.setItem(THEME_KEY, light?'light':'dark'); }catch{}
+    }
+    function fmtAmt(v){
+      const n=Number(v||0);
+      return (Math.round(n*10000)/10000).toString();
+    }
+    function keepQuery(href){
+      try{
+        const u=new URL(href, location.href);
+        for(const k of ['token','theme']){
+          const v=params.get(k);
+          if(v && !u.searchParams.get(k)) u.searchParams.set(k,v);
+        }
+        return u.pathname.replace(/.*\//,'./') + u.search + u.hash;
+      }catch{ return href; }
+    }
+    function wireNav(){
+      document.querySelectorAll('.topnav a').forEach(a=>{
+        const href=a.getAttribute('href'); if(!href) return;
+        a.setAttribute('href', keepQuery(href));
+      });
+    }
+    async function revealAdmin(){
+      // best-effort: if status says admin, show extra nav
+      try{
+        const st = await api('./api/status');
+        const role = String((st.user&&st.user.role)||st.role||'').toLowerCase();
+        const isAdmin = role==='admin' || st.is_admin===true;
+        document.querySelectorAll('.topnav a.nav-extra').forEach(a=>{ a.style.display = isAdmin ? 'inline-flex' : 'none'; });
+      }catch{}
+    }
+    function render(data){
+      total = Number(data.total||0);
+      el('sumOk').textContent = fmtAmt(data.success_amount);
+      el('sumOkN').textContent = String(data.success_count??'—');
+      el('sumFail').textContent = String(data.failed_count??'—');
+      const items = data.items||[];
+      if(!items.length){
+        el('tableWrap').innerHTML = '<div class="empty">暂无流水</div>';
+      }else{
+        const rows = items.map(it=>{
+          const st = String(it.status||'');
+          const err = it.error ? `<div class="sub">${escapeHtml(it.error)}</div>` : '';
+          const notes = it.notes ? `<div class="sub">${escapeHtml(it.notes)}</div>` : '';
+          return `<tr>
+            <td>${escapeHtml(it.created_at||'')}</td>
+            <td>${escapeHtml(it.source_label||it.source||'')}</td>
+            <td class="amt">${fmtAmt(it.amount)}</td>
+            <td><span class="st ${escapeHtml(st)}">${escapeHtml(it.status_label||st)}</span>${err}</td>
+            <td>${notes||'<span class="sub">—</span>'}</td>
+          </tr>`;
+        }).join('');
+        el('tableWrap').innerHTML = `<table>
+          <thead><tr><th>时间</th><th>来源</th><th>金额</th><th>状态</th><th>备注</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+      }
+      const from = total===0 ? 0 : offset+1;
+      const to = Math.min(offset + items.length, total);
+      el('pageInfo').textContent = `第 ${from}-${to} 条 / 共 ${total} 条 · ${data.from||''} ~ ${data.to||''}`;
+      el('prevBtn').disabled = offset<=0;
+      el('nextBtn').disabled = offset+LIMIT >= total;
+    }
+    function escapeHtml(s){
+      return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    async function load(){
+      showMsg('');
+      if(!accessToken){
+        el('tableWrap').innerHTML = '<div class="empty">未登录：请从 Sub2API 侧栏打开本页</div>';
+        showMsg('缺少登录凭证','warn');
+        return;
+      }
+      const source = el('source').value;
+      const status = el('status').value;
+      // Force-ignore any user_id in query; server also pins identity.
+      let q = `./api/me/ledger?limit=${LIMIT}&offset=${offset}`;
+      if(source) q += `&source=${encodeURIComponent(source)}`;
+      if(status) q += `&status=${encodeURIComponent(status)}`;
+      // poison param to prove server ignores it — not sent in prod UI
+      const data = await api(q);
+      render(data);
+    }
+    el('themeBtn').onclick = toggleTheme;
+    el('refreshBtn').onclick = ()=>load().catch(e=>showMsg(e.message||e,'err'));
+    el('applyBtn').onclick = ()=>{ offset=0; load().catch(e=>showMsg(e.message||e,'err')); };
+    el('prevBtn').onclick = ()=>{ offset=Math.max(0, offset-LIMIT); load().catch(e=>showMsg(e.message||e,'err')); };
+    el('nextBtn').onclick = ()=>{ offset=offset+LIMIT; load().catch(e=>showMsg(e.message||e,'err')); };
+    initTheme();
+    wireNav();
+    accessToken = pickToken();
+    revealAdmin();
+    load().catch(e=>showMsg(e.message||e,'err'));
+  })();
+  </script>
+</body>
+</html>

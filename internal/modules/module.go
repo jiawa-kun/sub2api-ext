@@ -70,8 +70,8 @@ func Builtin() []Module {
 		{
 			ID:          "ledger",
 			Name:        "发放总账",
-			Description: "扩展侧签到/抽奖/排行发奖/任务领取的统一发放流水与对账。",
-			UserPath:    "",
+			Description: "扩展侧签到/抽奖/排行发奖/任务领取的统一发放流水；用户可看本人奖励，管理台可对账。",
+			UserPath:    "./rewards.html",
 			AdminPath:   "./admin.html#ledger",
 			APIBase:     "./api/admin/ledger",
 			Enabled:     true,

@@ -27,6 +27,8 @@
 | 日报锚点 | `/ext/admin.html#report` | 直达运营日报配置 |
 | 排行榜 | `/ext/rank.html` | 消费榜 + 奖励榜（展示进行中活动） |
 | 任务中心 | `/ext/tasks.html` | 用户任务进度与领取 |
+| 我的奖励 | `/ext/rewards.html` | 用户本人扩展发放流水（只读） |
+| 运营摘要 | `/ext/admin.html#overview` | 管理台默认总览（今日发放/预算/活动/巡检） |
 | 发放总账 | `/ext/admin.html#ledger` | 扩展侧统一发放流水 |
 | 排行活动 | `/ext/admin.html#campaign` | 奖励榜活动创建与结算 |
 | 任务配置 | `/ext/admin.html#tasks` | 任务开关与奖励额度 |
@@ -45,7 +47,9 @@
 - 统一记录签到、抽奖、排行发奖、任务领取的成功/失败/跳过流水
 - 启动时回填历史签到/抽奖到总账（幂等，不重复加款）
 - 管理台：`/ext/admin.html#ledger`（支持来源/状态/用户筛选、失败快捷、分页与 CSV 导出）
-- API：`GET /ext/api/admin/ledger`、`GET /ext/api/admin/ledger/stats`
+- 用户页：`/ext/rewards.html`（仅本人流水）
+- 运营摘要：`/ext/admin.html#overview`（默认进入）
+- API：`GET /ext/api/me/ledger`、`GET /ext/api/admin/overview`、`GET /ext/api/admin/ledger`、`GET /ext/api/admin/ledger/stats`
 
 ### 排行活动结算（campaign）
 - **奖励榜**与**消费榜**均可预览/结算发奖（消费榜依赖 Admin API Key 拉取 Sub2API 用量榜）
