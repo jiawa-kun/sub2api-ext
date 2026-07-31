@@ -6,16 +6,16 @@
 #
 # Usage:
 #   .\scripts\deploy-server.ps1                       # update to latest
-#   .\scripts\deploy-server.ps1 -HostName your-vps -RemoteDir /opt/sub2api-ext
+#   .\scripts\deploy-server.ps1 -HostName jiawa-vps -RemoteDir /home/jiawa/apps/sub2api-ext
 #   .\scripts\deploy-server.ps1 -Image ghcr.io/jiawa-kun/sub2api-ext:sha-xxxxxxx   # pin / rollback
 #   .\scripts\deploy-server.ps1 -NoPrune              # keep dangling images
 #   .\scripts\deploy-server.ps1 -Logs
 #   .\scripts\deploy-server.ps1 -Down
 
 param(
-    [string]$HostName = "your-vps",
+    [string]$HostName = "jiawa-vps",
     [int]$SshPort = 22,
-    [string]$RemoteDir = "/opt/sub2api-ext",
+    [string]$RemoteDir = "/home/jiawa/apps/sub2api-ext",
     # Legacy names only used for one-time migration from the old project layout.
     [string]$LegacyRemoteDir = "/opt/sub2api-checkin",
     [string]$LegacyContainerName = "sub2api-checkin",
