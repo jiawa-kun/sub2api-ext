@@ -648,9 +648,6 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
-  </div>
-
-
     <div id="sec-notify" class="hidden">
       <div class="card" id="notifyCard">
         <div class="card-head">
@@ -713,22 +710,24 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
-    <div id="sec-lottery" class="hidden">
+    <div id="sec-lottery" class="hidden admin-module admin-module-lottery">
       <div class="card" id="lotteryCard">
         <div class="card-head">
           <div>
             <h2>幸运抽奖</h2>
-            <div class="hint">签到后每日一次抽奖。奖项名称、额度与权重均可自由配置。</div>
+            <p class="desc">配置参与条件、预算和奖池，修改后统一保存。</p>
           </div>
           <span class="badge" id="lotteryBadge">—</span>
         </div>
 
-        <div class="grid">
-          <div class="col">
+        <div class="lottery-settings">
+          <section class="setting-block">
+            <div class="setting-title">参与条件</div>
             <label class="switch"><input id="lotteryEnabled" type="checkbox" /><span>启用抽奖</span></label>
             <label class="switch"><input id="lotteryRequireCheckin" type="checkbox" /><span>需先完成当日签到</span></label>
-          </div>
-          <div class="col">
+          </section>
+          <section class="setting-block">
+            <div class="setting-title">额度限制</div>
             <div class="field">
               <label for="lotteryDailyBudget">抽奖日预算</label>
               <input id="lotteryDailyBudget" type="number" step="0.0001" min="0" placeholder="0" />
@@ -739,31 +738,38 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
               <input id="lotteryHardCap" type="number" step="0.0001" min="0" placeholder="0" />
               <div class="hint">0 表示不钳制。超过此额度的奖项按上限发放。</div>
             </div>
-          </div>
+          </section>
         </div>
 
-        <div class="field">
-          <label>奖池配置</label>
-          <div class="hint">权重越大中奖概率越高；额度填 0 即为“未中奖”奖项。最多 12 项。</div>
+        <section class="lottery-pool">
+          <div class="section-title lottery-pool-head">
+            <div>
+              <h3>奖池配置</h3>
+              <div class="hint">权重越大中奖概率越高；额度为 0 表示未中奖，最多 12 项。</div>
+            </div>
+            <div class="u-flex-actions">
+              <button type="button" class="secondary sm" id="btnLotteryAddPrize">新增奖项</button>
+              <button type="button" class="secondary sm" id="btnLotteryResetPrize">恢复默认</button>
+            </div>
+          </div>
           <div class="tbl-wrap">
             <table class="tbl" id="lotteryPrizeTable">
               <thead><tr><th>奖项名称</th><th style="width:140px">额度</th><th style="width:120px">权重</th><th style="width:100px">概率</th><th style="width:78px"></th></tr></thead>
               <tbody id="lotteryPrizeBody"></tbody>
             </table>
           </div>
-          <div class="toolbar">
-            <button type="button" class="secondary sm" id="btnLotteryAddPrize">新增奖项</button>
-            <button type="button" class="secondary sm" id="btnLotteryResetPrize">恢复默认奖池</button>
-          </div>
-        </div>
+        </section>
 
-        <div class="toolbar">
+        <div class="toolbar lottery-actions">
           <button type="button" class="sm" id="btnLotterySave">保存抽奖配置</button>
           <button type="button" class="secondary sm" id="btnLotteryRefresh">刷新</button>
         </div>
 
-        <div class="card-head" style="margin-top:18px">
-          <div><h2 style="font-size:16px">抽奖数据</h2></div>
+        <div class="card-head lottery-data-head">
+          <div>
+            <h2>抽奖记录</h2>
+            <p class="desc">查看近期抽奖结果和额度发放情况。</p>
+          </div>
           <span class="badge" id="lotteryStatsBadge">—</span>
         </div>
         <div class="hint" id="lotteryStats">—</div>
@@ -1091,6 +1097,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
+  </div>
+
 <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
@@ -1102,6 +1110,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const HIGH_AMOUNT=10, SS_KEY='checkin_admin_cred';
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
+    if(window.self!==window.top) document.body.classList.add('is-embedded');
     function setAdminSection(name){
       const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks'];
       secs.forEach(s=>{
