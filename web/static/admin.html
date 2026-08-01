@@ -238,8 +238,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 .theme-btn{padding:5px 10px; border-radius:999px; font-size:.72rem; font-weight:650}
 
   </style>
+  <link rel="stylesheet" href="./assets/app.css" />
 </head>
-<body>
+<body class="app-page app-admin">
   <div class="wrap">
     <header class="top">
       <div>
@@ -295,17 +296,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
-    <details class="fold" id="authDetails" open>
+    <details class="fold" id="authDetails">
       <summary>鉴权与密钥</summary>
       <div class="fold-body">
-        <div class="auth-grid" style="margin-top:12px">
+        <div class="auth-grid u-mt-12">
           <div class="auth-box">
             <div class="box-title">本页登录凭证</div>
-            <div class="field" style="margin-top:0">
+            <div class="field u-mt-0">
               <label for="cred">API Key / JWT</label>
               <input id="cred" type="password" placeholder="留空用当前管理员登录态" autocomplete="off" />
             </div>
-            <div class="row" style="margin-top:10px">
+            <div class="row u-mt-10">
               <button type="button" class="secondary sm" id="btnUseCred">使用</button>
               <button type="button" class="secondary sm" id="btnClearCred">清除</button>
               <button type="button" class="secondary sm" id="btnReload">刷新</button>
@@ -313,12 +314,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           </div>
           <div class="auth-box accent">
             <div class="box-title">服务端 Admin API Key</div>
-            <div class="sub" id="serverKeyStatus" style="margin:0 0 6px">加载中…</div>
-            <div class="field" style="margin-top:0">
+            <div class="sub u-mt-0 u-mb-6" id="serverKeyStatus">加载中…</div>
+            <div class="field u-mt-0">
               <label for="serverAdminKey">加款 / 巡检用 Key</label>
               <input id="serverAdminKey" type="password" placeholder="粘贴后保存到服务端" autocomplete="off" />
             </div>
-            <div class="row" style="margin-top:10px">
+            <div class="row u-mt-10">
               <button type="button" class="sm" id="btnSaveServerKey">保存</button>
               <button type="button" class="secondary sm" id="btnUseServerKeyAsCred">用作本页凭证</button>
               <button type="button" class="secondary sm" id="btnClearServerKey">清除覆盖</button>
@@ -332,16 +333,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <div class="card">
         <div class="section-title">
           <h3>运营摘要</h3>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="u-flex-actions">
             <button type="button" class="sm" id="btnOverviewRefresh">刷新</button>
           </div>
         </div>
-        <p class="desc" style="margin-top:0">今日（配置时区）发放、预算、活动与巡检一览。点卡片可跳到对应模块。</p>
-        <div id="overviewGrid" class="stats" style="margin-top:10px">
+        <p class="desc u-mt-0">今日（配置时区）发放、预算、活动与巡检一览。点卡片可跳到对应模块。</p>
+        <div id="overviewGrid" class="stats u-mt-10">
           <div class="stat"><div class="k">加载中</div><div class="v">…</div></div>
         </div>
-        <div id="overviewCampaigns" style="margin-top:14px"></div>
-        <div class="msg" id="overviewMsg" style="margin-top:10px"></div>
+        <div id="overviewCampaigns" class="u-mt-14"></div>
+        <div class="msg u-mt-10" id="overviewMsg"></div>
       </div>
     </div>
 
@@ -359,13 +360,13 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <div class="stat"><div class="k">预算剩余</div><div class="v" id="stRemain">—</div></div>
         </div>
         <div class="bar"><i id="stBar"></i></div>
-        <div class="sub" id="stMeta" style="margin:10px 0 0">—</div>
+        <div class="sub u-mt-10" id="stMeta">—</div>
         <div class="bars-wrap"><div class="bars" id="stBars"></div></div>
       </div>
 
       <details class="fold">
         <summary>当日明细</summary>
-        <div class="fold-body" style="padding-top:12px">
+        <div class="fold-body u-mt-12">
           <div class="table-wrap">
             <table class="table">
               <thead><tr><th>用户</th><th>金额</th><th>时间</th><th>幂等 Key</th></tr></thead>
