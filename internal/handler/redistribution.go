@@ -160,7 +160,7 @@ func (h *Handler) AdminRedistributionBatches(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) AdminRedistributionBatchByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost && r.Method != http.MethodDelete {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
@@ -172,10 +172,49 @@ func (h *Handler) AdminRedistributionBatchByID(w http.ResponseWriter, r *http.Re
 		writeErr(w, http.StatusServiceUnavailable, "redistribution module unavailable")
 		return
 	}
+	if r.Method == http.MethodPost && !h.limitAdminWrite.Allow("AdminRedistributionBatch:"+clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
 	part := strings.TrimPrefix(r.URL.Path, h.cfg.Server.BasePath+"/api/admin/redistribution/batches/")
-	id, err := strconv.ParseInt(strings.Trim(part, "/"), 10, 64)
+	parts := strings.Split(strings.Trim(part, "/"), "/")
+	if len(parts) > 1 && !(len(parts) == 2 && parts[1] == "cancel" && r.Method == http.MethodPost) {
+		writeErr(w, http.StatusNotFound, "batch action not found")
+		return
+	}
+	id, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil || id <= 0 {
 		writeErr(w, http.StatusBadRequest, "invalid batch id")
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if len(parts) != 1 {
+			writeErr(w, http.StatusNotFound, "batch action not found")
+			return
+		}
+		ok, err := h.store.DeleteRedistributionBatch(r.Context(), id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			writeErr(w, http.StatusConflict, "only draft batches can be deleted")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "id": id})
+		return
+	}
+	if len(parts) > 1 && parts[1] == "cancel" && r.Method == http.MethodPost {
+		ok, err := h.store.CancelRedistributionBatch(r.Context(), id)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			writeErr(w, http.StatusConflict, "only draft batches can be cancelled")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "id": id})
 		return
 	}
 	detail, err := h.redistribution.Detail(r.Context(), id)

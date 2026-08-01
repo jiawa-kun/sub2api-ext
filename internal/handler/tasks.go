@@ -312,7 +312,7 @@ func (h *Handler) AdminTasksSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, h.tasks.Get())
+		writeJSON(w, http.StatusOK, map[string]any{"enabled": h.tasks.Get().Enabled, "defs": h.tasks.Get().Defs, "supported_kinds": tasks.SupportedKinds, "defaults": tasks.DefaultRuntime().Defs})
 	case http.MethodPut, http.MethodPost:
 		if !h.limitAdminWrite.Allow("AdminTasksSettings:" + clientIP(r)) {
 			writeErr(w, http.StatusTooManyRequests, "rate limited")
@@ -325,7 +325,7 @@ func (h *Handler) AdminTasksSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.tasks.Save(r.Context(), rt); err != nil {
-			writeErr(w, http.StatusInternalServerError, err.Error())
+			writeErr(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, h.tasks.Get())

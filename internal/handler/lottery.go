@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"fmt"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -391,7 +391,7 @@ func (h *Handler) AdminLotteryDraws(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(strings.TrimSpace(q.Get("offset")))
 	userID, _ := strconv.ParseInt(strings.TrimSpace(q.Get("user_id")), 10, 64)
 	if limit <= 0 || limit > 200 {
-		limit = 50
+		limit = 20
 	}
 	items, err := h.store.ListLotteryDraws(r.Context(), userID, limit, offset)
 	if err != nil {
@@ -442,12 +442,12 @@ func (h *Handler) AdminLotteryStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	payload := map[string]any{
-		"today":        today,
-		"today_draws":  todayCount,
-		"today_amount": todayAmount,
-		"total_draws":  totals.Draws,
+		"today":         today,
+		"today_draws":   todayCount,
+		"today_amount":  todayAmount,
+		"total_draws":   totals.Draws,
 		"total_winners": totals.Winners,
-		"total_amount": totals.TotalAmount,
+		"total_amount":  totals.TotalAmount,
 	}
 	if h.lottery != nil {
 		rt := h.lottery.Get()

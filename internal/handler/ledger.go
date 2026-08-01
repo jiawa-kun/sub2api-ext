@@ -93,7 +93,7 @@ func (h *Handler) AdminListLedger(w http.ResponseWriter, r *http.Request) {
 	}
 	f := ledgerFilterFromRequest(r)
 	if f.Limit <= 0 {
-		f.Limit = 50
+		f.Limit = 20
 	}
 	if f.Limit > 200 {
 		f.Limit = 200

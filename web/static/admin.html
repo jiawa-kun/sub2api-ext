@@ -264,6 +264,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     </header>
 
     <div class="modnav" role="tablist" aria-label="管理模块">
+      <a class="admin-back" href="./home.html"><span aria-hidden="true">←</span> 返回扩展中心</a>
       <div class="modnav-group" data-group="home">
         <div class="modnav-group-title">总览</div>
         <div class="modnav-group-btns">
@@ -782,6 +783,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="toolbar">
           <button type="button" class="secondary sm" id="btnLotteryDrawsRefresh">刷新记录</button>
         </div>
+        <div class="pager-actions">
+          <button type="button" class="secondary sm" id="btnLotteryDrawPrev">上一页</button>
+          <span class="sub" id="lotteryDrawPageInfo">第 1 页</span>
+          <button type="button" class="secondary sm" id="btnLotteryDrawNext">下一页</button>
+        </div>
       </div>
     </div>
 
@@ -890,7 +896,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" class="secondary sm" id="btnLedgerExport">导出 CSV</button>
           <select id="ledgerPageSize" class="sm" title="每页条数">
             <option value="20">20条/页</option>
-            <option value="50" selected>50条/页</option>
+            <option value="50">50条/页</option>
             <option value="100">100条/页</option>
           </select>
         </div>
@@ -943,9 +949,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <div class="field"><label for="redisExclude">排除用户 ID（逗号分隔）</label><input id="redisExclude" type="text" /></div>
           </div>
           <div>
-            <div class="section-title"><h3>规则 JSON</h3></div>
-            <div class="field" style="margin-top:0"><label for="redisInactiveRules">不活跃条件</label><textarea id="redisInactiveRules" rows="8"></textarea></div>
-            <div class="field"><label for="redisActiveRules">活跃条件</label><textarea id="redisActiveRules" rows="8"></textarea></div>
+            <div class="section-title"><h3>用户条件</h3></div>
+            <div class="rule-editor" data-rule-group="inactive">
+              <div class="rule-editor-head"><label>不活跃条件</label><button type="button" class="secondary sm" data-rule-add="inactive">新增条件</button></div>
+              <div id="redisInactiveRulesEditor" class="rule-list"></div>
+            </div>
+            <div class="rule-editor" data-rule-group="active">
+              <div class="rule-editor-head"><label>活跃条件</label><button type="button" class="secondary sm" data-rule-add="active">新增条件</button></div>
+              <div id="redisActiveRulesEditor" class="rule-list"></div>
+            </div>
           </div>
         </div>
 
@@ -1044,9 +1056,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
               </select>
             </div>
             <div class="field">
-              <label for="campRewards">奖励规则 JSON</label>
-              <textarea id="campRewards" rows="5" placeholder='[{"rank":1,"amount":5},{"rank_from":2,"rank_to":5,"amount":1}]'></textarea>
-              <div class="hint">可用 rank 精确位，或 rank_from/rank_to 区间。示例已给默认 Top1=5、2-5=1、6-10=0.5。</div>
+              <label>奖励规则</label>
+              <div id="campRewardEditor" class="reward-editor"></div>
+              <button type="button" class="secondary sm" id="btnCampAddReward">新增奖励档位</button>
             </div>
           </div>
         </div>
@@ -1085,11 +1097,13 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <label class="switch"><input id="tasksEnabled" type="checkbox" /><span>启用任务中心</span></label>
         <div class="tbl-wrap" style="margin-top:12px">
           <table class="tbl">
-            <thead><tr><th>ID</th><th>名称</th><th>说明</th><th>启用</th><th>奖励</th><th>目标</th><th>周期</th></tr></thead>
+            <thead><tr><th>ID</th><th>名称</th><th>说明</th><th>条件</th><th>启用</th><th>奖励</th><th>目标</th><th>周期</th><th>操作</th></tr></thead>
             <tbody id="tasksAdminBody"><tr><td colspan="7" class="sub">加载中…</td></tr></tbody>
           </table>
         </div>
         <div class="toolbar">
+          <button type="button" class="secondary sm" id="btnTasksAdd">新增任务</button>
+          <button type="button" class="secondary sm" id="btnTasksDefaults">恢复默认任务</button>
           <button type="button" class="sm" id="btnTasksSave">保存任务配置</button>
           <button type="button" class="secondary sm" id="btnTasksRefresh">刷新</button>
           <a class="secondary sm" href="./tasks.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:10px;border:1px solid var(--border);text-decoration:none;color:var(--text)">打开用户任务页</a>
@@ -2238,10 +2252,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const body=el('lotteryDrawBody');
       if(!body) return;
       body.innerHTML='<tr><td colspan="5" class="hint">加载中…</td></tr>';
-      const data=await api('./api/admin/lottery/draws?limit=50');
+      const data=await api('./api/admin/lottery/draws?limit=20&offset='+(lotteryDrawPage.offset||0));
       const items=data.items||[];
+      lotteryDrawPage.total=Number(data.total||0);
       if(!items.length){
         body.innerHTML='<tr><td colspan="5" class="hint">暂无记录</td></tr>';
+        const page=Math.floor(lotteryDrawPage.offset/lotteryDrawPage.limit)+1;
+        const pages=Math.max(1,Math.ceil(lotteryDrawPage.total/lotteryDrawPage.limit));
+        if(el('lotteryDrawPageInfo')) el('lotteryDrawPageInfo').textContent=`第 ${page} / ${pages} 页`;
+        if(el('btnLotteryDrawPrev')) el('btnLotteryDrawPrev').disabled=lotteryDrawPage.offset<=0;
+        if(el('btnLotteryDrawNext')) el('btnLotteryDrawNext').disabled=true;
         return;
       }
       body.innerHTML=items.map(d=>{
@@ -2250,6 +2270,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         const amt=Number(d.amount)>0?Number(d.amount).toFixed(4):'—';
         return '<tr><td>'+lotteryEsc(when)+'</td><td>'+lotteryEsc(d.user_id)+'</td><td>'+lotteryEsc(d.draw_date)+'</td><td>'+lotteryEsc(d.prize_label||'—')+'</td><td class="amount">'+amt+'</td></tr>';
       }).join('');
+      const page=Math.floor(lotteryDrawPage.offset/lotteryDrawPage.limit)+1;
+      const pages=Math.max(1,Math.ceil(lotteryDrawPage.total/lotteryDrawPage.limit));
+      if(el('lotteryDrawPageInfo')) el('lotteryDrawPageInfo').textContent=`第 ${page} / ${pages} 页`;
+      if(el('btnLotteryDrawPrev')) el('btnLotteryDrawPrev').disabled=lotteryDrawPage.offset<=0;
+      if(el('btnLotteryDrawNext')) el('btnLotteryDrawNext').disabled=lotteryDrawPage.offset+lotteryDrawPage.limit>=lotteryDrawPage.total;
     }
     async function refreshLotteryAll(){
       await refreshLottery();
@@ -2379,7 +2404,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!Number.isFinite(n)) return '0';
       return n.toFixed(4).replace(/\.?0+$/,'') || '0';
     }
-    let ledgerPage={offset:0, limit:50, total:0};
+    let lotteryDrawPage={offset:0,limit:20,total:0};
+    let ledgerPage={offset:0, limit:20, total:0};
     function ledgerEnsureDefaultRange(){
       const fromEl=el('ledgerFrom'), toEl=el('ledgerTo');
       if(!fromEl || !toEl) return;
@@ -2412,8 +2438,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function ledgerResetPage(){ ledgerPage.offset=0; }
     async function refreshLedger(){
       ledgerEnsureDefaultRange();
-      const size=Number(el('ledgerPageSize')?.value||50);
-      ledgerPage.limit = [20,50,100].includes(size)?size:50;
+      const size=Number(el('ledgerPageSize')?.value||20);
+      ledgerPage.limit = [20,50,100].includes(size)?size:20;
       const q=ledgerQueryParams({limit:ledgerPage.limit, offset:ledgerPage.offset});
       const sq=ledgerQueryParams();
       // stats should not carry pagination
@@ -2503,13 +2529,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function redisIds(raw){
       return String(raw||'').split(',').map(x=>Number(x.trim())).filter(x=>Number.isInteger(x)&&x>0);
     }
-    function redisRules(id){
-      const raw=(el(id)?.value||'').trim();
-      if(!raw) return [];
-      const parsed=JSON.parse(raw);
-      if(!Array.isArray(parsed)) throw new Error('规则必须是 JSON 数组');
-      return parsed;
+    const REDIS_RULE_OPTIONS={inactive:[['no_active_days','连续未活跃天数'],['no_usage_days','连续未使用天数'],['no_extension_days','连续未使用扩展天数'],['account_age_days','账号注册超过天数'],['balance_at_least','余额至少']],active:[['active_within_days','最近活跃天数内'],['used_within_days','最近使用天数内'],['extension_within_days','最近使用扩展天数内'],['total_usage_at_least','累计使用量至少']]};
+    let redisRuleState={inactive:[],active:[]};
+    function renderRedisRuleGroup(group){
+      const box=el('redis'+(group==='inactive'?'Inactive':'Active')+'RulesEditor'); if(!box) return;
+      const opts=REDIS_RULE_OPTIONS[group];
+      box.innerHTML=(redisRuleState[group]||[]).map((r,i)=>`<div class="rule-row" data-rule-idx="${i}"><input class="rule-enabled" type="checkbox" ${r.enabled!==false?'checked':''}/><select>${opts.map(o=>`<option value="${o[0]}" ${r.type===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select><input class="rule-value" type="number" min="0" step="${r.type==='balance_at_least'||r.type==='total_usage_at_least'?'0.0001':'1'}" value="${r.type==='balance_at_least'||r.type==='total_usage_at_least'?(r.amount||0):(r.days||0)}"/><button type="button" class="secondary sm" data-rule-del="${group}" data-rule-idx="${i}">删除</button></div>`).join('');
+      box.querySelectorAll('.rule-row').forEach(row=>{const i=Number(row.dataset.ruleIdx),state=redisRuleState[group][i];row.querySelector('select').onchange=e=>{state.type=e.target.value;state.days=0;state.amount=0;renderRedisRuleGroup(group)};row.querySelector('.rule-enabled').onchange=e=>{state.enabled=e.target.checked};row.querySelector('.rule-value').oninput=e=>{if(state.type==='balance_at_least'||state.type==='total_usage_at_least')state.amount=Number(e.target.value)||0;else state.days=Number(e.target.value)||0;};});
+      box.querySelectorAll('[data-rule-del]').forEach(b=>b.onclick=()=>{redisRuleState[group].splice(Number(b.dataset.ruleIdx),1);renderRedisRuleGroup(group)});
     }
+    function addRedisRule(group){const type=REDIS_RULE_OPTIONS[group][0][0];redisRuleState[group].push({type,enabled:true,days:30,amount:1});renderRedisRuleGroup(group)}
+    function redisRules(group){return (redisRuleState[group]||[]).map(r=>({...r}));}
     function redisStatusLabel(st){
       return ({
         draft:'预览', running:'执行中', success:'成功', partial:'部分成功',
@@ -2534,8 +2564,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('redisProtection').value=rt.new_user_protection_days??30;
       el('redisMaxUsers').value=rt.max_users??5000;
       el('redisExclude').value=(rt.exclude_user_ids||[]).join(',');
-      el('redisInactiveRules').value=JSON.stringify(rt.inactive_rules||[],null,2);
-      el('redisActiveRules').value=JSON.stringify(rt.active_rules||[],null,2);
+      redisRuleState={inactive:(rt.inactive_rules||[]).map(r=>({...r})),active:(rt.active_rules||[]).map(r=>({...r}))};
+      renderRedisRuleGroup('inactive'); renderRedisRuleGroup('active');
       const rc=rt.reclaim||{};
       el('redisReclaimMode').value=rc.mode||'fixed';
       el('redisReclaimValue').value=rc.value??0;
@@ -2568,9 +2598,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         timezone:(el('redisTimezone').value||'').trim(),
         require_preview:true,
         inactive_logic:el('redisInactiveLogic').value,
-        inactive_rules:redisRules('redisInactiveRules'),
+         inactive_rules:redisRules('inactive'),
         active_logic:el('redisActiveLogic').value,
-        active_rules:redisRules('redisActiveRules'),
+         active_rules:redisRules('active'),
         new_user_protection_days:redisNum('redisProtection'),
         exclude_user_ids:redisIds(el('redisExclude').value),
         reclaim:{
@@ -2622,7 +2652,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <td>${ledgerFmtMoney(b.actual_distribute||b.planned_distribute)}</td>
         <td>${b.candidate_count||0} / ${b.recipient_count||0}</td>
         <td>${escapeHtml(String(b.created_at||'').replace('T',' ').slice(0,19))}</td>
-        <td><button type="button" class="secondary sm" data-redis-detail="${b.id}">明细</button>${b.status==='draft'?` <button type="button" class="sm" data-redis-exec="${b.id}">执行</button>`:''}</td>
+        <td><button type="button" class="secondary sm" data-redis-detail="${b.id}">明细</button>${b.status==='draft'?` <button type="button" class="sm" data-redis-exec="${b.id}">执行</button> <button type="button" class="secondary sm" data-redis-cancel="${b.id}">取消</button> <button type="button" class="danger sm" data-redis-delete="${b.id}">删除</button>`:b.status==='running'?` <button type="button" class="secondary sm" data-redis-stop="${b.id}">停止</button>`:''}</td>
       </tr>`).join('');
     }
     function renderRedisDetail(detail){
@@ -2669,8 +2699,36 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       redisMsg(data.stopped?'已发送停止信号':'当前没有执行中的批次',data.stopped?'ok':'warn');
       await refreshRedistribution();
     }
-function defaultCampRewards(){
-      return [{"rank":1,"amount":5},{"rank_from":2,"rank_to":5,"amount":1},{"rank_from":6,"rank_to":10,"amount":0.5}];
+    async function cancelRedisBatch(id){
+      if(!confirm('确认取消草稿批次 #'+id+'？')) return;
+      await api('./api/admin/redistribution/batches/'+id+'/cancel',{method:'POST',body:'{}'});
+      redisMsg('批次 #'+id+' 已取消','ok');
+      await refreshRedistribution();
+    }
+    async function deleteRedisBatch(id){
+      if(!confirm('确认删除草稿批次 #'+id+'？删除后不可恢复。')) return;
+      await api('./api/admin/redistribution/batches/'+id,{method:'DELETE'});
+      redisMsg('批次 #'+id+' 已删除','ok');
+      await refreshRedistribution();
+    }
+    function defaultCampRewards(){ return [{rank:1,amount:5},{rank_from:2,rank_to:5,amount:1},{rank_from:6,rank_to:10,amount:0.5}]; }
+    let campRewardState=defaultCampRewards();
+    function renderCampRewards(){const box=el('campRewardEditor');if(!box)return;box.innerHTML=campRewardState.map((r,i)=>`<div class="reward-row" data-reward-idx="${i}"><input type="number" min="1" placeholder="精确名次" value="${r.rank||''}"/><input type="number" min="1" placeholder="区间起始" value="${r.rank_from||''}"/><input type="number" min="1" placeholder="区间结束" value="${r.rank_to||''}"/><input type="number" min="0" step="0.0001" placeholder="奖励额度" value="${r.amount||0}"/><button type="button" class="secondary sm" data-reward-del="${i}">删除</button></div>`).join('');box.querySelectorAll('.reward-row').forEach(row=>{const i=Number(row.dataset.rewardIdx),r=campRewardState[i];const inputs=row.querySelectorAll('input');inputs[0].oninput=e=>{r.rank=Number(e.target.value)||0;r.rank_from=0;r.rank_to=0};inputs[1].oninput=e=>{r.rank_from=Number(e.target.value)||0;r.rank=0};inputs[2].oninput=e=>{r.rank_to=Number(e.target.value)||0;r.rank=0};inputs[3].oninput=e=>{r.amount=Number(e.target.value)||0};});box.querySelectorAll('[data-reward-del]').forEach(b=>b.onclick=()=>{campRewardState.splice(Number(b.dataset.rewardDel),1);renderCampRewards()})}
+    function validateCampRewards(){
+      const ranges=[];
+      campRewardState.forEach((r,i)=>{
+        const hasRank=Number(r.rank)>0, hasFrom=Number(r.rank_from)>0, hasTo=Number(r.rank_to)>0;
+        const blank=!hasRank&&!hasFrom&&!hasTo&&Number(r.amount||0)===0;
+        if(blank) return;
+        if(Number(r.amount||0)<=0) throw new Error('奖励档位 '+(i+1)+' 的奖励额度必须大于 0');
+        const from=hasRank?Number(r.rank):Number(r.rank_from), to=hasRank?Number(r.rank):Number(r.rank_to);
+        if(!from || !to || to<from) throw new Error('奖励档位 '+(i+1)+' 的名次范围无效');
+        ranges.push({from,to,index:i});
+      });
+      ranges.sort((a,b)=>a.from-b.from);
+      for(let i=1;i<ranges.length;i++) if(ranges[i].from<=ranges[i-1].to) throw new Error('奖励档位 '+(ranges[i-1].index+1)+' 与 '+(ranges[i].index+1)+' 的名次范围重叠');
+      if(!ranges.length) throw new Error('至少配置一个奖励档位');
+      return campRewardState.filter(r=>Number(r.rank)>0||(Number(r.rank_from)>0&&Number(r.rank_to)>=Number(r.rank_from)));
     }
     async function refreshCampaigns(){
       const data=await api('./api/admin/rank/campaigns');
@@ -2712,10 +2770,7 @@ function defaultCampRewards(){
       </tr>`).join('');
     }
     async function createCampaign(){
-      let rewards;
-      const raw=(el('campRewards')?.value||'').trim();
-      try{ rewards=raw?JSON.parse(raw):defaultCampRewards(); }
-      catch{ throw new Error('奖励规则 JSON 无效'); }
+      const rewards=validateCampRewards();
       const body={
         name:(el('campName')?.value||'').trim(),
         board:el('campBoard')?.value||'rewards',
@@ -2762,50 +2817,55 @@ function defaultCampRewards(){
       await refreshCampaigns();
       await loadCampaignAwards(id);
     }
-let tasksAdminCache={enabled:true,defs:[]};
+    let tasksAdminCache={enabled:true,defs:[],defaults:[],supported_kinds:[]};
+    const TASK_KIND_LABELS={daily_checkin:'每日签到',daily_lottery:'每日抽奖',streak:'连续签到',weekly_checkin:'周签到次数',weekly_lottery:'周抽奖次数'};
+    function newTaskDef(){const id='task_'+Date.now();return {id,name:'新任务',description:'',enabled:true,reward:0,kind:'daily_checkin',target:1,period:'daily'};}
+    function collectTaskDefsFromDOM(){
+      const body=el('tasksAdminBody');
+      if(!body) return tasksAdminCache.defs||[];
+      return [...body.querySelectorAll('tr[data-idx]')].map((tr)=>{
+        const get=f=>tr.querySelector(`[data-f="${f}"]`);
+        const old=(tasksAdminCache.defs||[])[Number(tr.dataset.idx)]||{};
+        return {...old,id:(get('id')?.value||'').trim(),name:(get('name')?.value||'').trim(),description:(get('description')?.value||'').trim(),kind:get('kind')?.value||old.kind,enabled:!!get('enabled')?.checked,reward:Number(get('reward')?.value||0),target:Number(get('target')?.value||1),period:get('period')?.value||old.period};
+      });
+    }
+    function renderTasksAdmin(){
+      const body=el('tasksAdminBody'); if(!body)return;
+      const defs=tasksAdminCache.defs||[];
+      el('tasksAdminBadge').textContent=defs.length+' 项';
+      if(!defs.length){body.innerHTML='<tr><td colspan="9" class="sub">无任务定义，点击“新增任务”或“恢复默认任务”。</td></tr>';return;}
+      const kinds=tasksAdminCache.supported_kinds||Object.keys(TASK_KIND_LABELS);
+      body.innerHTML=defs.map((d,i)=>`<tr data-idx="${i}">
+        <td><input data-f="id" value="${escAttr(d.id||'')}" /></td><td><input data-f="name" value="${escAttr(d.name||'')}" /></td><td><input data-f="description" value="${escAttr(d.description||'')}" /></td>
+        <td><select data-f="kind">${kinds.map(k=>`<option value="${k}" ${d.kind===k?'selected':''}>${TASK_KIND_LABELS[k]||k}</option>`).join('')}</select></td>
+        <td><input data-f="enabled" type="checkbox" ${d.enabled?'checked':''} /></td><td><input data-f="reward" type="number" step="0.0001" min="0" value="${Number(d.reward||0)}" style="width:90px" /></td><td><input data-f="target" type="number" min="1" value="${Number(d.target||1)}" style="width:70px" /></td>
+        <td><select data-f="period"><option value="daily" ${d.period==='daily'?'selected':''}>每日</option><option value="weekly" ${d.period==='weekly'?'selected':''}>每周</option><option value="once" ${d.period==='once'?'selected':''}>一次性</option></select></td>
+        <td><button type="button" class="secondary sm" data-task-up="${i}">↑</button><button type="button" class="secondary sm" data-task-down="${i}">↓</button><button type="button" class="danger sm" data-task-del="${i}">删除</button></td></tr>`).join('');
+      body.querySelectorAll('[data-task-up],[data-task-down],[data-task-del]').forEach(b=>b.onclick=()=>{
+        tasksAdminCache.defs=collectTaskDefsFromDOM(); const i=Number(b.dataset.taskUp??b.dataset.taskDown??b.dataset.taskDel);
+        if(b.dataset.taskUp!==undefined&&i>0)[tasksAdminCache.defs[i-1],tasksAdminCache.defs[i]]=[tasksAdminCache.defs[i],tasksAdminCache.defs[i-1]];
+        if(b.dataset.taskDown!==undefined&&i<tasksAdminCache.defs.length-1)[tasksAdminCache.defs[i+1],tasksAdminCache.defs[i]]=[tasksAdminCache.defs[i],tasksAdminCache.defs[i+1]];
+        if(b.dataset.taskDel!==undefined)tasksAdminCache.defs.splice(i,1); renderTasksAdmin();
+      });
+    }
     async function refreshTasksAdmin(){
       const data=await api('./api/admin/tasks/settings');
-      tasksAdminCache=data||{enabled:true,defs:[]};
+      tasksAdminCache=data||{enabled:true,defs:[],defaults:[],supported_kinds:[]};
       el('tasksEnabled').checked=!!tasksAdminCache.enabled;
-      el('tasksAdminBadge').textContent=(tasksAdminCache.defs||[]).length+' 项';
-      const body=el('tasksAdminBody');
-      const defs=tasksAdminCache.defs||[];
-      if(!defs.length){ body.innerHTML='<tr><td colspan="7" class="sub">无任务定义</td></tr>'; return; }
-      body.innerHTML=defs.map((d,i)=>`<tr data-idx="${i}">
-        <td class="sub">${escapeHtml(d.id||'')}</td>
-        <td><input data-f="name" value="${escAttr(d.name||'')}" /></td>
-        <td><input data-f="description" value="${escAttr(d.description||'')}" /></td>
-        <td><input data-f="enabled" type="checkbox" ${d.enabled?'checked':''} /></td>
-        <td><input data-f="reward" type="number" step="0.0001" min="0" value="${Number(d.reward||0)}" style="width:90px" /></td>
-        <td><input data-f="target" type="number" min="1" value="${Number(d.target||1)}" style="width:70px" /></td>
-        <td class="sub">${escapeHtml(d.period||'')} / ${escapeHtml(d.kind||'')}</td>
-      </tr>`).join('');
+      renderTasksAdmin();
     }
     function escAttr(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
     async function saveTasksAdmin(){
       const enabled=!!el('tasksEnabled')?.checked;
-      const rows=[...document.querySelectorAll('#tasksAdminBody tr[data-idx]')];
-      const defs=(tasksAdminCache.defs||[]).map((d,i)=>{
-        const tr=rows.find(r=>Number(r.dataset.idx)===i);
-        if(!tr) return d;
-        const get=(f)=>tr.querySelector(`[data-f="${f}"]`);
-        return {
-          ...d,
-          name:(get('name')?.value||d.name||'').trim(),
-          description:(get('description')?.value||d.description||'').trim(),
-          enabled:!!get('enabled')?.checked,
-          reward:Number(get('reward')?.value||0),
-          target:Number(get('target')?.value||d.target||1)
-        };
-      });
+      const defs=collectTaskDefsFromDOM();
       const saved=await api('./api/admin/tasks/settings',{method:'PUT',body:JSON.stringify({enabled,defs})});
       tasksAdminCache=saved;
       show('任务配置已保存','ok');
       await refreshTasksAdmin();
     }
-    if(el('campRewards') && !(el('campRewards').value||'').trim()){
-      el('campRewards').value=JSON.stringify(defaultCampRewards(),null,2);
-    }
+    campRewardState=defaultCampRewards(); renderCampRewards();
+    const btnCampAddReward=el('btnCampAddReward'); if(btnCampAddReward) btnCampAddReward.onclick=()=>{campRewardState.push({rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};
+    document.querySelectorAll('[data-rule-add]').forEach(b=>b.onclick=()=>addRedisRule(b.dataset.ruleAdd));
     const campBodyEl=el('campaignBody');
     if(campBodyEl) campBodyEl.addEventListener('click', (e)=>{
       const a=e.target.closest('[data-camp-awards]');
@@ -2913,6 +2973,8 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnCampRefresh=el('btnCampRefresh'); if(btnCampRefresh) btnCampRefresh.onclick=()=>refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksSave=el('btnTasksSave'); if(btnTasksSave) btnTasksSave.onclick=()=>saveTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksRefresh=el('btnTasksRefresh'); if(btnTasksRefresh) btnTasksRefresh.onclick=()=>refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
+    const btnTasksAdd=el('btnTasksAdd'); if(btnTasksAdd) btnTasksAdd.onclick=()=>{tasksAdminCache.defs=collectTaskDefsFromDOM();tasksAdminCache.defs.push(newTaskDef());renderTasksAdmin()};
+    const btnTasksDefaults=el('btnTasksDefaults'); if(btnTasksDefaults) btnTasksDefaults.onclick=()=>{tasksAdminCache.defs=(tasksAdminCache.defaults||[]).map(d=>({...d}));renderTasksAdmin()};
     const btnRedisSave=el('btnRedisSave'); if(btnRedisSave) btnRedisSave.onclick=()=>saveRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
     const btnRedisRefresh=el('btnRedisRefresh'); if(btnRedisRefresh) btnRedisRefresh.onclick=()=>refreshRedistribution().then(()=>redisMsg('额度回流已刷新','ok')).catch(e2=>redisMsg(e2.message||String(e2),'err'));
     const btnRedisPreview=el('btnRedisPreview'); if(btnRedisPreview) btnRedisPreview.onclick=()=>previewRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
@@ -2922,8 +2984,14 @@ let tasksAdminCache={enabled:true,defs:[]};
     if(redisBatchBody) redisBatchBody.addEventListener('click',(e)=>{
       const detail=e.target.closest('[data-redis-detail]');
       const exec=e.target.closest('[data-redis-exec]');
+      const cancel=e.target.closest('[data-redis-cancel]');
+      const del=e.target.closest('[data-redis-delete]');
+      const stop=e.target.closest('[data-redis-stop]');
       if(detail){ loadRedistributionDetail(detail.dataset.redisDetail).catch(err=>redisMsg(err.message||String(err),'err')); }
       if(exec){ executeRedistribution(exec.dataset.redisExec).catch(err=>redisMsg(err.message||String(err),'err')); }
+      if(cancel){ cancelRedisBatch(cancel.dataset.redisCancel).catch(err=>redisMsg(err.message||String(err),'err')); }
+      if(del){ deleteRedisBatch(del.dataset.redisDelete).catch(err=>redisMsg(err.message||String(err),'err')); }
+      if(stop){ stopRedistribution().catch(err=>redisMsg(err.message||String(err),'err')); }
     });
 
     const btnRepSave=el('btnReportSave'); if(btnRepSave) btnRepSave.onclick=()=>saveReport().then(()=>show('\u65e5\u62a5\u914d\u7f6e\u5df2\u4fdd\u5b58','ok')).catch(e=>show(e.message||String(e),'err'));
@@ -2946,6 +3014,8 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnLotSave=el('btnLotterySave'); if(btnLotSave) btnLotSave.onclick=()=>saveLottery().then(()=>show('抽奖配置已保存','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnLotRefresh=el('btnLotteryRefresh'); if(btnLotRefresh) btnLotRefresh.onclick=()=>refreshLotteryAll().then(()=>show('抽奖配置已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnLotDraws=el('btnLotteryDrawsRefresh'); if(btnLotDraws) btnLotDraws.onclick=()=>Promise.all([refreshLotteryStats(),refreshLotteryDraws()]).then(()=>show('记录已刷新','ok')).catch(e=>show(e.message||String(e),'err'));
+    const btnLotPrev=el('btnLotteryDrawPrev'); if(btnLotPrev) btnLotPrev.onclick=()=>{lotteryDrawPage.offset=Math.max(0,lotteryDrawPage.offset-lotteryDrawPage.limit);refreshLotteryDraws().catch(e=>show(e.message||String(e),'err'));};
+    const btnLotNext=el('btnLotteryDrawNext'); if(btnLotNext) btnLotNext.onclick=()=>{lotteryDrawPage.offset+=lotteryDrawPage.limit;refreshLotteryDraws().catch(e=>show(e.message||String(e),'err'));};
     const btnLotAdd=el('btnLotteryAddPrize'); if(btnLotAdd) btnLotAdd.onclick=()=>{ if(lotteryPrizes.length>=12){ show('最多 12 个奖项','err'); return; } lotteryPrizes.push({label:'新奖项',amount:0,weight:1}); renderLotteryPrizes(); };
     const btnLotReset=el('btnLotteryResetPrize'); if(btnLotReset) btnLotReset.onclick=()=>{ lotteryPrizes=LOTTERY_DEFAULT_PRIZES.map(p=>({...p})); renderLotteryPrizes(); };
     const btnOverviewRefresh=el('btnOverviewRefresh'); if(btnOverviewRefresh) btnOverviewRefresh.onclick=()=>refreshOverview().then(()=>show('摘要已刷新','ok')).catch(e=>show(e.message||e,'err'));

@@ -63,7 +63,7 @@
 
 ### 任务中心（tasks）
 - 默认任务奖励均为 **0**（只展示进度）；管理台配置 >0 后可领取
-- 内置：今日签到、今日抽奖、连签 3 天、本周签到 5 天、本周抽奖 3 次
+- 内置默认模板：今日签到、今日抽奖、连签 3/7/14 天、本周签到 3/5 天、本周抽奖 2/3 次；管理员可新增、删除、排序和调整奖励
 - 用户页：`/ext/tasks.html`
 - API：`GET /ext/api/tasks`、`POST /ext/api/tasks/claim`、`GET|PUT /ext/api/admin/tasks/settings`
 

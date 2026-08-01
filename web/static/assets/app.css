@@ -439,6 +439,84 @@ body.app-admin .modnav {
   box-shadow: var(--app-shadow);
 }
 
+body.app-admin .admin-back {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  background: var(--app-surface-soft);
+  font-size: .76rem;
+  font-weight: 700;
+}
+
+body.app-admin .admin-back:hover {
+  color: var(--app-primary);
+  border-color: rgba(59, 130, 246, .28);
+  background: var(--app-primary-soft);
+}
+
+body.app-admin .rule-editor,
+body.app-admin .reward-editor {
+  margin-top: 10px;
+}
+
+body.app-admin .rule-editor-head,
+body.app-admin .reward-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+body.app-admin .rule-editor-head {
+  justify-content: space-between;
+}
+
+body.app-admin .rule-editor-head label {
+  margin: 0;
+}
+
+body.app-admin .rule-row,
+body.app-admin .reward-row {
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-soft);
+}
+
+body.app-admin .rule-row + .rule-row,
+body.app-admin .reward-row + .reward-row {
+  margin-top: 6px;
+}
+
+body.app-admin .rule-row select,
+body.app-admin .rule-row input,
+body.app-admin .reward-row input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 8px;
+  font-size: .76rem;
+}
+
+body.app-admin .rule-row select { flex: 1.3; }
+body.app-admin .rule-row input { width: 76px; flex: 0 0 76px; }
+body.app-admin .rule-row .rule-enabled { width: auto; flex: 0 0 auto; }
+body.app-admin .reward-row input:first-child { flex: 1; }
+body.app-admin .reward-row input:nth-child(2),
+body.app-admin .reward-row input:nth-child(3) { width: 84px; flex: 0 0 84px; }
+
+body.app-admin .pager-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 body.app-admin .modnav-group {
   padding: 0;
   border: 0;
@@ -491,9 +569,9 @@ body.app-admin .modnav button:hover {
 
 body.app-admin .modnav button.active,
 html.light body.app-admin .modnav button.active {
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, .24);
-  background: var(--app-primary-soft);
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, .18);
+  background: rgba(59, 130, 246, .08);
   box-shadow: none;
 }
 

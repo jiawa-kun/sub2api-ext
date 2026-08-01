@@ -250,6 +250,24 @@ FROM redistribution_batches ORDER BY id DESC LIMIT ?`, limit)
 	return out, rows.Err()
 }
 
+func (s *Store) CancelRedistributionBatch(ctx context.Context, id int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `UPDATE redistribution_batches SET status=?, error=?, finished_at=? WHERE id=? AND status=?`, RedistributionBatchStopped, "cancelled by admin", time.Now().UTC().Format(time.RFC3339Nano), id, RedistributionBatchDraft)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+func (s *Store) DeleteRedistributionBatch(ctx context.Context, id int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM redistribution_batches WHERE id=? AND status=?`, id, RedistributionBatchDraft)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
 func (s *Store) ListRedistributionEntries(ctx context.Context, batchID int64, role string) ([]RedistributionEntry, error) {
 	query := `SELECT id, batch_id, user_id, role, display_name, balance_before, balance_after,
        last_active_at, last_used_at, extension_at, usage_amount, planned_amount, actual_amount,
