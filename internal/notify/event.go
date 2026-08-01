@@ -19,12 +19,13 @@ const (
 
 // Event types. These double as the keys used for per-event subscription.
 const (
-	TypePatrolRunFinished  = "patrol.run_finished"
-	TypePatrolAccountAction = "patrol.account_action"
-	TypeCheckinBudget      = "checkin.budget_exhausted"
-	TypeLotteryBudget      = "lottery.budget_exhausted"
-	TypeSettingsChanged    = "settings.changed"
-	TypeTest               = "notify.test"
+	TypePatrolRunFinished      = "patrol.run_finished"
+	TypePatrolAccountAction    = "patrol.account_action"
+	TypeCheckinBudget          = "checkin.budget_exhausted"
+	TypeLotteryBudget          = "lottery.budget_exhausted"
+	TypeSettingsChanged        = "settings.changed"
+	TypeRedistributionFinished = "redistribution.finished"
+	TypeTest                   = "notify.test"
 	// TypeDailyReport is delivered by the report module. It is deliberately
 	// absent from AllTypes: the digest has its own on/off switch and is sent
 	// directly, so it is not part of the alert subscription list.
@@ -39,6 +40,7 @@ func AllTypes() []string {
 		TypeCheckinBudget,
 		TypeLotteryBudget,
 		TypeSettingsChanged,
+		TypeRedistributionFinished,
 	}
 }
 
@@ -55,6 +57,8 @@ func TypeLabel(t string) string {
 		return "抽奖日预算耗尽"
 	case TypeSettingsChanged:
 		return "配置被修改"
+	case TypeRedistributionFinished:
+		return "额度回流完成"
 	case TypeDailyReport:
 		return "运营日报"
 	case TypeTest:

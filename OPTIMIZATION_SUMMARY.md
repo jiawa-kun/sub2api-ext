@@ -3,7 +3,7 @@
 - **日期**：2026-07-31
 - **仓库**：https://github.com/jiawa-kun/sub2api-ext.git
 - **分支**：`master`
-- **范围**：ranking / lottery / ledger / patrol / tasks / notify / report
+- **范围**：ranking / lottery / ledger / patrol / tasks / notify / report / redistribution
 - **原则**：只做可验证的性能与稳定性优化，不改业务语义；破坏构建的改动立即回滚
 
 ---
@@ -18,6 +18,7 @@
 | patrol | 已完成 | `71034d6` | cron/时区缓存 + atomic 统计 + `next_cron_hint` |
 | tasks | 已完成 | `aa0befa` | 列表批量查状态 + 连续签到一次扫描 |
 | notify / report | 已完成 | `2786dd4` | 批量统计、轻量巡检加载、投递成功后写 last-sent |
+| redistribution | 已完成 | 待提交 | 不活跃额度回收 + 回流池 + 活跃用户奖励 |
 | 文档 | 已完成 | `e8534b3` + 本文更新 | 完整优化总结 |
 
 代码优化最终镜像 revision：`2786dd4a4e2bdd9f46d9510460ea1e9897053a82`  
@@ -35,6 +36,7 @@
 6. `aa0befa` — tasks：批量列表与 streak 扫描  
 7. `2786dd4` — notify/report：批量 digest 统计、轻量巡检、atomic 通知计数  
 8. `e8534b3` — 初版优化总结文档  
+9. 待提交 — redistribution：额度回流、批次预览/执行、手动领取、管理台配置
 
 ---
 
@@ -148,6 +150,50 @@
 - `internal/store/report.go`
 - `internal/notify/notifier.go`
 - 测试：`internal/store/report_stats_test.go`
+
+### 3.7 redistribution
+
+**需求背景**
+- 当前没有充值，但要支持长期不登录或不消耗额度的用户回收一部分余额，再分给活跃用户
+- 回收额度、条件判定、发放方式都必须可配置
+- 未来若出现充值用户，不能误扣付费资产
+
+**改动**
+- 新增额度回流模块：配置、规则引擎、批次服务、调度器、管理/用户 API
+- 不活跃条件支持 `all` / `any`，条件包括活跃时间、使用时间、扩展行为、账号年龄、余额门槛
+- 永久保护 `total_recharged > 0` 的用户，避免未来误扣充值余额
+- 回收模式支持固定额度、余额比例、超过保留余额部分
+- 分配模式支持平均、固定、消费加权、混合
+- 发放模式支持自动到账和手动领取
+- 执行必须先生成预览批次，真实执行要求 `confirm=EXECUTE`
+- 扣减成功多少，最多分配多少；失败扣减不进入回流池
+- 手动领取在批次生成时锁定资格和金额，不做共享池先到先得
+- 用户可在任务中心领取待领取的回流奖励
+
+**涉及文件**
+- `internal/redistribution/*`
+- `internal/store/redistribution.go`
+- `internal/handler/redistribution.go`
+- `internal/sub2api/client.go`
+- `internal/credit/credit.go`
+- `web/static/admin.html`
+- `web/static/tasks.html`
+- `web/static/rewards.html`
+
+**新增 API**
+- `GET/PUT /api/admin/redistribution/settings`
+- `POST /api/admin/redistribution/preview`
+- `POST /api/admin/redistribution/execute`
+- `POST /api/admin/redistribution/stop`
+- `GET /api/admin/redistribution/batches`
+- `GET /api/admin/redistribution/batches/{id}`
+- `GET /api/redistribution/rewards`
+- `POST /api/redistribution/rewards/claim`
+
+**验证**
+- `go test ./...` 通过
+- 管理台 / 任务中心 / 我的奖励页面脚本语法检查通过
+- 新增测试覆盖规则引擎、自动发放、手动领取、领取后批次状态收口
 
 ---
 

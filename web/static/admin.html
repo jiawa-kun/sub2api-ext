@@ -282,6 +282,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="modnav-group-title">运营</div>
         <div class="modnav-group-btns">
           <button type="button" id="nav-ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9h8M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>发放总账</button>
+          <button type="button" id="nav-redistribution"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h11m0 0-3-3m3 3-3 3M17 17H6m0 0 3 3m-3-3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>额度回流</button>
           <button type="button" id="nav-report"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>运营日报</button>
         </div>
       </div>
@@ -859,6 +860,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <option value="lottery">抽奖</option>
             <option value="rank_reward">排行发奖</option>
             <option value="task">任务</option>
+            <option value="inactive_reclaim">闲置额度回收</option>
+            <option value="active_redistribution">活跃回流奖励</option>
+            <option value="redistribution_compensation">回流补偿</option>
             <option value="backfill">回填</option>
             <option value="manual">手工</option>
           </select>
@@ -896,6 +900,104 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <span class="sub" id="ledgerPageInfo">第 1 页</span>
             <button type="button" class="secondary sm" id="btnLedgerNext">下一页</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="sec-redistribution" class="hidden">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>额度回流</h2>
+            <p class="desc">长期不活跃用户扣减额度，生成回流池后分配给活跃用户。必须先预览批次，再输入 EXECUTE 执行。</p>
+          </div>
+          <span class="badge" id="redisBadge">—</span>
+        </div>
+        <div class="grid4" style="margin-top:12px">
+          <div class="stat"><div class="k">可用回流池</div><div class="v" id="redisPool">—</div></div>
+          <div class="stat"><div class="k">最近批次</div><div class="v" id="redisLast">—</div></div>
+          <div class="stat"><div class="k">执行次数</div><div class="v" id="redisExecuted">—</div></div>
+          <div class="stat"><div class="k">下次计划</div><div class="v" id="redisNext">—</div></div>
+        </div>
+
+        <div class="split" style="margin-top:12px">
+          <div>
+            <div class="section-title"><h3>基础策略</h3></div>
+            <label class="switch"><input id="redisEnabled" type="checkbox" /><span>启用额度回流</span></label>
+            <label class="switch" style="margin-top:8px"><input id="redisAuto" type="checkbox" /><span>自动按 Cron 执行</span></label>
+            <div class="grid2">
+              <div class="field"><label for="redisCron">Cron</label><input id="redisCron" type="text" /></div>
+              <div class="field"><label for="redisTimezone">时区</label><input id="redisTimezone" type="text" /></div>
+              <div class="field"><label for="redisInactiveLogic">不活跃逻辑</label><select id="redisInactiveLogic"><option value="all">全部满足</option><option value="any">任一满足</option></select></div>
+              <div class="field"><label for="redisActiveLogic">活跃逻辑</label><select id="redisActiveLogic"><option value="any">任一满足</option><option value="all">全部满足</option></select></div>
+              <div class="field"><label for="redisProtection">新用户保护天数</label><input id="redisProtection" type="number" min="0" /></div>
+              <div class="field"><label for="redisMaxUsers">最多扫描用户</label><input id="redisMaxUsers" type="number" min="1" /></div>
+            </div>
+            <div class="field"><label for="redisExclude">排除用户 ID（逗号分隔）</label><input id="redisExclude" type="text" /></div>
+          </div>
+          <div>
+            <div class="section-title"><h3>规则 JSON</h3></div>
+            <div class="field" style="margin-top:0"><label for="redisInactiveRules">不活跃条件</label><textarea id="redisInactiveRules" rows="8"></textarea></div>
+            <div class="field"><label for="redisActiveRules">活跃条件</label><textarea id="redisActiveRules" rows="8"></textarea></div>
+          </div>
+        </div>
+
+        <div class="split" style="margin-top:12px">
+          <div>
+            <div class="section-title"><h3>回收策略</h3></div>
+            <div class="grid3">
+              <div class="field"><label for="redisReclaimMode">模式</label><select id="redisReclaimMode"><option value="fixed">固定额度</option><option value="percent">余额比例</option><option value="excess">超过保留余额</option></select></div>
+              <div class="field"><label for="redisReclaimValue">回收值</label><input id="redisReclaimValue" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisReclaimBatchCap">批次上限</label><input id="redisReclaimBatchCap" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisReclaimMinBalance">最低余额</label><input id="redisReclaimMinBalance" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisReclaimReserve">保留余额</label><input id="redisReclaimReserve" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisReclaimMin">最低回收</label><input id="redisReclaimMin" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisReclaimMax">最高回收</label><input id="redisReclaimMax" type="number" step="0.0001" min="0" /></div>
+            </div>
+          </div>
+          <div>
+            <div class="section-title"><h3>分配策略</h3></div>
+            <div class="grid3">
+              <div class="field"><label for="redisDistributionMode">发放模式</label><select id="redisDistributionMode"><option value="auto">自动到账</option><option value="claim">手动领取</option></select></div>
+              <div class="field"><label for="redisClaimExpire">领取有效天数</label><input id="redisClaimExpire" type="number" min="1" /></div>
+              <div class="field"><label for="redisAllocationMode">分配模式</label><select id="redisAllocationMode"><option value="equal">平均</option><option value="fixed">固定</option><option value="usage_weighted">消费加权</option><option value="mixed">混合</option></select></div>
+              <div class="field"><label for="redisAllocFixed">固定奖励</label><input id="redisAllocFixed" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisAllocEqualRatio">平均占比</label><input id="redisAllocEqualRatio" type="number" step="1" min="0" max="100" /></div>
+              <div class="field"><label for="redisAllocMin">最低奖励</label><input id="redisAllocMin" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisAllocMax">最高奖励</label><input id="redisAllocMax" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisAllocLimit">奖励人数上限</label><input id="redisAllocLimit" type="number" min="1" /></div>
+              <div class="field"><label for="redisFailureThreshold">失败熔断 %</label><input id="redisFailureThreshold" type="number" step="1" min="0" max="100" /></div>
+            </div>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="sm" id="btnRedisSave">保存配置</button>
+          <button type="button" class="secondary sm" id="btnRedisRefresh">刷新</button>
+          <button type="button" class="secondary sm" id="btnRedisPreview">生成预览批次</button>
+          <button type="button" class="secondary sm" id="btnRedisExecute">执行当前批次</button>
+          <button type="button" class="danger sm" id="btnRedisStop">停止执行</button>
+        </div>
+        <div class="msg" id="redisMsg"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h2>批次记录</h2><p class="desc">点击“明细”查看本批次回收用户和奖励用户。</p></div>
+          <span class="badge" id="redisBatchBadge">—</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>ID</th><th>触发</th><th>状态</th><th>回收</th><th>发放</th><th>候选/奖励</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody id="redisBatchBody"><tr><td colspan="8" class="sub">加载中…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="section-title" style="margin-top:16px"><h3>批次明细</h3></div>
+        <div class="hint" id="redisDetailHint">选择批次后查看</div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>角色</th><th>用户</th><th>计划</th><th>实际</th><th>状态</th><th>原因 / 错误</th></tr></thead>
+            <tbody id="redisDetailBody"><tr><td colspan="6" class="sub">—</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1000,7 +1102,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const params=new URLSearchParams(location.search);
     const el=id=>document.getElementById(id);
     function setAdminSection(name){
-      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','campaign','tasks'];
+      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -2253,7 +2355,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         function ledgerSourceLabel(src){
       return ({
         checkin:'签到', lottery:'抽奖', rank_reward:'排行发奖',
-        task:'任务', backfill:'回填', manual:'手工'
+        task:'任务', inactive_reclaim:'闲置额度回收',
+        active_redistribution:'活跃回流奖励',
+        redistribution_compensation:'回流补偿',
+        backfill:'回填', manual:'手工'
       })[src] || src || '未知';
     }
     function ledgerStatusLabel(st){
@@ -2372,6 +2477,187 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       document.body.appendChild(a); a.click(); a.remove();
       URL.revokeObjectURL(url);
       show('CSV 已开始下载（最多 5000 条）','ok');
+    }
+    let redisCurrentBatchID=0;
+    function redisMsg(text,type){
+      const n=el('redisMsg');
+      if(!n) return;
+      if(!text){ n.className='msg'; n.textContent=''; return; }
+      n.textContent=text;
+      n.className='msg show '+(type||'ok');
+    }
+    function redisNum(id){
+      const v=Number(el(id)?.value||0);
+      return Number.isFinite(v)?v:0;
+    }
+    function redisIds(raw){
+      return String(raw||'').split(',').map(x=>Number(x.trim())).filter(x=>Number.isInteger(x)&&x>0);
+    }
+    function redisRules(id){
+      const raw=(el(id)?.value||'').trim();
+      if(!raw) return [];
+      const parsed=JSON.parse(raw);
+      if(!Array.isArray(parsed)) throw new Error('规则必须是 JSON 数组');
+      return parsed;
+    }
+    function redisStatusLabel(st){
+      return ({
+        draft:'预览', running:'执行中', success:'成功', partial:'部分成功',
+        failed:'失败', stopped:'已停止', awaiting_claims:'待领取'
+      })[st] || st || '—';
+    }
+    function redisEntryStatusLabel(st){
+      return ({
+        planned:'计划', processing:'处理中', success:'成功', failed:'失败',
+        pending:'待领取', claimed:'已领取', expired:'已过期', skipped:'跳过'
+      })[st] || st || '—';
+    }
+    function redisFill(rt, stats){
+      rt=rt||{};
+      stats=stats||{};
+      el('redisEnabled').checked=!!rt.enabled;
+      el('redisAuto').checked=!!rt.auto_execute;
+      el('redisCron').value=rt.cron||'';
+      el('redisTimezone').value=rt.timezone||'Asia/Shanghai';
+      el('redisInactiveLogic').value=rt.inactive_logic||'all';
+      el('redisActiveLogic').value=rt.active_logic||'any';
+      el('redisProtection').value=rt.new_user_protection_days??30;
+      el('redisMaxUsers').value=rt.max_users??5000;
+      el('redisExclude').value=(rt.exclude_user_ids||[]).join(',');
+      el('redisInactiveRules').value=JSON.stringify(rt.inactive_rules||[],null,2);
+      el('redisActiveRules').value=JSON.stringify(rt.active_rules||[],null,2);
+      const rc=rt.reclaim||{};
+      el('redisReclaimMode').value=rc.mode||'fixed';
+      el('redisReclaimValue').value=rc.value??0;
+      el('redisReclaimBatchCap').value=rc.batch_cap??0;
+      el('redisReclaimMinBalance').value=rc.min_balance??0;
+      el('redisReclaimReserve').value=rc.reserve_balance??0;
+      el('redisReclaimMin').value=rc.min_per_user??0;
+      el('redisReclaimMax').value=rc.max_per_user??0;
+      el('redisDistributionMode').value=rt.distribution_mode||'auto';
+      el('redisClaimExpire').value=rt.claim_expire_days??7;
+      const al=rt.allocation||{};
+      el('redisAllocationMode').value=al.mode||'mixed';
+      el('redisAllocFixed').value=al.fixed_amount??0;
+      el('redisAllocEqualRatio').value=al.equal_ratio??50;
+      el('redisAllocMin').value=al.min_reward??0;
+      el('redisAllocMax').value=al.max_reward_per_user??0;
+      el('redisAllocLimit').value=al.recipient_limit??100;
+      el('redisFailureThreshold').value=rt.failure_threshold_percent??10;
+      el('redisPool').textContent=ledgerFmtMoney(stats.available_pool);
+      el('redisLast').textContent=stats.last_batch_id?('#'+stats.last_batch_id+' '+redisStatusLabel(stats.last_status)):'—';
+      el('redisExecuted').textContent=String(stats.executed??0);
+      el('redisNext').textContent=stats.next_due_at||'—';
+      el('redisBadge').textContent=rt.enabled?(rt.auto_execute?'自动':'已启用'):'已关闭';
+    }
+    function redisCollect(){
+      return {
+        enabled:!!el('redisEnabled').checked,
+        auto_execute:!!el('redisAuto').checked,
+        cron:(el('redisCron').value||'').trim(),
+        timezone:(el('redisTimezone').value||'').trim(),
+        require_preview:true,
+        inactive_logic:el('redisInactiveLogic').value,
+        inactive_rules:redisRules('redisInactiveRules'),
+        active_logic:el('redisActiveLogic').value,
+        active_rules:redisRules('redisActiveRules'),
+        new_user_protection_days:redisNum('redisProtection'),
+        exclude_user_ids:redisIds(el('redisExclude').value),
+        reclaim:{
+          mode:el('redisReclaimMode').value,
+          value:redisNum('redisReclaimValue'),
+          min_balance:redisNum('redisReclaimMinBalance'),
+          reserve_balance:redisNum('redisReclaimReserve'),
+          min_per_user:redisNum('redisReclaimMin'),
+          max_per_user:redisNum('redisReclaimMax'),
+          batch_cap:redisNum('redisReclaimBatchCap')
+        },
+        distribution_mode:el('redisDistributionMode').value,
+        claim_expire_days:redisNum('redisClaimExpire'),
+        allocation:{
+          mode:el('redisAllocationMode').value,
+          fixed_amount:redisNum('redisAllocFixed'),
+          equal_ratio:redisNum('redisAllocEqualRatio'),
+          min_reward:redisNum('redisAllocMin'),
+          max_reward_per_user:redisNum('redisAllocMax'),
+          recipient_limit:redisNum('redisAllocLimit')
+        },
+        max_users:redisNum('redisMaxUsers'),
+        failure_threshold_percent:redisNum('redisFailureThreshold'),
+        keep_batches:50
+      };
+    }
+    async function refreshRedistribution(){
+      const [cfg,batches]=await Promise.all([
+        api('./api/admin/redistribution/settings'),
+        api('./api/admin/redistribution/batches?limit=30')
+      ]);
+      redisFill(cfg.settings||{}, cfg.stats||{});
+      renderRedisBatches(batches.items||[]);
+    }
+    async function saveRedistribution(){
+      const data=await api('./api/admin/redistribution/settings',{method:'PUT',body:JSON.stringify(redisCollect())});
+      redisFill(data.settings||{}, data.stats||{});
+      redisMsg('额度回流配置已保存','ok');
+    }
+    function renderRedisBatches(items){
+      const body=el('redisBatchBody');
+      el('redisBatchBadge').textContent=(items||[]).length+' 个';
+      if(!items.length){ body.innerHTML='<tr><td colspan="8" class="sub">暂无批次</td></tr>'; return; }
+      body.innerHTML=items.map(b=>`<tr>
+        <td>#${b.id}</td>
+        <td>${escapeHtml(b.trigger_type||'')}</td>
+        <td>${escapeHtml(redisStatusLabel(b.status))}</td>
+        <td>${ledgerFmtMoney(b.actual_reclaim||b.planned_reclaim)}</td>
+        <td>${ledgerFmtMoney(b.actual_distribute||b.planned_distribute)}</td>
+        <td>${b.candidate_count||0} / ${b.recipient_count||0}</td>
+        <td>${escapeHtml(String(b.created_at||'').replace('T',' ').slice(0,19))}</td>
+        <td><button type="button" class="secondary sm" data-redis-detail="${b.id}">明细</button>${b.status==='draft'?` <button type="button" class="sm" data-redis-exec="${b.id}">执行</button>`:''}</td>
+      </tr>`).join('');
+    }
+    function renderRedisDetail(detail){
+      if(!detail) return;
+      const b=detail.batch||{};
+      redisCurrentBatchID=b.id||0;
+      el('redisDetailHint').textContent=`批次 #${b.id||'—'} · ${redisStatusLabel(b.status)} · 回收 ${ledgerFmtMoney(b.actual_reclaim||b.planned_reclaim)} · 发放 ${ledgerFmtMoney(b.actual_distribute||b.planned_distribute)}`;
+      const rows=[...(detail.donors||[]), ...(detail.rewards||[])];
+      const body=el('redisDetailBody');
+      if(!rows.length){ body.innerHTML='<tr><td colspan="6" class="sub">暂无明细</td></tr>'; return; }
+      body.innerHTML=rows.map(e=>`<tr>
+        <td>${e.role==='donor'?'回收':'奖励'}</td>
+        <td>${escapeHtml(e.display_name||('用户 #'+e.user_id))}<div class="sub">ID ${e.user_id}</div></td>
+        <td>${ledgerFmtMoney(e.planned_amount)}</td>
+        <td>${ledgerFmtMoney(e.actual_amount)}</td>
+        <td>${escapeHtml(redisEntryStatusLabel(e.status))}</td>
+        <td>${escapeHtml(e.error||e.reason||'')}</td>
+      </tr>`).join('');
+    }
+    async function previewRedistribution(){
+      const data=await api('./api/admin/redistribution/preview',{method:'POST',body:'{}'});
+      const detail=data.preview;
+      renderRedisDetail(detail);
+      await refreshRedistribution();
+      renderRedisDetail(detail);
+      redisMsg('预览批次已生成：#'+(detail?.batch?.id||''),'ok');
+    }
+    async function loadRedistributionDetail(id){
+      const data=await api('./api/admin/redistribution/batches/'+id);
+      renderRedisDetail(data.detail);
+    }
+    async function executeRedistribution(id){
+      const batchID=Number(id||redisCurrentBatchID||0);
+      if(!batchID){ redisMsg('请先选择或生成一个批次','err'); return; }
+      const confirmText=prompt('输入 EXECUTE 确认执行批次 #'+batchID);
+      if(confirmText!=='EXECUTE') return;
+      const data=await api('./api/admin/redistribution/execute',{method:'POST',body:JSON.stringify({batch_id:batchID,confirm:'EXECUTE'})});
+      renderRedisDetail(data.result);
+      await refreshRedistribution();
+      redisMsg('批次 #'+batchID+' 执行完成','ok');
+    }
+    async function stopRedistribution(){
+      const data=await api('./api/admin/redistribution/stop',{method:'POST',body:'{}'});
+      redisMsg(data.stopped?'已发送停止信号':'当前没有执行中的批次',data.stopped?'ok':'warn');
+      await refreshRedistribution();
     }
 function defaultCampRewards(){
       return [{"rank":1,"amount":5},{"rank_from":2,"rank_to":5,"amount":1},{"rank_from":6,"rank_to":10,"amount":0.5}];
@@ -2586,6 +2872,7 @@ let tasksAdminCache={enabled:true,defs:[]};
     const navReport=el('nav-report'); if(navReport) navReport.onclick=(e)=>{ e.preventDefault(); setAdminSection('report'); refreshReport().catch(e2=>show(e2.message||String(e2),'err')); };
 
     const navLedger=el('nav-ledger'); if(navLedger) navLedger.onclick=(e)=>{ e.preventDefault(); setAdminSection('ledger'); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
+    const navRedis=el('nav-redistribution'); if(navRedis) navRedis.onclick=(e)=>{ e.preventDefault(); setAdminSection('redistribution'); refreshRedistribution().catch(e2=>show(e2.message||String(e2),'err')); };
     const navCampaign=el('nav-campaign'); if(navCampaign) navCampaign.onclick=(e)=>{ e.preventDefault(); setAdminSection('campaign'); refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err')); };
     const navTasks=el('nav-tasks'); if(navTasks) navTasks.onclick=(e)=>{ e.preventDefault(); setAdminSection('tasks'); refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedgerRefresh=el('btnLedgerRefresh'); if(btnLedgerRefresh) btnLedgerRefresh.onclick=()=>refreshLedger().catch(e2=>show(e2.message||String(e2),'err'));
@@ -2616,6 +2903,18 @@ let tasksAdminCache={enabled:true,defs:[]};
     const btnCampRefresh=el('btnCampRefresh'); if(btnCampRefresh) btnCampRefresh.onclick=()=>refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksSave=el('btnTasksSave'); if(btnTasksSave) btnTasksSave.onclick=()=>saveTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksRefresh=el('btnTasksRefresh'); if(btnTasksRefresh) btnTasksRefresh.onclick=()=>refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
+    const btnRedisSave=el('btnRedisSave'); if(btnRedisSave) btnRedisSave.onclick=()=>saveRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
+    const btnRedisRefresh=el('btnRedisRefresh'); if(btnRedisRefresh) btnRedisRefresh.onclick=()=>refreshRedistribution().then(()=>redisMsg('额度回流已刷新','ok')).catch(e2=>redisMsg(e2.message||String(e2),'err'));
+    const btnRedisPreview=el('btnRedisPreview'); if(btnRedisPreview) btnRedisPreview.onclick=()=>previewRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
+    const btnRedisExecute=el('btnRedisExecute'); if(btnRedisExecute) btnRedisExecute.onclick=()=>executeRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
+    const btnRedisStop=el('btnRedisStop'); if(btnRedisStop) btnRedisStop.onclick=()=>stopRedistribution().catch(e2=>redisMsg(e2.message||String(e2),'err'));
+    const redisBatchBody=el('redisBatchBody');
+    if(redisBatchBody) redisBatchBody.addEventListener('click',(e)=>{
+      const detail=e.target.closest('[data-redis-detail]');
+      const exec=e.target.closest('[data-redis-exec]');
+      if(detail){ loadRedistributionDetail(detail.dataset.redisDetail).catch(err=>redisMsg(err.message||String(err),'err')); }
+      if(exec){ executeRedistribution(exec.dataset.redisExec).catch(err=>redisMsg(err.message||String(err),'err')); }
+    });
 
     const btnRepSave=el('btnReportSave'); if(btnRepSave) btnRepSave.onclick=()=>saveReport().then(()=>show('\u65e5\u62a5\u914d\u7f6e\u5df2\u4fdd\u5b58','ok')).catch(e=>show(e.message||String(e),'err'));
     const btnRepRefresh=el('btnReportRefresh'); if(btnRepRefresh) btnRepRefresh.onclick=()=>refreshReport().then(()=>show('\u65e5\u62a5\u914d\u7f6e\u5df2\u5237\u65b0','ok')).catch(e=>show(e.message||String(e),'err'));
@@ -2647,6 +2946,7 @@ let tasksAdminCache={enabled:true,defs:[]};
     else if(initHash==='#lottery'){ setAdminSection('lottery'); refreshLotteryAll().catch(()=>{}); }
     else if(initHash==='#report'){ setAdminSection('report'); refreshReport().catch(()=>{}); }
     else if(initHash==='#ledger'){ setAdminSection('ledger'); refreshLedger().catch(()=>{}); }
+    else if(initHash==='#redistribution'){ setAdminSection('redistribution'); refreshRedistribution().catch(()=>{}); }
     else if(initHash==='#campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
     else if(initHash==='#tasks'){ setAdminSection('tasks'); refreshTasksAdmin().catch(()=>{}); }
     else if(initHash==='#checkin') setAdminSection('checkin');

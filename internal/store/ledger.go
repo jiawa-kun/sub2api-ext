@@ -10,12 +10,15 @@ import (
 
 // Ledger source constants.
 const (
-	LedgerSourceCheckin    = "checkin"
-	LedgerSourceLottery    = "lottery"
-	LedgerSourceRankReward = "rank_reward"
-	LedgerSourceTask       = "task"
-	LedgerSourceManual     = "manual"
-	LedgerSourceBackfill   = "backfill"
+	LedgerSourceCheckin                    = "checkin"
+	LedgerSourceLottery                    = "lottery"
+	LedgerSourceRankReward                 = "rank_reward"
+	LedgerSourceTask                       = "task"
+	LedgerSourceInactiveReclaim            = "inactive_reclaim"
+	LedgerSourceRedistribution             = "active_redistribution"
+	LedgerSourceRedistributionCompensation = "redistribution_compensation"
+	LedgerSourceManual                     = "manual"
+	LedgerSourceBackfill                   = "backfill"
 )
 
 // Ledger status constants.
@@ -27,16 +30,16 @@ const (
 
 // LedgerEntry is one extension-side credit attempt.
 type LedgerEntry struct {
-	ID              int64
-	UserID          int64
-	Source          string
-	SourceRef       string
-	Amount          float64
-	IdempotencyKey  string
-	Status          string
-	Notes           string
-	Error           string
-	CreatedAt       time.Time
+	ID             int64
+	UserID         int64
+	Source         string
+	SourceRef      string
+	Amount         float64
+	IdempotencyKey string
+	Status         string
+	Notes          string
+	Error          string
+	CreatedAt      time.Time
 }
 
 // LedgerFilter lists ledger rows.
@@ -85,7 +88,6 @@ type LedgerStatusSummary struct {
 	SkippedCount  int64   `json:"skipped_count"`
 }
 
-
 func (s *Store) ensureLedgerSchema() error {
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS credit_ledger (
@@ -100,8 +102,10 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   error TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
+DROP INDEX IF EXISTS idx_ledger_idem;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_idem
-  ON credit_ledger(idempotency_key) WHERE idempotency_key != '';
+  ON credit_ledger(idempotency_key)
+  WHERE idempotency_key != '' AND status IN ('success','skipped');
 CREATE INDEX IF NOT EXISTS idx_ledger_created
   ON credit_ledger(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ledger_user
@@ -292,7 +296,6 @@ WHERE status='success' AND created_at >= ? AND created_at < ?
 	return amount.Float64, n, err
 }
 
-
 // SummarizeLedgerByStatus totals rows matching the filter (ignores Limit/Offset).
 // When Status is set, only that status contributes; success_* may be zero if Status!=success.
 func (s *Store) SummarizeLedgerByStatus(ctx context.Context, f LedgerFilter) (LedgerStatusSummary, error) {
@@ -337,10 +340,10 @@ FROM credit_ledger WHERE 1=1`
 func (s *Store) BackfillLedgerFromLegacy(ctx context.Context) (inserted int, err error) {
 	// MaxOpenConns(1): fully materialize source rows before nested ledger queries.
 	type legacyRow struct {
-		id, uid          int64
+		id, uid              int64
 		date, label, created string
-		amount           float64
-		source           string
+		amount               float64
+		source               string
 	}
 	var legacy []legacyRow
 

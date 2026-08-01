@@ -182,6 +182,9 @@ CREATE INDEX IF NOT EXISTS idx_lottery_created
 	if err := s.ensureTaskSchema(); err != nil {
 		return err
 	}
+	if err := s.ensureRedistributionSchema(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -205,7 +208,6 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.upd
 `, key, value, now)
 	return err
 }
-
 
 func (s *Store) DeleteSetting(ctx context.Context, key string) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM app_settings WHERE key = ?`, key)
@@ -557,4 +559,3 @@ func isUniqueViolation(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "UNIQUE constraint failed") || strings.Contains(msg, "unique constraint")
 }
-

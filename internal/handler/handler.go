@@ -21,27 +21,29 @@ import (
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
 	"sub2api-ext/internal/ratelimit"
+	"sub2api-ext/internal/redistribution"
 	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
-	"sub2api-ext/internal/tasks"
 	"sub2api-ext/internal/sub2api"
+	"sub2api-ext/internal/tasks"
 )
 
 const highAmountThreshold = 10.0
 const minRewardUnit = 0.0001
 
 type Handler struct {
-	cfg      config.Config
-	store    *store.Store
-	client   *sub2api.Client
-	settings *settings.Service
-	patrol   *patrol.Service
-	notifier *notify.Notifier
-	lottery  *lottery.Settings
-	report   *report.Service
-	credit   *credit.Service
-	tasks    *tasks.Settings
+	cfg            config.Config
+	store          *store.Store
+	client         *sub2api.Client
+	settings       *settings.Service
+	patrol         *patrol.Service
+	notifier       *notify.Notifier
+	lottery        *lottery.Settings
+	report         *report.Service
+	redistribution *redistribution.Service
+	credit         *credit.Service
+	tasks          *tasks.Settings
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -75,6 +77,9 @@ func (h *Handler) SetNotifier(n *notify.Notifier) { h.notifier = n }
 
 // SetReport attaches the daily report service. Safe to leave nil.
 func (h *Handler) SetReport(s *report.Service) { h.report = s }
+
+// SetRedistribution attaches the inactive-credit redistribution service.
+func (h *Handler) SetRedistribution(s *redistribution.Service) { h.redistribution = s }
 
 // SetCredit attaches the unified credit/ledger service. Safe to leave nil.
 func (h *Handler) SetCredit(s *credit.Service) { h.credit = s }

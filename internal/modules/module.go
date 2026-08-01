@@ -127,6 +127,18 @@ func Builtin() []Module {
 			Status:      "active",
 			Tags:        []string{"运营", "日报", "定时任务"},
 		},
+		{
+			ID:          "redistribution",
+			Name:        "额度回流",
+			Description: "按可配置活跃规则回收长期闲置额度，并自动发放或生成活跃用户领取资格。",
+			UserPath:    "./tasks.html",
+			AdminPath:   "./admin.html#redistribution",
+			APIBase:     "./api/redistribution",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"余额", "运营", "活跃激励"},
+		},
 	}
 }
 

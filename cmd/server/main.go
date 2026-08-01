@@ -17,11 +17,12 @@ import (
 	"sub2api-ext/internal/modules"
 	"sub2api-ext/internal/notify"
 	"sub2api-ext/internal/patrol"
+	"sub2api-ext/internal/redistribution"
 	"sub2api-ext/internal/report"
 	"sub2api-ext/internal/settings"
 	"sub2api-ext/internal/store"
-	"sub2api-ext/internal/tasks"
 	"sub2api-ext/internal/sub2api"
+	"sub2api-ext/internal/tasks"
 	"sub2api-ext/web"
 )
 
@@ -81,6 +82,11 @@ func main() {
 		log.Printf("ledger backfill inserted %d rows", n)
 	}
 	h.SetCredit(creditSvc)
+	redistributionSettings := redistribution.NewSettings(st)
+	redistributionSvc := redistribution.NewService(st, client, creditSvc, redistributionSettings, notifier)
+	redistributionSvc.StartScheduler()
+	defer redistributionSvc.StopScheduler()
+	h.SetRedistribution(redistributionSvc)
 	taskSettings := tasks.NewSettings(st)
 	h.SetTasks(taskSettings)
 
@@ -174,6 +180,14 @@ func main() {
 	})
 	mux.HandleFunc(base+"/api/admin/report/preview", h.AdminReportPreview)
 	mux.HandleFunc(base+"/api/admin/report/send", h.AdminReportSend)
+	mux.HandleFunc(base+"/api/admin/redistribution/settings", h.AdminRedistributionSettings)
+	mux.HandleFunc(base+"/api/admin/redistribution/preview", h.AdminRedistributionPreview)
+	mux.HandleFunc(base+"/api/admin/redistribution/execute", h.AdminRedistributionExecute)
+	mux.HandleFunc(base+"/api/admin/redistribution/stop", h.AdminRedistributionStop)
+	mux.HandleFunc(base+"/api/admin/redistribution/batches", h.AdminRedistributionBatches)
+	mux.HandleFunc(base+"/api/admin/redistribution/batches/", h.AdminRedistributionBatchByID)
+	mux.HandleFunc(base+"/api/redistribution/rewards", h.RedistributionRewards)
+	mux.HandleFunc(base+"/api/redistribution/rewards/claim", h.RedistributionClaim)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 
@@ -229,15 +243,12 @@ func withLogging(next http.Handler) http.Handler {
 	})
 }
 
-
-
 func envOr(k, d string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
 	}
 	return d
 }
-
 
 func withCORS(cfg config.Config, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -274,5 +285,3 @@ func withEmbedHeaders(cfg config.Config, next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-
-

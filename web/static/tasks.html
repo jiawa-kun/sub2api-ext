@@ -215,18 +215,40 @@ html.light .brand-title .logo.light{display:block}
         });
       });
     }
-    function render(data){
+    function render(data, rewards){
       const items = data.items||[];
       const box = el('list');
+      const rewardItems = (rewards&&rewards.items||[]).filter(x=>['pending','claimed','success'].includes(String(x.status||'')));
+      const rewardHTML = rewardItems.map(r=>{
+        const st=String(r.status||'');
+        const pending=st==='pending';
+        const label=pending?'领取':(st==='claimed'||st==='success'?'已到账':st);
+        const expires=r.expires_at?`<span>有效期至 ${escapeHtml(String(r.expires_at).replace('T',' ').slice(0,19))}</span>`:'';
+        return `<div class="task" data-reward-batch="${r.batch_id}">
+          <div class="task-head">
+            <div>
+              <div class="task-title">额度回流奖励</div>
+              <div class="task-desc">来自闲置额度回流池的活跃用户奖励</div>
+            </div>
+            <button type="button" class="btn" data-redis-claim="${r.batch_id}" ${pending?'':'disabled'}>${label} ${Number(r.planned_amount||r.actual_amount||0).toFixed(4)}</button>
+          </div>
+          <div class="task-meta">
+            <span class="${pending?'pill ok':'pill'}">${pending?'待领取':'已处理'}</span>
+            <span>批次 #${r.batch_id}</span>
+            <span>额度 ${Number(r.planned_amount||r.actual_amount||0).toFixed(4)}</span>
+            ${expires}
+          </div>
+        </div>`;
+      }).join('');
       if(!data.enabled){
-        box.innerHTML = '<div class="empty">任务中心已关闭</div>';
+        box.innerHTML = rewardHTML || '<div class="empty">任务中心已关闭</div>';
         return;
       }
       if(!items.length){
-        box.innerHTML = '<div class="empty">暂无可用任务</div>';
+        box.innerHTML = rewardHTML || '<div class="empty">暂无可用任务</div>';
         return;
       }
-      box.innerHTML = items.map(it=>{
+      box.innerHTML = rewardHTML + items.map(it=>{
         const target = Math.max(1, Number(it.target||1));
         const progress = Math.max(0, Number(it.progress||0));
         const pct = Math.min(100, Math.round(progress/target*100));
@@ -285,8 +307,11 @@ html.light .brand-title .logo.light{display:block}
       const panel=el('panel');
       panel.classList.add('loading');
       try{
-        const data = await api('./api/tasks');
-        render(data||{});
+        const [data,rewards] = await Promise.all([
+          api('./api/tasks'),
+          api('./api/redistribution/rewards').catch(()=>({items:[]}))
+        ]);
+        render(data||{}, rewards||{});
         showMsg('');
       }catch(e){
         el('list').innerHTML = '<div class="empty">加载失败</div>';
@@ -299,6 +324,16 @@ html.light .brand-title .logo.light{display:block}
       try{
         const res = await api('./api/tasks/claim', {method:'POST', body: JSON.stringify({task_id: taskId})});
         showMsg(res.status==='already_claimed' ? '已经领取过了' : `领取成功 +${Number(res.amount||0).toFixed(4)}`, 'ok');
+        await load();
+      }catch(e){
+        showMsg(String(e.message||e), 'err');
+      }
+    }
+    async function claimRedistribution(batchID){
+      try{
+        const res = await api('./api/redistribution/rewards/claim', {method:'POST', body: JSON.stringify({batch_id: Number(batchID)})});
+        const amount = Number((res.reward&&res.reward.actual_amount)||(res.reward&&res.reward.planned_amount)||0);
+        showMsg(`领取成功 +${amount.toFixed(4)}`, 'ok');
         await load();
       }catch(e){
         showMsg(String(e.message||e), 'err');
@@ -321,6 +356,8 @@ html.light .brand-title .logo.light{display:block}
     el('refreshBtn').addEventListener('click', load);
     el('list').addEventListener('click', (e)=>{
       const b = e.target.closest('[data-claim]');
+      const rb = e.target.closest('[data-redis-claim]');
+      if(rb && !rb.disabled){ claimRedistribution(rb.dataset.redisClaim); return; }
       if(!b || b.disabled) return;
       claim(b.dataset.claim);
     });

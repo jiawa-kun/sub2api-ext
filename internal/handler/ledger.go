@@ -49,6 +49,12 @@ func ledgerSourceLabel(src string) string {
 		return "排行发奖"
 	case store.LedgerSourceTask:
 		return "任务"
+	case store.LedgerSourceInactiveReclaim:
+		return "闲置额度回收"
+	case store.LedgerSourceRedistribution:
+		return "活跃用户回流奖励"
+	case store.LedgerSourceRedistributionCompensation:
+		return "回流补偿"
 	case store.LedgerSourceBackfill:
 		return "回填"
 	case store.LedgerSourceManual:
@@ -213,6 +219,8 @@ func (h *Handler) AdminLedgerStats(w http.ResponseWriter, r *http.Request) {
 	order := []string{
 		store.LedgerSourceCheckin, store.LedgerSourceLottery,
 		store.LedgerSourceRankReward, store.LedgerSourceTask,
+		store.LedgerSourceInactiveReclaim, store.LedgerSourceRedistribution,
+		store.LedgerSourceRedistributionCompensation,
 		store.LedgerSourceBackfill, store.LedgerSourceManual,
 	}
 	summary := make([]map[string]any, 0, len(bySource))
@@ -303,11 +311,11 @@ func (h *Handler) MeLedger(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user_id": user.ID,
-		"from": f.From, "to": f.To,
+		"from":    f.From, "to": f.To,
 		"items": items, "count": len(items),
 		"total": total, "limit": f.Limit, "offset": f.Offset,
 		"success_amount": sum.SuccessAmount,
-		"success_count": sum.SuccessCount,
-		"failed_count": sum.FailedCount,
+		"success_count":  sum.SuccessCount,
+		"failed_count":   sum.FailedCount,
 	})
 }

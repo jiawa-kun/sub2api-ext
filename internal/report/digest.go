@@ -39,15 +39,15 @@ type LotteryBlock struct {
 
 // PatrolBlock aggregates every patrol run of one day.
 type PatrolBlock struct {
-	Runs       int  `json:"runs"`
-	Failed     int  `json:"failed_runs"`
-	Checked    int  `json:"checked"`
-	OK         int  `json:"ok"`
-	FailedAcct int  `json:"failed_accounts"`
-	Disabled   int  `json:"disabled"`
-	Deleted    int  `json:"deleted"`
-	Pending    int  `json:"pending"`
-	Problem    int64 `json:"problem_accounts"`
+	Runs       int    `json:"runs"`
+	Failed     int    `json:"failed_runs"`
+	Checked    int    `json:"checked"`
+	OK         int    `json:"ok"`
+	FailedAcct int    `json:"failed_accounts"`
+	Disabled   int    `json:"disabled"`
+	Deleted    int    `json:"deleted"`
+	Pending    int    `json:"pending"`
+	Problem    int64  `json:"problem_accounts"`
 	LastStatus string `json:"last_status"`
 	LastAt     string `json:"last_at"`
 	LastError  string `json:"last_error"`
@@ -71,14 +71,14 @@ type LedgerBlock struct {
 }
 
 type Digest struct {
-	Date        string       `json:"date"`
-	Timezone    string       `json:"timezone"`
-	CoverDay    string       `json:"cover_day"`
-	GeneratedAt time.Time    `json:"generated_at"`
-	Level       string       `json:"level"`
-	Title       string       `json:"title"`
-	Text        string       `json:"text"`
-	Items       []Item       `json:"items"`
+	Date        string        `json:"date"`
+	Timezone    string        `json:"timezone"`
+	CoverDay    string        `json:"cover_day"`
+	GeneratedAt time.Time     `json:"generated_at"`
+	Level       string        `json:"level"`
+	Title       string        `json:"title"`
+	Text        string        `json:"text"`
+	Items       []Item        `json:"items"`
 	Checkin     *CheckinBlock `json:"checkin,omitempty"`
 	Lottery     *LotteryBlock `json:"lottery,omitempty"`
 	Patrol      *PatrolBlock  `json:"patrol,omitempty"`
@@ -268,6 +268,12 @@ func Build(ctx context.Context, st *store.Store, rt Runtime, deps Deps, date str
 				label = "排行发奖"
 			case "task":
 				label = "任务领取"
+			case "inactive_reclaim":
+				label = "闲置额度回收"
+			case "active_redistribution":
+				label = "活跃回流奖励"
+			case "redistribution_compensation":
+				label = "回流补偿"
 			case "backfill":
 				label = "历史回填"
 			}
