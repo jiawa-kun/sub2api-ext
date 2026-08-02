@@ -153,6 +153,9 @@ func (s *Settings) Reload(ctx context.Context) error {
 		}
 	}
 	rt = normalizeRuntime(rt)
+	if err := validateRuntime(rt); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	s.current = rt
 	s.mu.Unlock()
@@ -309,6 +312,12 @@ func validateRuntime(rt Runtime) error {
 	if rt.Allocation.Mode == AllocationFixed && rt.Allocation.FixedAmount <= 0 {
 		return fmt.Errorf("固定分配额度必须大于 0")
 	}
+	if err := validateRules(rt.InactiveRules, true); err != nil {
+		return err
+	}
+	if err := validateRules(rt.ActiveRules, false); err != nil {
+		return err
+	}
 	if math.IsNaN(rt.Reclaim.Value) || math.IsInf(rt.Reclaim.Value, 0) {
 		return fmt.Errorf("invalid reclaim value")
 	}
@@ -327,13 +336,11 @@ func normalizeRules(in []Rule, inactive bool) []Rule {
 		}
 	}
 	out := make([]Rule, 0, len(in))
-	seen := map[string]bool{}
 	for _, rule := range in {
 		rule.Type = strings.ToLower(strings.TrimSpace(rule.Type))
-		if !known[rule.Type] || seen[rule.Type] {
+		if !known[rule.Type] {
 			continue
 		}
-		seen[rule.Type] = true
 		if rule.Days < 0 {
 			rule.Days = 0
 		}
@@ -343,6 +350,35 @@ func normalizeRules(in []Rule, inactive bool) []Rule {
 		out = append(out, rule)
 	}
 	return out
+}
+
+func validateRules(rules []Rule, inactive bool) error {
+	dayTypes := map[string]bool{}
+	amountTypes := map[string]bool{}
+	if inactive {
+		dayTypes[RuleNoActiveDays] = true
+		dayTypes[RuleNoUsageDays] = true
+		dayTypes[RuleNoExtensionDays] = true
+		dayTypes[RuleAccountAgeDays] = true
+		amountTypes[RuleBalanceAtLeast] = true
+	} else {
+		dayTypes[RuleActiveWithinDays] = true
+		dayTypes[RuleUsedWithinDays] = true
+		dayTypes[RuleExtensionWithinDays] = true
+		amountTypes[RuleTotalUsageAtLeast] = true
+	}
+	for _, rule := range rules {
+		if !rule.Enabled {
+			continue
+		}
+		if dayTypes[rule.Type] && rule.Days <= 0 {
+			return fmt.Errorf("条件 %s 的天数必须大于 0", rule.Type)
+		}
+		if amountTypes[rule.Type] && (rule.Amount <= 0 || math.IsNaN(rule.Amount) || math.IsInf(rule.Amount, 0)) {
+			return fmt.Errorf("条件 %s 的金额必须大于 0", rule.Type)
+		}
+	}
+	return nil
 }
 
 func normalizeLogic(v, fallback string) string {

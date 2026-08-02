@@ -141,6 +141,9 @@ func normalizeRuntimeChecked(rt Runtime) (Runtime, error) {
 		if d.Target <= 0 {
 			d.Target = 1
 		}
+		if d.Kind == "daily_checkin" || d.Kind == "daily_lottery" {
+			d.Target = 1
+		}
 		if d.Period == "" {
 			d.Period = defaultPeriod(d.Kind)
 		}

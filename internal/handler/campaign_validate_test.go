@@ -11,7 +11,7 @@ func TestValidateCampaignMeta(t *testing.T) {
 	base := &store.RankCampaign{
 		Name: "t", Board: store.CampaignBoardRewards,
 		StartDate: "2026-07-01", EndDate: "2026-07-07",
-		Status: store.CampaignStatusActive,
+		Status:      store.CampaignStatusActive,
 		RewardsJSON: `[{"rank":1,"amount":1}]`,
 	}
 	if err := validateCampaignMeta(base, true); err != nil {
@@ -92,5 +92,33 @@ func TestHasPositiveRewardRule(t *testing.T) {
 	}
 	if !hasPositiveRewardRule([]store.RankRewardRule{{RankFrom: 1, RankTo: 3, Amount: 0.5}}) {
 		t.Fatal("range positive")
+	}
+}
+
+func TestValidateRewardRules(t *testing.T) {
+	valid := []store.RankRewardRule{{Rank: 1, Amount: 2}, {RankFrom: 2, RankTo: 5, Amount: 1}}
+	if err := validateRewardRules(valid); err != nil {
+		t.Fatalf("valid rules: %v", err)
+	}
+	if err := validateRewardRules([]store.RankRewardRule{{Rank: 1, Amount: 2}, {RankFrom: 1, RankTo: 5, Amount: 1}}); err != nil {
+		t.Fatalf("exact rank override should be valid: %v", err)
+	}
+	tests := []struct {
+		name  string
+		rules []store.RankRewardRule
+		want  string
+	}{
+		{"zero amount", []store.RankRewardRule{{Rank: 1, Amount: 0}}, "amount"},
+		{"negative rank", []store.RankRewardRule{{Rank: -1, Amount: 1}}, "invalid rank"},
+		{"missing rank", []store.RankRewardRule{{Amount: 1}}, "range"},
+		{"mixed rank", []store.RankRewardRule{{Rank: 1, RankFrom: 1, RankTo: 2, Amount: 1}}, "mix"},
+		{"overlap", []store.RankRewardRule{{RankFrom: 1, RankTo: 3, Amount: 1}, {RankFrom: 3, RankTo: 5, Amount: 2}}, "overlapping"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := validateRewardRules(tt.rules); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want %q error, got %v", tt.want, err)
+			}
+		})
 	}
 }

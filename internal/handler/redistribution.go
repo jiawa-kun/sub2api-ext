@@ -172,7 +172,7 @@ func (h *Handler) AdminRedistributionBatchByID(w http.ResponseWriter, r *http.Re
 		writeErr(w, http.StatusServiceUnavailable, "redistribution module unavailable")
 		return
 	}
-	if r.Method == http.MethodPost && !h.limitAdminWrite.Allow("AdminRedistributionBatch:"+clientIP(r)) {
+	if (r.Method == http.MethodPost || r.Method == http.MethodDelete) && !h.limitAdminWrite.Allow("AdminRedistributionBatch:"+clientIP(r)) {
 		writeErr(w, http.StatusTooManyRequests, "rate limited")
 		return
 	}
@@ -215,6 +215,10 @@ func (h *Handler) AdminRedistributionBatchByID(w http.ResponseWriter, r *http.Re
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"cancelled": true, "id": id})
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	detail, err := h.redistribution.Detail(r.Context(), id)

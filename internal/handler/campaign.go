@@ -15,14 +15,14 @@ import (
 )
 
 type campaignBody struct {
-	Name       string  `json:"name"`
-	Board      string  `json:"board"`
-	StartDate  string  `json:"start_date"`
-	EndDate    string  `json:"end_date"`
-	TopN       int     `json:"top_n"`
-	Rewards    any     `json:"rewards"`
-	BudgetCap  float64 `json:"budget_cap"`
-	Status     string  `json:"status"`
+	Name      string  `json:"name"`
+	Board     string  `json:"board"`
+	StartDate string  `json:"start_date"`
+	EndDate   string  `json:"end_date"`
+	TopN      int     `json:"top_n"`
+	Rewards   any     `json:"rewards"`
+	BudgetCap float64 `json:"budget_cap"`
+	Status    string  `json:"status"`
 }
 
 func campaignJSON(c store.RankCampaign) map[string]any {
@@ -89,10 +89,15 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		if st == "" {
 			st = store.CampaignStatusDraft
 		}
-		id, err := h.store.CreateRankCampaign(r.Context(), store.RankCampaign{
+		candidate := store.RankCampaign{
 			Name: in.Name, Board: board, StartDate: in.StartDate, EndDate: in.EndDate,
 			TopN: in.TopN, RewardsJSON: string(rj), BudgetCap: in.BudgetCap, Status: st,
-		})
+		}
+		if err := validateCampaignMeta(&candidate, false); err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		id, err := h.store.CreateRankCampaign(r.Context(), candidate)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
@@ -224,6 +229,10 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 			c.Status = in.Status
 		}
 		c.BudgetCap = in.BudgetCap
+		if err := validateCampaignMeta(c, false); err != nil {
+			writeErr(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		if err := h.store.UpdateRankCampaign(r.Context(), *c); err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
@@ -273,12 +282,10 @@ func (h *Handler) adminCancelCampaign(w http.ResponseWriter, r *http.Request, id
 	writeJSON(w, http.StatusOK, out)
 }
 
-
 type campaignRankRow struct {
 	UserID int64
 	Amount float64
 }
-
 
 // validateCampaignMeta checks board/status/date/reward rules before preview or settle.
 // requireSettleable=true enforces draft/active/partial status.
@@ -319,8 +326,49 @@ func validateCampaignMeta(c *store.RankCampaign, requireSettleable bool) error {
 	if err != nil {
 		return fmt.Errorf("invalid rewards json")
 	}
-	if !hasPositiveRewardRule(rules) {
-		return fmt.Errorf("rewards must include at least one positive amount")
+	if err := validateRewardRules(rules); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRewardRules(rules []store.RankRewardRule) error {
+	if len(rules) == 0 {
+		return fmt.Errorf("rewards must include at least one rule")
+	}
+	type rewardRange struct {
+		from, to int
+		exact    bool
+	}
+	occupied := make([]rewardRange, 0, len(rules))
+	for i, rule := range rules {
+		if rule.Amount <= 0 {
+			return fmt.Errorf("rewards must include positive amounts; reward rule %d amount must be greater than 0", i+1)
+		}
+		from, to := rule.Rank, rule.Rank
+		if rule.Rank < 0 {
+			return fmt.Errorf("reward rule %d has invalid rank", i+1)
+		}
+		if rule.Rank != 0 && (rule.RankFrom != 0 || rule.RankTo != 0) {
+			return fmt.Errorf("reward rule %d cannot mix rank and rank range", i+1)
+		}
+		if rule.Rank <= 0 {
+			if rule.RankFrom <= 0 || rule.RankTo < rule.RankFrom {
+				return fmt.Errorf("reward rule %d has invalid rank range", i+1)
+			}
+			from, to = rule.RankFrom, rule.RankTo
+		}
+		occupied = append(occupied, rewardRange{from: from, to: to, exact: rule.Rank > 0})
+	}
+	for i := 0; i < len(occupied); i++ {
+		for j := i + 1; j < len(occupied); j++ {
+			if occupied[i].exact && occupied[j].exact && occupied[i].from == occupied[j].from {
+				return fmt.Errorf("reward rules %d and %d duplicate exact rank", i+1, j+1)
+			}
+			if !occupied[i].exact && !occupied[j].exact && occupied[i].from <= occupied[j].to && occupied[j].from <= occupied[i].to {
+				return fmt.Errorf("reward rules %d and %d have overlapping ranks", i+1, j+1)
+			}
+		}
 	}
 	return nil
 }
@@ -382,7 +430,6 @@ func validateCampaignSettleReady(rows []campaignRankRow, payable int) error {
 	}
 	return nil
 }
-
 
 func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaign, topN int) ([]campaignRankRow, error) {
 	if c == nil {

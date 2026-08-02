@@ -44,3 +44,23 @@ func TestSettingsSaveReload(t *testing.T) {
 		t.Fatalf("reward=%v", got.Defs[0].Reward)
 	}
 }
+
+func TestDailyTaskTargetIsNormalizedToOne(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "daily.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	s := tasks.NewSettings(st)
+	rt := tasks.Runtime{Enabled: true, Defs: []tasks.Def{{
+		ID: "daily_custom", Name: "每日任务", Enabled: true,
+		Kind: "daily_checkin", Target: 9, Period: "daily",
+	}}}
+	if err := s.Save(context.Background(), rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Get().Defs[0].Target; got != 1 {
+		t.Fatalf("target=%d, want 1", got)
+	}
+}

@@ -466,6 +466,7 @@ body.app-admin .reward-editor {
 }
 
 body.app-admin .rule-editor-head,
+body.app-admin .rule-row,
 body.app-admin .reward-row {
   display: flex;
   align-items: center;
@@ -505,6 +506,7 @@ body.app-admin .reward-row input {
 body.app-admin .rule-row select { flex: 1.3; }
 body.app-admin .rule-row input { width: 76px; flex: 0 0 76px; }
 body.app-admin .rule-row .rule-enabled { width: auto; flex: 0 0 auto; }
+body.app-admin .rule-row .rule-unit { flex: 0 0 28px; color: var(--app-muted); font-size: .72rem; }
 body.app-admin .reward-row input:first-child { flex: 1; }
 body.app-admin .reward-row input:nth-child(2),
 body.app-admin .reward-row input:nth-child(3) { width: 84px; flex: 0 0 84px; }
@@ -832,5 +834,14 @@ body.app-admin .admin-module-lottery .tbl {
 
   body.app-admin .save-dock #btn {
     width: 100%;
+  }
+
+  body.app-admin .rule-row,
+  body.app-admin .reward-row {
+    flex-wrap: wrap;
+  }
+
+  body.app-admin .rule-row select {
+    flex: 1 1 180px;
   }
 }

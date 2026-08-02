@@ -2531,11 +2531,13 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     }
     const REDIS_RULE_OPTIONS={inactive:[['no_active_days','连续未活跃天数'],['no_usage_days','连续未使用天数'],['no_extension_days','连续未使用扩展天数'],['account_age_days','账号注册超过天数'],['balance_at_least','余额至少']],active:[['active_within_days','最近活跃天数内'],['used_within_days','最近使用天数内'],['extension_within_days','最近使用扩展天数内'],['total_usage_at_least','累计使用量至少']]};
     let redisRuleState={inactive:[],active:[]};
+    function redisRuleUsesAmount(type){return type==='balance_at_least'||type==='total_usage_at_least'}
+    function resetRedisRuleValue(rule){if(redisRuleUsesAmount(rule.type)){rule.days=0;rule.amount=1}else{rule.days=30;rule.amount=0}}
     function renderRedisRuleGroup(group){
       const box=el('redis'+(group==='inactive'?'Inactive':'Active')+'RulesEditor'); if(!box) return;
       const opts=REDIS_RULE_OPTIONS[group];
-      box.innerHTML=(redisRuleState[group]||[]).map((r,i)=>`<div class="rule-row" data-rule-idx="${i}"><input class="rule-enabled" type="checkbox" ${r.enabled!==false?'checked':''}/><select>${opts.map(o=>`<option value="${o[0]}" ${r.type===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select><input class="rule-value" type="number" min="0" step="${r.type==='balance_at_least'||r.type==='total_usage_at_least'?'0.0001':'1'}" value="${r.type==='balance_at_least'||r.type==='total_usage_at_least'?(r.amount||0):(r.days||0)}"/><button type="button" class="secondary sm" data-rule-del="${group}" data-rule-idx="${i}">删除</button></div>`).join('');
-      box.querySelectorAll('.rule-row').forEach(row=>{const i=Number(row.dataset.ruleIdx),state=redisRuleState[group][i];row.querySelector('select').onchange=e=>{state.type=e.target.value;state.days=0;state.amount=0;renderRedisRuleGroup(group)};row.querySelector('.rule-enabled').onchange=e=>{state.enabled=e.target.checked};row.querySelector('.rule-value').oninput=e=>{if(state.type==='balance_at_least'||state.type==='total_usage_at_least')state.amount=Number(e.target.value)||0;else state.days=Number(e.target.value)||0;};});
+      box.innerHTML=(redisRuleState[group]||[]).map((r,i)=>{const amount=redisRuleUsesAmount(r.type);const value=amount?Number(r.amount??0):Number(r.days??0);return `<div class="rule-row" data-rule-idx="${i}"><input class="rule-enabled" type="checkbox" title="启用条件" ${r.enabled!==false?'checked':''}/><select>${opts.map(o=>`<option value="${o[0]}" ${r.type===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select><input class="rule-value" type="number" min="${amount?'0.0001':'1'}" step="${amount?'0.0001':'1'}" placeholder="${amount?'额度':'天数'}" title="${amount?'额度':'天数'}" value="${Number.isFinite(value)?value:0}"/><span class="rule-unit">${amount?'额度':'天'}</span><button type="button" class="secondary sm" data-rule-del="${group}" data-rule-idx="${i}">删除</button></div>`}).join('');
+      box.querySelectorAll('.rule-row').forEach(row=>{const i=Number(row.dataset.ruleIdx),state=redisRuleState[group][i];row.querySelector('select').onchange=e=>{state.type=e.target.value;resetRedisRuleValue(state);renderRedisRuleGroup(group)};row.querySelector('.rule-enabled').onchange=e=>{state.enabled=e.target.checked};row.querySelector('.rule-value').oninput=e=>{if(redisRuleUsesAmount(state.type))state.amount=Number(e.target.value)||0;else state.days=Number(e.target.value)||0;};});
       box.querySelectorAll('[data-rule-del]').forEach(b=>b.onclick=()=>{redisRuleState[group].splice(Number(b.dataset.ruleIdx),1);renderRedisRuleGroup(group)});
     }
     function addRedisRule(group){const type=REDIS_RULE_OPTIONS[group][0][0];redisRuleState[group].push({type,enabled:true,days:30,amount:1});renderRedisRuleGroup(group)}
@@ -2726,7 +2728,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         ranges.push({from,to,index:i});
       });
       ranges.sort((a,b)=>a.from-b.from);
-      for(let i=1;i<ranges.length;i++) if(ranges[i].from<=ranges[i-1].to) throw new Error('奖励档位 '+(ranges[i-1].index+1)+' 与 '+(ranges[i].index+1)+' 的名次范围重叠');
+      for(let i=0;i<ranges.length;i++) for(let j=i+1;j<ranges.length;j++) if(ranges[i].from===ranges[j].from&&ranges[i].to===ranges[j].to&&ranges[i].from===ranges[i].to) throw new Error('奖励档位 '+(ranges[i].index+1)+' 与 '+(ranges[j].index+1)+' 的精确名次重复');
+      for(let i=0;i<ranges.length;i++) for(let j=i+1;j<ranges.length;j++) if(ranges[i].from!==ranges[i].to&&ranges[j].from!==ranges[j].to&&ranges[i].from<=ranges[j].to&&ranges[j].from<=ranges[i].to) throw new Error('奖励档位 '+(ranges[i].index+1)+' 与 '+(ranges[j].index+1)+' 的区间重叠');
       if(!ranges.length) throw new Error('至少配置一个奖励档位');
       return campRewardState.filter(r=>Number(r.rank)>0||(Number(r.rank_from)>0&&Number(r.rank_to)>=Number(r.rank_from)));
     }
@@ -2836,7 +2839,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!defs.length){body.innerHTML='<tr><td colspan="9" class="sub">无任务定义，点击“新增任务”或“恢复默认任务”。</td></tr>';return;}
       const kinds=tasksAdminCache.supported_kinds||Object.keys(TASK_KIND_LABELS);
       body.innerHTML=defs.map((d,i)=>`<tr data-idx="${i}">
-        <td><input data-f="id" value="${escAttr(d.id||'')}" /></td><td><input data-f="name" value="${escAttr(d.name||'')}" /></td><td><input data-f="description" value="${escAttr(d.description||'')}" /></td>
+        <td><input data-f="id" value="${escAttr(d.id||'')}" readonly title="任务 ID 保存后不可修改" /></td><td><input data-f="name" value="${escAttr(d.name||'')}" /></td><td><input data-f="description" value="${escAttr(d.description||'')}" /></td>
         <td><select data-f="kind">${kinds.map(k=>`<option value="${k}" ${d.kind===k?'selected':''}>${TASK_KIND_LABELS[k]||k}</option>`).join('')}</select></td>
         <td><input data-f="enabled" type="checkbox" ${d.enabled?'checked':''} /></td><td><input data-f="reward" type="number" step="0.0001" min="0" value="${Number(d.reward||0)}" style="width:90px" /></td><td><input data-f="target" type="number" min="1" value="${Number(d.target||1)}" style="width:70px" /></td>
         <td><select data-f="period"><option value="daily" ${d.period==='daily'?'selected':''}>每日</option><option value="weekly" ${d.period==='weekly'?'selected':''}>每周</option><option value="once" ${d.period==='once'?'selected':''}>一次性</option></select></td>
