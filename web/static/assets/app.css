@@ -286,7 +286,6 @@ body.app-page .bar > i {
 
 /* Extension hub */
 body.app-home .brand-banner {
-  max-height: 172px;
   border-color: var(--app-border);
   border-radius: var(--app-radius);
   background: var(--app-surface);
@@ -295,8 +294,7 @@ body.app-home .brand-banner {
 
 body.app-home .brand-banner img {
   width: 100%;
-  height: 172px;
-  object-fit: cover;
+  height: auto;
 }
 
 body.app-home .list {
@@ -812,11 +810,6 @@ body.app-admin .admin-module-lottery .tbl {
   body.app-page .top-meta {
     width: 100%;
     justify-content: flex-start;
-  }
-
-  body.app-home .brand-banner,
-  body.app-home .brand-banner img {
-    height: 124px;
   }
 
   body.app-page .grid2,
