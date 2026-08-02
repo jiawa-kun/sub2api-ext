@@ -19,8 +19,9 @@ const (
 	LogicAll = "all"
 	LogicAny = "any"
 
-	RuleNoActiveDays        = "no_active_days"
-	RuleNoUsageDays         = "no_usage_days"
+	RuleNoActiveDays = "no_active_days"
+	RuleNoUsageDays  = "no_usage_days"
+	// Deprecated rule names are kept only so old JSON can be decoded safely.
 	RuleNoExtensionDays     = "no_extension_days"
 	RuleAccountAgeDays      = "account_age_days"
 	RuleBalanceAtLeast      = "balance_at_least"
@@ -327,11 +328,11 @@ func validateRuntime(rt Runtime) error {
 func normalizeRules(in []Rule, inactive bool) []Rule {
 	known := map[string]bool{}
 	if inactive {
-		for _, v := range []string{RuleNoActiveDays, RuleNoUsageDays, RuleNoExtensionDays, RuleAccountAgeDays, RuleBalanceAtLeast} {
+		for _, v := range []string{RuleNoActiveDays, RuleNoUsageDays} {
 			known[v] = true
 		}
 	} else {
-		for _, v := range []string{RuleActiveWithinDays, RuleUsedWithinDays, RuleExtensionWithinDays, RuleTotalUsageAtLeast} {
+		for _, v := range []string{RuleActiveWithinDays, RuleUsedWithinDays} {
 			known[v] = true
 		}
 	}
@@ -353,29 +354,23 @@ func normalizeRules(in []Rule, inactive bool) []Rule {
 }
 
 func validateRules(rules []Rule, inactive bool) error {
-	dayTypes := map[string]bool{}
-	amountTypes := map[string]bool{}
+	allowed := map[string]bool{}
 	if inactive {
-		dayTypes[RuleNoActiveDays] = true
-		dayTypes[RuleNoUsageDays] = true
-		dayTypes[RuleNoExtensionDays] = true
-		dayTypes[RuleAccountAgeDays] = true
-		amountTypes[RuleBalanceAtLeast] = true
+		allowed[RuleNoActiveDays] = true
+		allowed[RuleNoUsageDays] = true
 	} else {
-		dayTypes[RuleActiveWithinDays] = true
-		dayTypes[RuleUsedWithinDays] = true
-		dayTypes[RuleExtensionWithinDays] = true
-		amountTypes[RuleTotalUsageAtLeast] = true
+		allowed[RuleActiveWithinDays] = true
+		allowed[RuleUsedWithinDays] = true
 	}
 	for _, rule := range rules {
+		if !allowed[rule.Type] {
+			return fmt.Errorf("不支持的活跃条件: %s", rule.Type)
+		}
 		if !rule.Enabled {
 			continue
 		}
-		if dayTypes[rule.Type] && rule.Days <= 0 {
+		if rule.Days <= 0 {
 			return fmt.Errorf("条件 %s 的天数必须大于 0", rule.Type)
-		}
-		if amountTypes[rule.Type] && (rule.Amount <= 0 || math.IsNaN(rule.Amount) || math.IsInf(rule.Amount, 0)) {
-			return fmt.Errorf("条件 %s 的金额必须大于 0", rule.Type)
 		}
 	}
 	return nil

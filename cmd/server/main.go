@@ -82,6 +82,8 @@ func main() {
 		log.Printf("ledger backfill inserted %d rows", n)
 	}
 	h.SetCredit(creditSvc)
+	h.StartCampaignScheduler()
+	defer h.StopCampaignScheduler()
 	redistributionSettings := redistribution.NewSettings(st)
 	redistributionSvc := redistribution.NewService(st, client, creditSvc, redistributionSettings, notifier)
 	redistributionSvc.StartScheduler()

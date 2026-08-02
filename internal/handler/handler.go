@@ -53,6 +53,12 @@ type Handler struct {
 	// rank display-name cache (userID -> masked-ready raw name)
 	nameCacheMu sync.Mutex
 	nameCache   map[int64]nameCacheEntry
+
+	campaignSchedMu   sync.Mutex
+	campaignSchedStop chan struct{}
+	campaignSchedWG   sync.WaitGroup
+	campaignRunMu     sync.Mutex
+	campaignRuns      map[string]bool
 }
 
 func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settings.Service, patrolSvc *patrol.Service) *Handler {
@@ -67,6 +73,7 @@ func New(cfg config.Config, st *store.Store, client *sub2api.Client, stg *settin
 		limitStatus:     ratelimit.New(sec.RateStatusPerMin, time.Minute),
 		limitAdminWrite: ratelimit.New(sec.RateAdminWritePerMin, time.Minute),
 		limitAdminRead:  ratelimit.New(sec.RateAdminReadPerMin, time.Minute),
+		campaignRuns:    make(map[string]bool),
 	}
 	h.syncAdminCred()
 	return h

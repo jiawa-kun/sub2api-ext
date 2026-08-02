@@ -91,6 +91,9 @@ func (h *Handler) TasksList(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"enabled": rt.Enabled, "items": items}
 	if user != nil {
 		out["user_id"] = user.ID
+		if pool, err := h.store.RedistributionAvailablePool(r.Context()); err == nil {
+			out["available_pool"] = pool
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -67,16 +67,6 @@ func matchInactiveRule(rule Rule, snap UserSnapshot, now time.Time) (bool, strin
 		ref := fallbackTime(u.LastUsedAt, u.CreatedAt)
 		ok := olderThan(ref, rule.Days, now)
 		return ok, fmt.Sprintf("%d 天无消费", rule.Days)
-	case RuleNoExtensionDays:
-		ref := fallbackTime(snap.ExtensionAt, u.CreatedAt)
-		ok := olderThan(ref, rule.Days, now)
-		return ok, fmt.Sprintf("%d 天无扩展行为", rule.Days)
-	case RuleAccountAgeDays:
-		ok := !u.CreatedAt.IsZero() && olderThan(&u.CreatedAt, rule.Days, now)
-		return ok, fmt.Sprintf("注册超过 %d 天", rule.Days)
-	case RuleBalanceAtLeast:
-		ok := u.Balance >= rule.Amount
-		return ok, fmt.Sprintf("余额达到 %.4f", rule.Amount)
 	default:
 		return false, ""
 	}
@@ -111,12 +101,6 @@ func matchActiveRule(rule Rule, snap UserSnapshot, now time.Time) (bool, string)
 	case RuleUsedWithinDays:
 		ok := within(u.LastUsedAt, rule.Days, now)
 		return ok, fmt.Sprintf("最近 %d 天有消费", rule.Days)
-	case RuleExtensionWithinDays:
-		ok := within(snap.ExtensionAt, rule.Days, now)
-		return ok, fmt.Sprintf("最近 %d 天有扩展行为", rule.Days)
-	case RuleTotalUsageAtLeast:
-		ok := snap.TotalUsage >= rule.Amount
-		return ok, fmt.Sprintf("累计消费达到 %.4f", rule.Amount)
 	default:
 		return false, ""
 	}

@@ -969,7 +969,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
               <div class="field"><label for="redisReclaimValue">回收值</label><input id="redisReclaimValue" type="number" step="0.0001" min="0" /></div>
               <div class="field"><label for="redisReclaimBatchCap">批次上限</label><input id="redisReclaimBatchCap" type="number" step="0.0001" min="0" /></div>
               <div class="field"><label for="redisReclaimMinBalance">最低余额</label><input id="redisReclaimMinBalance" type="number" step="0.0001" min="0" /></div>
-              <div class="field"><label for="redisReclaimReserve">保留余额</label><input id="redisReclaimReserve" type="number" step="0.0001" min="0" /></div>
+               <div class="field"><label for="redisReclaimReserve">额度保底</label><input id="redisReclaimReserve" type="number" step="0.0001" min="0" /><div class="sub">扣减后不会低于此额度</div></div>
               <div class="field"><label for="redisReclaimMin">最低回收</label><input id="redisReclaimMin" type="number" step="0.0001" min="0" /></div>
               <div class="field"><label for="redisReclaimMax">最高回收</label><input id="redisReclaimMax" type="number" step="0.0001" min="0" /></div>
             </div>
@@ -1044,8 +1044,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             </div>
             <div class="field"><label for="campStart">开始日期</label><input id="campStart" type="date" /></div>
             <div class="field"><label for="campEnd">结束日期</label><input id="campEnd" type="date" /></div>
+            <div class="field"><label for="campFrequency">结算周期</label><select id="campFrequency"><option value="once">一次性</option><option value="daily">每日</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
           </div>
           <div>
+            <div class="field"><label for="campSettlementTime">自动结算时间（上海）</label><input id="campSettlementTime" type="time" value="03:00" /></div>
             <div class="field"><label for="campTopN">Top N</label><input id="campTopN" type="number" min="1" max="100" value="10" /></div>
             <div class="field"><label for="campBudget">预算上限（0=不限）</label><input id="campBudget" type="number" step="0.0001" min="0" value="0" /></div>
             <div class="field">
@@ -1068,18 +1070,19 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
 
         <div class="section-title" style="margin-top:16px"><h3>活动列表</h3></div>
+        <div class="toolbar"><label class="field" style="margin:0;min-width:260px"><span>手工周期键（留空=上一完整周期）</span><input id="campPeriodKey" type="text" placeholder="每日 2026-08-01 · 每周 2026-W31 · 每月 2026-08" /></label></div>
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>ID</th><th>名称</th><th>榜单</th><th>区间</th><th>TopN</th><th>预算</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="campaignBody"><tr><td colspan="8" class="sub">加载中…</td></tr></tbody>
+            <thead><tr><th>ID</th><th>名称</th><th>榜单</th><th>区间</th><th>周期</th><th>自动时间</th><th>TopN</th><th>预算</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="campaignBody"><tr><td colspan="10" class="sub">加载中…</td></tr></tbody>
           </table>
         </div>
         <div class="section-title" style="margin-top:16px"><h3>发奖明细</h3></div>
         <div class="hint" id="campaignAwardsHint">选择活动后查看</div>
         <div class="tbl-wrap">
           <table class="tbl">
-            <thead><tr><th>名次</th><th>用户</th><th>金额</th><th>状态</th><th>Ledger</th></tr></thead>
-            <tbody id="campaignAwardsBody"><tr><td colspan="5" class="sub">—</td></tr></tbody>
+            <thead><tr><th>周期</th><th>名次</th><th>用户</th><th>金额</th><th>状态</th><th>Ledger</th></tr></thead>
+            <tbody id="campaignAwardsBody"><tr><td colspan="6" class="sub">—</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2529,9 +2532,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function redisIds(raw){
       return String(raw||'').split(',').map(x=>Number(x.trim())).filter(x=>Number.isInteger(x)&&x>0);
     }
-    const REDIS_RULE_OPTIONS={inactive:[['no_active_days','连续未活跃天数'],['no_usage_days','连续未使用天数'],['no_extension_days','连续未使用扩展天数'],['account_age_days','账号注册超过天数'],['balance_at_least','余额至少']],active:[['active_within_days','最近活跃天数内'],['used_within_days','最近使用天数内'],['extension_within_days','最近使用扩展天数内'],['total_usage_at_least','累计使用量至少']]};
+    const REDIS_RULE_OPTIONS={inactive:[['no_active_days','连续未登录天数'],['no_usage_days','连续未消耗额度天数']],active:[['active_within_days','最近登录天数内'],['used_within_days','最近消耗额度天数内']]};
     let redisRuleState={inactive:[],active:[]};
-    function redisRuleUsesAmount(type){return type==='balance_at_least'||type==='total_usage_at_least'}
+    function redisRuleUsesAmount(){return false}
     function resetRedisRuleValue(rule){if(redisRuleUsesAmount(rule.type)){rule.days=0;rule.amount=1}else{rule.days=30;rule.amount=0}}
     function renderRedisRuleGroup(group){
       const box=el('redis'+(group==='inactive'?'Inactive':'Active')+'RulesEditor'); if(!box) return;
@@ -2738,19 +2741,22 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const items=data.items||[];
       el('campaignBadge').textContent=items.length+' 个';
       const body=el('campaignBody');
-      if(!items.length){ body.innerHTML='<tr><td colspan="8" class="sub">暂无活动</td></tr>'; return; }
-      body.innerHTML=items.map(c=>{
-        const st=c.status||'';
-        const stLabel=({draft:'草稿',active:'进行中',partial:'部分成功',settled:'已结算',cancelled:'已取消'})[st]||st;
-        const stClass=st==='partial'?'err':(st==='settled'?'ok':(st==='cancelled'?'sub':''));
-        const boardLabel=c.board==='consumption'?'消费榜':'奖励榜';
-        return `<tr>
-        <td>${c.id}</td>
-        <td>${escapeHtml(c.name||'')}</td>
-        <td>${escapeHtml(boardLabel)}</td>
-        <td>${escapeHtml((c.start_date||'')+' ~ '+(c.end_date||''))}</td>
-        <td>${c.top_n||0}</td>
-        <td>${Number(c.budget_cap||0).toFixed(4)}</td>
+       if(!items.length){ body.innerHTML='<tr><td colspan="10" class="sub">暂无活动</td></tr>'; return; }
+       body.innerHTML=items.map(c=>{
+         const st=c.status||'';
+         const stLabel=({draft:'草稿',active:'进行中',partial:'部分成功',settled:'已结算',cancelled:'已取消'})[st]||st;
+         const stClass=st==='partial'?'err':(st==='settled'?'ok':(st==='cancelled'?'sub':''));
+         const boardLabel=c.board==='consumption'?'消费榜':'奖励榜';
+         const freqLabel=({once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'})[c.frequency||'once']||c.frequency||'一次性';
+         return `<tr>
+         <td>${c.id}</td>
+         <td>${escapeHtml(c.name||'')}</td>
+         <td>${escapeHtml(boardLabel)}</td>
+         <td>${escapeHtml((c.start_date||'')+' ~ '+(c.end_date||''))}</td>
+         <td>${escapeHtml(freqLabel)}</td>
+         <td>${escapeHtml(c.settlement_time||'03:00')}</td>
+         <td>${c.top_n||0}</td>
+         <td>${Number(c.budget_cap||0).toFixed(4)}</td>
         <td><span class="${stClass}">${escapeHtml(stLabel)}</span></td>
         <td>
           <button type="button" class="secondary sm" data-camp-awards="${c.id}">明细</button>
@@ -2766,19 +2772,21 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const items=data.items||[];
       el('campaignAwardsHint').textContent='活动 #'+id+' · '+items.length+' 条';
       const body=el('campaignAwardsBody');
-      if(!items.length){ body.innerHTML='<tr><td colspan="5" class="sub">暂无发奖记录</td></tr>'; return; }
-      body.innerHTML=items.map(a=>`<tr>
-        <td>#${a.rank}</td><td>${a.user_id}</td><td>${Number(a.amount||0).toFixed(4)}</td>
-        <td>${escapeHtml(a.status||'')}</td><td>${a.ledger_id||0}</td>
-      </tr>`).join('');
+       if(!items.length){ body.innerHTML='<tr><td colspan="6" class="sub">暂无发奖记录</td></tr>'; return; }
+       body.innerHTML=items.map(a=>`<tr>
+         <td>${escapeHtml(a.period_key||'once')}</td><td>#${a.rank}</td><td>${a.user_id}</td><td>${Number(a.amount||0).toFixed(4)}</td>
+         <td>${escapeHtml(a.status||'')}</td><td>${a.ledger_id||0}</td>
+       </tr>`).join('');
     }
     async function createCampaign(){
       const rewards=validateCampRewards();
       const body={
         name:(el('campName')?.value||'').trim(),
         board:el('campBoard')?.value||'rewards',
-        start_date:el('campStart')?.value||'',
-        end_date:el('campEnd')?.value||'',
+         start_date:el('campStart')?.value||'',
+         end_date:el('campEnd')?.value||'',
+         frequency:el('campFrequency')?.value||'once',
+         settlement_time:el('campSettlementTime')?.value||'03:00',
         top_n:Number(el('campTopN')?.value||10),
         budget_cap:Number(el('campBudget')?.value||0),
         status:el('campStatus')?.value||'active',
@@ -2790,7 +2798,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await refreshCampaigns();
     }
     async function settleCampaign(id){
-      const prev=await api('./api/admin/rank/campaigns/'+id+'/preview');
+       const period=(el('campPeriodKey')?.value||'').trim();
+       const suffix=period?('?period_key='+encodeURIComponent(period)):'';
+       const prev=await api('./api/admin/rank/campaigns/'+id+'/preview'+suffix);
       const board=prev.board==='consumption'?'消费榜':'奖励榜';
       if(prev.warning){ show('预览警告：'+prev.warning,'warn'); }
       if(!(prev.payable>0)){
@@ -2799,7 +2809,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       }
       const msg=`【预览后确认结算】活动 #${id}（${board}）\n应付 ${prev.payable||0} 人 / 跳过 ${prev.skipped||0}\n计划花费 ${Number(prev.planned_spend||0).toFixed(4)} / 预算 ${Number(prev.budget_cap||0).toFixed(4)}\n\n已成功名次会跳过；失败将标记 partial 可重试。\n确认现在结算？`;
       if(!confirm(msg)) return;
-      const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:'{}'});
+       const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:JSON.stringify(period?{period_key:period}:{})});
       const st=res.status||'';
       const lvl=(res.failed>0)?'warn':'ok';
       show(`结算${st?('['+st+']'):''}：成功 ${res.awarded||0} / 跳过 ${res.skipped||0} / 失败 ${res.failed||0}，累计花费 ${Number(res.spent||0).toFixed(4)}`, lvl);
@@ -2807,10 +2817,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await loadCampaignAwards(id);
     }
     async function previewCampaign(id){
-      const res=await api('./api/admin/rank/campaigns/'+id+'/preview');
-      const lines=(res.details||[]).slice(0,15).map(d=>`#${d.rank} u${d.user_id} ${Number(d.amount||0).toFixed(4)} ${d.status}`).join('\n');
-      const more=(res.details||[]).length>15?('\n…共 '+(res.details||[]).length+' 行'):'';
-      alert(`预览 #${id}\n应付 ${res.payable||0} 人 / 跳过 ${res.skipped||0}\n计划花费 ${Number(res.planned_spend||0).toFixed(4)} / 预算 ${Number(res.budget_cap||0).toFixed(4)}\n\n${lines}${more}`);
+       const period=(el('campPeriodKey')?.value||'').trim();
+       const suffix=period?('?period_key='+encodeURIComponent(period)):'';
+       const res=await api('./api/admin/rank/campaigns/'+id+'/preview'+suffix);
+       const lines=(res.details||[]).slice(0,15).map(d=>`#${d.rank} u${d.user_id} ${Number(d.amount||0).toFixed(4)} ${d.status}`).join('\n');
+       const more=(res.details||[]).length>15?('\n…共 '+(res.details||[]).length+' 行'):'';
+       alert(`预览 #${id} · ${res.period_key||'once'}\n应付 ${res.payable||0} 人 / 跳过 ${res.skipped||0}\n计划花费 ${Number(res.planned_spend||0).toFixed(4)} / 预算 ${Number(res.budget_cap||0).toFixed(4)}\n\n${lines}${more}`);
     }
     
     async function cancelCampaign(id){

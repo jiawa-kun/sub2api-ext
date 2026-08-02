@@ -70,6 +70,18 @@ func TestPlanAndSettleReady(t *testing.T) {
 	if err := validateCampaignSettleReady(rows, payable); err == nil {
 		t.Fatal("expected no payable awards error")
 	}
+
+	// Existing success spend must still consume the period budget on retries.
+	partialRows := []campaignRankRow{{UserID: 1, Amount: 9}, {UserID: 2, Amount: 8}}
+	partialExisting := map[int64]store.RankCampaignAward{
+		1: {UserID: 1, Status: "success", Amount: 2},
+		2: {UserID: 2, Status: "failed", Amount: 1},
+	}
+	partialCampaign := &store.RankCampaign{BudgetCap: 2}
+	payable, skipped, spend, details = planCampaignAwards(partialCampaign, partialRows, rules, partialExisting)
+	if payable != 0 || skipped != 2 || spend != 2 || details[1]["status"] != "budget_cut" {
+		t.Fatalf("existing spend must consume budget: payable=%d skipped=%d spend=%v details=%v", payable, skipped, spend, details)
+	}
 	if err := validateCampaignSettleReady(nil, 0); err == nil || !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("expected empty ranking error, got %v", err)
 	}

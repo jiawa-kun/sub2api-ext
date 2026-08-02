@@ -549,6 +549,7 @@ tr.me{background:rgba(91,140,255,.08)}
         const esc = (s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         list.innerHTML = items.map(c=>{
           const board = c.board === 'consumption' ? '消费榜' : '奖励榜';
+          const frequency = ({once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'})[c.frequency||'once'] || c.frequency || '一次性';
           const rewards = Array.isArray(c.rewards) ? c.rewards : [];
           const rewardText = rewards.length
             ? rewards.slice(0,4).map(r=>{
@@ -557,7 +558,7 @@ tr.me{background:rgba(91,140,255,.08)}
                 return `${Number(r.amount||0)}`;
               }).join(' · ')
             : '规则待定';
-          return `<div class="c-item"><b>${esc(c.name||'活动')}</b> · ${board} · ${esc(c.start_date||'')}~${esc(c.end_date||'')} · Top${c.top_n||10} · ${esc(rewardText)}</div>`;
+          return `<div class="c-item"><b>${esc(c.name||'活动')}</b> · ${board} · ${frequency} · ${esc(c.start_date||'')}~${esc(c.end_date||'')} · Top${c.top_n||10} · ${esc(rewardText)}</div>`;
         }).join('');
       }catch{}
     }

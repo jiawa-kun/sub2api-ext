@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/store"
@@ -15,14 +16,16 @@ import (
 )
 
 type campaignBody struct {
-	Name      string  `json:"name"`
-	Board     string  `json:"board"`
-	StartDate string  `json:"start_date"`
-	EndDate   string  `json:"end_date"`
-	TopN      int     `json:"top_n"`
-	Rewards   any     `json:"rewards"`
-	BudgetCap float64 `json:"budget_cap"`
-	Status    string  `json:"status"`
+	Name           string  `json:"name"`
+	Board          string  `json:"board"`
+	StartDate      string  `json:"start_date"`
+	EndDate        string  `json:"end_date"`
+	Frequency      string  `json:"frequency"`
+	SettlementTime string  `json:"settlement_time"`
+	TopN           int     `json:"top_n"`
+	Rewards        any     `json:"rewards"`
+	BudgetCap      float64 `json:"budget_cap"`
+	Status         string  `json:"status"`
 }
 
 func campaignJSON(c store.RankCampaign) map[string]any {
@@ -31,6 +34,7 @@ func campaignJSON(c store.RankCampaign) map[string]any {
 	return map[string]any{
 		"id": c.ID, "name": c.Name, "board": c.Board,
 		"start_date": c.StartDate, "end_date": c.EndDate, "top_n": c.TopN,
+		"frequency": c.Frequency, "settlement_time": c.SettlementTime,
 		"rewards": rewards, "budget_cap": c.BudgetCap, "status": c.Status,
 		"settled_at": c.SettledAt, "created_at": c.CreatedAt, "updated_at": c.UpdatedAt,
 	}
@@ -91,6 +95,7 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		}
 		candidate := store.RankCampaign{
 			Name: in.Name, Board: board, StartDate: in.StartDate, EndDate: in.EndDate,
+			Frequency: in.Frequency, SettlementTime: in.SettlementTime,
 			TopN: in.TopN, RewardsJSON: string(rj), BudgetCap: in.BudgetCap, Status: st,
 		}
 		if err := validateCampaignMeta(&candidate, false); err != nil {
@@ -165,7 +170,14 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if action == "awards" && r.Method == http.MethodGet {
-		list, err := h.store.ListCampaignAwards(r.Context(), id)
+		periodKey := strings.TrimSpace(r.URL.Query().Get("period_key"))
+		var list []store.RankCampaignAward
+		var err error
+		if periodKey == "" {
+			list, err = h.store.ListCampaignAwards(r.Context(), id)
+		} else {
+			list, err = h.store.ListCampaignAwardsForPeriod(r.Context(), id, periodKey)
+		}
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
@@ -174,7 +186,8 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		for _, a := range list {
 			items = append(items, map[string]any{
 				"id": a.ID, "campaign_id": a.CampaignID, "user_id": a.UserID,
-				"rank": a.Rank, "amount": a.Amount, "ledger_id": a.LedgerID,
+				"period_key": a.PeriodKey,
+				"rank":       a.Rank, "amount": a.Amount, "ledger_id": a.LedgerID,
 				"status": a.Status, "created_at": a.CreatedAt,
 			})
 		}
@@ -217,6 +230,12 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		}
 		if in.EndDate != "" {
 			c.EndDate = in.EndDate
+		}
+		if in.Frequency != "" {
+			c.Frequency = in.Frequency
+		}
+		if in.SettlementTime != "" {
+			c.SettlementTime = in.SettlementTime
 		}
 		if in.TopN > 0 {
 			c.TopN = in.TopN
@@ -303,6 +322,13 @@ func validateCampaignMeta(c *store.RankCampaign, requireSettleable bool) error {
 	if board != store.CampaignBoardRewards && board != store.CampaignBoardConsumption {
 		return fmt.Errorf("board must be rewards or consumption")
 	}
+	c.Frequency = store.NormalizeCampaignFrequency(c.Frequency)
+	if c.SettlementTime == "" {
+		c.SettlementTime = store.NormalizeCampaignSettlementTime(c.SettlementTime)
+	}
+	if err := store.ValidateCampaignSettlementTime(c.SettlementTime); err != nil {
+		return err
+	}
 	if requireSettleable {
 		if c.Status == store.CampaignStatusSettled {
 			return fmt.Errorf("already settled")
@@ -318,6 +344,12 @@ func validateCampaignMeta(c *store.RankCampaign, requireSettleable bool) error {
 	end := strings.TrimSpace(c.EndDate)
 	if start == "" || end == "" {
 		return fmt.Errorf("start_date/end_date required")
+	}
+	if _, err := time.Parse("2006-01-02", start); err != nil {
+		return fmt.Errorf("start_date must use YYYY-MM-DD")
+	}
+	if _, err := time.Parse("2006-01-02", end); err != nil {
+		return fmt.Errorf("end_date must use YYYY-MM-DD")
 	}
 	if start > end {
 		return fmt.Errorf("start_date must be <= end_date")
@@ -373,6 +405,34 @@ func validateRewardRules(rules []store.RankRewardRule) error {
 	return nil
 }
 
+func campaignPeriod(c *store.RankCampaign, requested string, now time.Time) (store.CampaignPeriod, error) {
+	if c == nil {
+		return store.CampaignPeriod{}, fmt.Errorf("campaign required")
+	}
+	frequency := store.NormalizeCampaignFrequency(c.Frequency)
+	loc, err := time.LoadLocation(store.CampaignTimezone)
+	if err != nil {
+		return store.CampaignPeriod{}, err
+	}
+	if frequency == store.CampaignFrequencyOnce {
+		return store.CampaignPeriod{Key: store.CampaignFrequencyOnce, StartDate: c.StartDate, EndDate: c.EndDate}, nil
+	}
+	requested = strings.TrimSpace(requested)
+	var period store.CampaignPeriod
+	if requested == "" {
+		period, err = store.PreviousCampaignPeriod(frequency, now, loc)
+	} else {
+		period, err = store.CampaignPeriodFromKey(frequency, requested, loc)
+	}
+	if err != nil {
+		return store.CampaignPeriod{}, err
+	}
+	if !store.PeriodInsideCampaign(period, c.StartDate, c.EndDate) {
+		return store.CampaignPeriod{}, fmt.Errorf("period %s is outside campaign date range", period.Key)
+	}
+	return period, nil
+}
+
 func hasPositiveRewardRule(rules []store.RankRewardRule) bool {
 	for _, r := range rules {
 		if r.Amount > 0 {
@@ -389,6 +449,11 @@ func planCampaignAwards(c *store.RankCampaign, rows []campaignRankRow, rules []s
 	}
 	details = make([]map[string]any, 0, len(rows))
 	spentPlan := 0.0
+	for _, prev := range existing {
+		if prev.Status == "success" {
+			spentPlan += prev.Amount
+		}
+	}
 	for i, row := range rows {
 		rank := i + 1
 		amt := store.AmountForRank(rules, rank)
@@ -396,18 +461,21 @@ func planCampaignAwards(c *store.RankCampaign, rows []campaignRankRow, rules []s
 		if amt <= 0 {
 			status = "no_reward"
 			skipped++
-		} else if c != nil && c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
-			status = "budget_cut"
-			skipped++
 		} else if prev, ok := existing[row.UserID]; ok {
 			if prev.Status == "success" || prev.Status == "skipped" {
 				status = "already_" + prev.Status
+				skipped++
+			} else if c != nil && c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
+				status = "budget_cut"
 				skipped++
 			} else {
 				status = "retry_" + prev.Status
 				spentPlan += amt
 				payable++
 			}
+		} else if c != nil && c.BudgetCap > 0 && spentPlan+amt > c.BudgetCap {
+			status = "budget_cut"
+			skipped++
 		} else {
 			spentPlan += amt
 			payable++
@@ -431,7 +499,7 @@ func validateCampaignSettleReady(rows []campaignRankRow, payable int) error {
 	return nil
 }
 
-func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaign, topN int) ([]campaignRankRow, error) {
+func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaign, period store.CampaignPeriod, topN int) ([]campaignRankRow, error) {
 	if c == nil {
 		return nil, fmt.Errorf("campaign required")
 	}
@@ -440,7 +508,7 @@ func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaig
 	}
 	switch c.Board {
 	case store.CampaignBoardRewards, "":
-		rows, _, err := h.store.ListRewardRanking(ctx, c.StartDate, c.EndDate, topN)
+		rows, _, err := h.store.ListRewardRanking(ctx, period.StartDate, period.EndDate, topN)
 		if err != nil {
 			return nil, err
 		}
@@ -455,8 +523,8 @@ func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaig
 			return nil, fmt.Errorf("admin api key required for consumption ranking")
 		}
 		res, err := h.client.FetchUsageRanking(ctx, "", sub2api.ClientMeta{}, sub2api.UsageRankQuery{
-			FromDate: c.StartDate,
-			ToDate:   c.EndDate,
+			FromDate: period.StartDate,
+			ToDate:   period.EndDate,
 			Limit:    topN,
 		})
 		if err != nil {
@@ -492,6 +560,27 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	requestedPeriod := strings.TrimSpace(r.URL.Query().Get("period_key"))
+	if r.Method == http.MethodPost && r.Body != nil {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+		if len(strings.TrimSpace(string(body))) > 0 {
+			var in struct {
+				PeriodKey string `json:"period_key"`
+			}
+			if err := json.Unmarshal(body, &in); err != nil {
+				writeErr(w, http.StatusBadRequest, "invalid json")
+				return
+			}
+			if strings.TrimSpace(in.PeriodKey) != "" {
+				requestedPeriod = strings.TrimSpace(in.PeriodKey)
+			}
+		}
+	}
+	period, err := campaignPeriod(c, requestedPeriod, time.Now())
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	rules, err := c.ParseRewards()
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid rewards json")
@@ -501,12 +590,12 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 	if topN <= 0 {
 		topN = 10
 	}
-	rows, err := h.loadCampaignRankRows(r.Context(), c, topN)
+	rows, err := h.loadCampaignRankRows(r.Context(), c, period, topN)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "load ranking failed: "+err.Error())
 		return
 	}
-	existing, _ := h.store.CampaignAwardMap(r.Context(), c.ID)
+	existing, _ := h.store.CampaignAwardMapForPeriod(r.Context(), c.ID, period.Key)
 	payable, skipped, spentPlan, details := planCampaignAwards(c, rows, rules, existing)
 	warning := ""
 	if len(rows) == 0 {
@@ -516,6 +605,8 @@ func (h *Handler) adminPreviewCampaign(w http.ResponseWriter, r *http.Request, i
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"campaign_id": c.ID, "board": c.Board, "top_n": topN,
+		"frequency": c.Frequency, "period_key": period.Key,
+		"period_start": period.StartDate, "period_end": period.EndDate,
 		"payable": payable, "skipped": skipped, "planned_spend": spentPlan,
 		"budget_cap": c.BudgetCap, "details": details, "row_count": len(rows),
 		"warning": warning,
@@ -527,11 +618,6 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 		writeErr(w, http.StatusServiceUnavailable, "credit service unavailable")
 		return
 	}
-	h.syncAdminCred()
-	if h.effectiveAdminCred() == "" {
-		writeErr(w, http.StatusServiceUnavailable, "admin api key required")
-		return
-	}
 	c, err := h.store.GetRankCampaign(r.Context(), id)
 	if err != nil || c == nil {
 		writeErr(w, http.StatusNotFound, "campaign not found")
@@ -541,85 +627,148 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	requestedPeriod := strings.TrimSpace(r.URL.Query().Get("period_key"))
+	if len(strings.TrimSpace(string(body))) > 0 {
+		var in struct {
+			PeriodKey string `json:"period_key"`
+		}
+		if err := json.Unmarshal(body, &in); err != nil {
+			writeErr(w, http.StatusBadRequest, "invalid json")
+			return
+		}
+		if strings.TrimSpace(in.PeriodKey) != "" {
+			requestedPeriod = strings.TrimSpace(in.PeriodKey)
+		}
+	}
+	period, err := campaignPeriod(c, requestedPeriod, time.Now())
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	result, err := h.settleCampaignPeriod(r.Context(), c, period, "manual")
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "load ranking") || strings.Contains(err.Error(), "credit service") {
+			status = http.StatusBadGateway
+		}
+		writeErr(w, status, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) settleCampaignPeriod(ctx context.Context, c *store.RankCampaign, period store.CampaignPeriod, trigger string) (map[string]any, error) {
+	if h.credit == nil {
+		return nil, fmt.Errorf("credit service unavailable")
+	}
+	h.syncAdminCred()
+	if h.effectiveAdminCred() == "" {
+		return nil, fmt.Errorf("admin api key required")
+	}
+	periodRow, err := h.store.EnsureCampaignPeriod(ctx, store.RankCampaignPeriod{
+		CampaignID: c.ID, PeriodKey: period.Key, StartDate: period.StartDate, EndDate: period.EndDate,
+		Status: store.CampaignPeriodPending,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if periodRow != nil {
+		switch periodRow.Status {
+		case store.CampaignPeriodSettled:
+			return nil, fmt.Errorf("period %s already settled", period.Key)
+		case store.CampaignPeriodEmpty:
+			if trigger == "schedule" {
+				return nil, fmt.Errorf("period %s has no payable awards", period.Key)
+			}
+		case store.CampaignPeriodRunning:
+			if !periodRow.UpdatedAt.IsZero() && time.Since(periodRow.UpdatedAt) < 30*time.Minute {
+				return nil, fmt.Errorf("period %s is already settling", period.Key)
+			}
+		}
+	}
+	if err := h.store.MarkCampaignPeriodStatus(ctx, c.ID, period.Key, store.CampaignPeriodRunning, "", false); err != nil {
+		return nil, err
+	}
+	markFailure := func(status, message string) {
+		_ = h.store.MarkCampaignPeriodStatus(context.Background(), c.ID, period.Key, status, message, false)
+	}
 	rules, err := c.ParseRewards()
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid rewards json")
-		return
+		markFailure(store.CampaignPeriodFailed, "invalid rewards json")
+		return nil, fmt.Errorf("invalid rewards json")
 	}
 	topN := c.TopN
 	if topN <= 0 {
 		topN = 10
 	}
-	rows, err := h.loadCampaignRankRows(r.Context(), c, topN)
+	rows, err := h.loadCampaignRankRows(ctx, c, period, topN)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, "load ranking failed: "+err.Error())
-		return
+		markFailure(store.CampaignPeriodFailed, "load ranking failed: "+err.Error())
+		return nil, fmt.Errorf("load ranking failed: %w", err)
 	}
-	existing, err := h.store.CampaignAwardMap(r.Context(), c.ID)
+	existing, err := h.store.CampaignAwardMapForPeriod(ctx, c.ID, period.Key)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err.Error())
-		return
+		markFailure(store.CampaignPeriodFailed, err.Error())
+		return nil, err
 	}
-	// Gate empty / non-payable settles up front (preview still allowed).
 	payable, _, _, _ := planCampaignAwards(c, rows, rules, existing)
 	if err := validateCampaignSettleReady(rows, payable); err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
-		return
+		status := store.CampaignPeriodEmpty
+		if len(rows) > 0 {
+			status = store.CampaignPeriodEmpty
+		}
+		markFailure(status, err.Error())
+		return nil, err
 	}
 
-	// Count already-success spend toward budget so retries respect cap.
 	spent := 0.0
 	for _, a := range existing {
 		if a.Status == "success" {
 			spent += a.Amount
 		}
 	}
-
-	awarded := 0
-	skipped := 0
-	failed := 0
+	awarded, skipped, failed := 0, 0, 0
 	details := make([]map[string]any, 0, len(rows))
 	for i, row := range rows {
 		rank := i + 1
 		amt := store.AmountForRank(rules, rank)
 		if amt <= 0 {
 			skipped++
-			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "no_reward", "amount": 0})
+			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "no_reward", "amount": 0, "period_key": period.Key})
 			continue
 		}
 		if prev, ok := existing[row.UserID]; ok && (prev.Status == "success" || prev.Status == "skipped") {
 			skipped++
 			details = append(details, map[string]any{
 				"user_id": row.UserID, "rank": rank, "amount": prev.Amount,
-				"status": "already_" + prev.Status, "ledger_id": prev.LedgerID,
+				"status": "already_" + prev.Status, "ledger_id": prev.LedgerID, "period_key": period.Key,
 			})
 			continue
 		}
 		if c.BudgetCap > 0 && spent+amt > c.BudgetCap {
 			skipped++
-			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "budget_cut", "amount": amt})
+			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "status": "budget_cut", "amount": amt, "period_key": period.Key})
 			continue
 		}
 
-		res, err := h.credit.Grant(r.Context(), credit.Request{
+		res, grantErr := h.credit.Grant(ctx, credit.Request{
 			UserID: row.UserID, Amount: amt, Source: credit.SourceRankReward,
-			SourceRef: fmt.Sprintf("campaign:%d:rank:%d", c.ID, rank),
+			SourceRef: fmt.Sprintf("campaign:%d:period:%s:rank:%d", c.ID, period.Key, rank),
 			Scope:     sub2api.IdempotencyScopeRankReward,
-			Slot:      fmt.Sprintf("c%d-r%d-u%d", c.ID, rank, row.UserID),
-			Notes:     fmt.Sprintf("rank-campaign:%s:#%d", c.Name, rank),
+			Slot:      fmt.Sprintf("c%d-p%s-r%d-u%d", c.ID, period.Key, rank, row.UserID),
+			Notes:     fmt.Sprintf("rank-campaign:%s:%s:#%d", c.Name, period.Key, rank),
 		})
 		status := "success"
 		ledgerID := int64(0)
-		if err != nil {
+		if grantErr != nil {
 			failed++
 			status = "failed"
-			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "error": err.Error()})
+			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "error": grantErr.Error(), "period_key": period.Key})
 			if prev, ok := existing[row.UserID]; ok {
-				_ = h.store.UpdateCampaignAward(r.Context(), prev.ID, amt, 0, status)
+				_ = h.store.UpdateCampaignAward(ctx, prev.ID, amt, 0, status)
 			} else {
-				_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
-					CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, Status: status,
-				})
+				_, _ = h.store.InsertCampaignAward(ctx, store.RankCampaignAward{CampaignID: c.ID, PeriodKey: period.Key, UserID: row.UserID, Rank: rank, Amount: amt, Status: status})
 			}
 			continue
 		}
@@ -634,27 +783,33 @@ func (h *Handler) adminSettleCampaign(w http.ResponseWriter, r *http.Request, id
 			}
 		}
 		if prev, ok := existing[row.UserID]; ok {
-			_ = h.store.UpdateCampaignAward(r.Context(), prev.ID, amt, ledgerID, status)
+			_ = h.store.UpdateCampaignAward(ctx, prev.ID, amt, ledgerID, status)
 		} else {
-			_, _ = h.store.InsertCampaignAward(r.Context(), store.RankCampaignAward{
-				CampaignID: c.ID, UserID: row.UserID, Rank: rank, Amount: amt, LedgerID: ledgerID, Status: status,
-			})
+			_, _ = h.store.InsertCampaignAward(ctx, store.RankCampaignAward{CampaignID: c.ID, PeriodKey: period.Key, UserID: row.UserID, Rank: rank, Amount: amt, LedgerID: ledgerID, Status: status})
 		}
-		details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "ledger_id": ledgerID})
+		details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "ledger_id": ledgerID, "period_key": period.Key})
 	}
 
-	finalStatus := store.CampaignStatusSettled
+	periodStatus := store.CampaignPeriodSettled
 	if failed > 0 {
-		finalStatus = store.CampaignStatusPartial
-		_ = h.store.MarkCampaignStatus(r.Context(), c.ID, finalStatus, false)
-	} else {
-		_ = h.store.MarkCampaignSettled(r.Context(), c.ID)
+		periodStatus = store.CampaignPeriodPartial
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"campaign_id": c.ID, "status": finalStatus,
+	if err := h.store.MarkCampaignPeriodStatus(ctx, c.ID, period.Key, periodStatus, "", periodStatus == store.CampaignPeriodSettled); err != nil {
+		return nil, err
+	}
+	if store.NormalizeCampaignFrequency(c.Frequency) == store.CampaignFrequencyOnce {
+		if failed > 0 {
+			_ = h.store.MarkCampaignStatus(ctx, c.ID, store.CampaignStatusPartial, false)
+		} else {
+			_ = h.store.MarkCampaignSettled(ctx, c.ID)
+		}
+	}
+	return map[string]any{
+		"campaign_id": c.ID, "status": periodStatus, "campaign_status": c.Status,
+		"period_key": period.Key, "period_start": period.StartDate, "period_end": period.EndDate,
 		"awarded": awarded, "skipped": skipped, "failed": failed,
 		"spent": spent, "details": details,
-	})
+	}, nil
 }
 
 // PublicRankCampaigns GET /api/ranking/campaigns
@@ -663,7 +818,8 @@ func (h *Handler) PublicRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	today := h.settings.Today()
+	loc, _ := time.LoadLocation(store.CampaignTimezone)
+	today := time.Now().In(loc).Format("2006-01-02")
 	list, err := h.store.ListActiveRankCampaigns(r.Context(), today)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
