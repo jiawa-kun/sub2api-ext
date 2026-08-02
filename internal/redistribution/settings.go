@@ -37,6 +37,13 @@ const (
 	DistributionAuto  = "auto"
 	DistributionClaim = "claim"
 
+	DrawFixed       = "fixed"
+	DrawRandom      = "random"
+	DrawActiveShare = "active_share"
+
+	ActiveShareEqual = "equal"
+	ActiveShareUsage = "usage"
+
 	AllocationEqual         = "equal"
 	AllocationFixed         = "fixed"
 	AllocationUsageWeighted = "usage_weighted"
@@ -84,6 +91,12 @@ type Runtime struct {
 	Reclaim                 ReclaimPolicy    `json:"reclaim"`
 	DistributionMode        string           `json:"distribution_mode"`
 	ClaimExpireDays         int              `json:"claim_expire_days"`
+	PoolExpireDays          int              `json:"pool_expire_days"`
+	DrawMode                string           `json:"draw_mode"`
+	DrawFixedAmount         float64          `json:"draw_fixed_amount"`
+	DrawMinAmount           float64          `json:"draw_min_amount"`
+	DrawMaxAmount           float64          `json:"draw_max_amount"`
+	ActiveShareMode         string           `json:"active_share_mode"`
 	Allocation              AllocationPolicy `json:"allocation"`
 	MaxUsers                int              `json:"max_users"`
 	FailureThresholdPercent float64          `json:"failure_threshold_percent"`
@@ -114,6 +127,12 @@ func DefaultRuntime() Runtime {
 		},
 		DistributionMode: DistributionAuto,
 		ClaimExpireDays:  7,
+		PoolExpireDays:   7,
+		DrawMode:         DrawActiveShare,
+		DrawFixedAmount:  0.1,
+		DrawMinAmount:    0.01,
+		DrawMaxAmount:    0.5,
+		ActiveShareMode:  ActiveShareEqual,
 		Allocation: AllocationPolicy{
 			Mode: AllocationMixed, EqualRatio: 50, MinReward: 0.01,
 			MaxRewardPerUser: 0.5, RecipientLimit: 100,
@@ -240,6 +259,30 @@ func normalizeRuntime(rt Runtime) Runtime {
 	if rt.ClaimExpireDays <= 0 {
 		rt.ClaimExpireDays = def.ClaimExpireDays
 	}
+	if rt.PoolExpireDays <= 0 {
+		rt.PoolExpireDays = def.PoolExpireDays
+	}
+	if rt.DrawFixedAmount < 0 {
+		rt.DrawFixedAmount = 0
+	}
+	if rt.DrawMinAmount < 0 {
+		rt.DrawMinAmount = 0
+	}
+	if rt.DrawMaxAmount < 0 {
+		rt.DrawMaxAmount = 0
+	}
+	switch strings.ToLower(strings.TrimSpace(rt.DrawMode)) {
+	case DrawFixed, DrawRandom, DrawActiveShare:
+		rt.DrawMode = strings.ToLower(strings.TrimSpace(rt.DrawMode))
+	default:
+		rt.DrawMode = def.DrawMode
+	}
+	switch strings.ToLower(strings.TrimSpace(rt.ActiveShareMode)) {
+	case ActiveShareEqual, ActiveShareUsage:
+		rt.ActiveShareMode = strings.ToLower(strings.TrimSpace(rt.ActiveShareMode))
+	default:
+		rt.ActiveShareMode = def.ActiveShareMode
+	}
 	switch strings.ToLower(strings.TrimSpace(rt.Allocation.Mode)) {
 	case AllocationEqual, AllocationFixed, AllocationUsageWeighted, AllocationMixed:
 		rt.Allocation.Mode = strings.ToLower(strings.TrimSpace(rt.Allocation.Mode))
@@ -312,6 +355,17 @@ func validateRuntime(rt Runtime) error {
 	}
 	if rt.Allocation.Mode == AllocationFixed && rt.Allocation.FixedAmount <= 0 {
 		return fmt.Errorf("固定分配额度必须大于 0")
+	}
+	if rt.DrawMode == DrawFixed && rt.DrawFixedAmount <= 0 {
+		return fmt.Errorf("固定抽取额度必须大于 0")
+	}
+	if rt.DrawMode == DrawRandom {
+		if rt.DrawMinAmount <= 0 || rt.DrawMaxAmount < rt.DrawMinAmount {
+			return fmt.Errorf("随机抽取额度范围无效")
+		}
+	}
+	if rt.DrawMinAmount < 0 || rt.DrawMaxAmount < 0 || math.IsNaN(rt.DrawMinAmount) || math.IsInf(rt.DrawMinAmount, 0) || math.IsNaN(rt.DrawMaxAmount) || math.IsInf(rt.DrawMaxAmount, 0) {
+		return fmt.Errorf("invalid draw amount")
 	}
 	if err := validateRules(rt.InactiveRules, true); err != nil {
 		return err

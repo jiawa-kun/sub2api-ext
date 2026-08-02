@@ -289,3 +289,65 @@ func (h *Handler) RedistributionClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reward": entry})
 }
+
+func (h *Handler) RedistributionPool(w http.ResponseWriter, r *http.Request) {
+	if h.redistribution == nil {
+		writeErr(w, http.StatusServiceUnavailable, "redistribution module unavailable")
+		return
+	}
+	token := extractToken(r)
+	if token == "" {
+		writeErr(w, http.StatusUnauthorized, "missing token")
+		return
+	}
+	user, err := h.client.ResolveUser(r.Context(), token, clientMetaFromRequest(r))
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "invalid token: "+err.Error())
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		result, err := h.redistribution.Pool(r.Context(), user.ID, time.Now())
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	case http.MethodPost:
+		result, err := h.redistribution.Draw(r.Context(), user.ID, time.Now())
+		if err != nil {
+			writeErr(w, http.StatusConflict, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, result)
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *Handler) RedistributionRecover(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if h.redistribution == nil {
+		writeErr(w, http.StatusServiceUnavailable, "redistribution module unavailable")
+		return
+	}
+	token := extractToken(r)
+	if token == "" {
+		writeErr(w, http.StatusUnauthorized, "missing token")
+		return
+	}
+	user, err := h.client.ResolveUser(r.Context(), token, clientMetaFromRequest(r))
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "invalid token: "+err.Error())
+		return
+	}
+	items, err := h.redistribution.Recover(r.Context(), user.ID, time.Now())
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}

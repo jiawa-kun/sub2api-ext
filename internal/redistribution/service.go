@@ -2,6 +2,8 @@ package redistribution
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -28,6 +30,17 @@ type Stats struct {
 	LastStatus    string  `json:"last_status,omitempty"`
 	LastError     string  `json:"last_error,omitempty"`
 	NextDueAt     string  `json:"next_due_at,omitempty"`
+}
+
+type DrawResult struct {
+	Draw          store.RedistributionPoolDraw `json:"draw"`
+	AvailablePool float64                      `json:"available_pool"`
+}
+
+type PoolResult struct {
+	AvailablePool float64                       `json:"available_pool"`
+	TodayDraw     *store.RedistributionPoolDraw `json:"today_draw,omitempty"`
+	Recoverable   []store.RedistributionPoolLot `json:"recoverable"`
 }
 
 type BatchDetail struct {
@@ -139,7 +152,6 @@ func (s *Service) buildPlan(ctx context.Context, rt Runtime, trigger string, now
 	})
 
 	donorEntries := []store.RedistributionEntry{}
-	donorIDs := map[int64]bool{}
 	plannedReclaim := 0.0
 	for _, snap := range snapshots {
 		ok, reasons := IsInactive(rt, snap, localNow)
@@ -162,7 +174,6 @@ func (s *Service) buildPlan(ctx context.Context, rt Runtime, trigger string, now
 				break
 			}
 		}
-		donorIDs[snap.User.ID] = true
 		plannedReclaim += amount
 		donorEntries = append(donorEntries, store.RedistributionEntry{
 			UserID: snap.User.ID, Role: store.RedistributionRoleDonor,
@@ -174,42 +185,13 @@ func (s *Service) buildPlan(ctx context.Context, rt Runtime, trigger string, now
 		})
 	}
 
-	recipients := make([]UserSnapshot, 0, len(snapshots))
-	for _, snap := range snapshots {
-		if donorIDs[snap.User.ID] {
-			continue
-		}
-		ok, reasons := IsActive(rt, snap, localNow)
-		if !ok {
-			continue
-		}
-		snap.EligibilityNote = strings.Join(reasons, "；")
-		recipients = append(recipients, snap)
-	}
-	pool := floorMoney(carry + plannedReclaim)
-	allocations := Allocate(rt.Allocation, pool, recipients)
-	rewardEntries := make([]store.RedistributionEntry, 0, len(allocations))
+	rewardEntries := []store.RedistributionEntry{}
 	plannedDistribute := 0.0
-	for _, snap := range recipients {
-		amount := allocations[snap.User.ID]
-		if amount <= 0 {
-			continue
-		}
-		plannedDistribute += amount
-		rewardEntries = append(rewardEntries, store.RedistributionEntry{
-			UserID: snap.User.ID, Role: store.RedistributionRoleRecipient,
-			DisplayName: displayName(snap.User), BalanceBefore: snap.User.Balance,
-			LastActiveAt: snap.User.LastActiveAt, LastUsedAt: snap.User.LastUsedAt,
-			ExtensionAt: snap.ExtensionAt, UsageAmount: snap.RecentUsage,
-			PlannedAmount: amount, Status: store.RedistributionEntryPlanned,
-			Reason: snap.EligibilityNote,
-		})
-	}
 	raw, _ := json.Marshal(rt)
 	periodKey := localNow.Format("2006-01-02")
 	batch := store.RedistributionBatch{
 		TriggerType: trigger, PeriodKey: periodKey, Status: store.RedistributionBatchDraft,
-		ConfigJSON: string(raw), CandidateCount: len(donorEntries), RecipientCount: len(rewardEntries),
+		ConfigJSON: string(raw), CandidateCount: len(donorEntries), RecipientCount: 0,
 		PlannedReclaim: floorMoney(plannedReclaim), CarryIn: floorMoney(carry),
 		PlannedDistribute: floorMoney(plannedDistribute), CreatedAt: now.UTC(),
 	}
@@ -273,7 +255,7 @@ func (s *Service) Execute(ctx context.Context, batchID int64) (BatchDetail, erro
 	if err != nil {
 		return BatchDetail{}, err
 	}
-	donors, rewards := splitEntries(entries)
+	donors, _ := splitEntries(entries)
 	carry, _ := s.store.RedistributionAvailablePool(ctx)
 	if carry < 0 {
 		carry = 0
@@ -352,71 +334,23 @@ func (s *Service) Execute(ctx context.Context, batchID int64) (BatchDetail, erro
 		return s.Detail(ctx, batchID)
 	}
 
-	actualPool := floorMoney(batch.CarryIn + batch.ActualReclaim)
-	rewardSnaps := make([]UserSnapshot, 0, len(rewards))
-	for _, entry := range rewards {
-		rewardSnaps = append(rewardSnaps, UserSnapshot{User: sub2api.User{ID: entry.UserID}, RecentUsage: entry.UsageAmount})
+	if batch.ActualReclaim > 0 {
+		expires := time.Now().UTC().AddDate(0, 0, rt.PoolExpireDays)
+		for _, entry := range donors {
+			if entry.Status != store.RedistributionEntrySuccess || entry.ActualAmount <= 0 {
+				continue
+			}
+			if _, err := s.store.CreateRedistributionPoolLot(ctx, store.RedistributionPoolLot{SourceBatchID: batchID, SourceUserID: entry.UserID, OriginalAmount: entry.ActualAmount, Status: store.PoolLotAvailable, CreatedAt: time.Now().UTC(), ExpiresAt: expires}); err != nil {
+				return BatchDetail{}, fmt.Errorf("创建回流资金份额失败: %w", err)
+			}
+		}
 	}
-	allocations := Allocate(rt.Allocation, actualPool, rewardSnaps)
-	plannedDistribute := 0.0
-	actualDistribute := 0.0
-	rewardFailures := 0
-	pending := 0
-	for i := range rewards {
-		entry := &rewards[i]
-		amount := allocations[entry.UserID]
-		entry.PlannedAmount = amount
-		if amount <= 0 {
-			entry.Status = store.RedistributionEntrySkipped
-			_ = s.store.UpdateRedistributionEntry(ctx, *entry)
-			continue
-		}
-		plannedDistribute += amount
-		entry.IdempotencyKey = sub2api.IdempotencyKey("redistribution", entry.UserID, fmt.Sprintf("batch-%d", batchID))
-		if rt.DistributionMode == DistributionClaim {
-			expires := time.Now().UTC().AddDate(0, 0, rt.ClaimExpireDays)
-			entry.ExpiresAt = &expires
-			entry.Status = store.RedistributionEntryPending
-			pending++
-			_ = s.store.UpdateRedistributionEntry(ctx, *entry)
-			continue
-		}
-		if stopped(stop) {
-			entry.Status = store.RedistributionEntrySkipped
-			entry.Error = "执行被停止"
-			_ = s.store.UpdateRedistributionEntry(ctx, *entry)
-			continue
-		}
-		entry.Status = store.RedistributionEntryProcessing
-		_ = s.store.UpdateRedistributionEntry(ctx, *entry)
-		res, err := s.credit.Grant(ctx, credit.Request{
-			UserID: entry.UserID, Amount: amount, Source: credit.SourceRedistribution,
-			SourceRef: fmt.Sprintf("redistribution:%d", batchID), Scope: "redistribution",
-			Slot: fmt.Sprintf("batch-%d", batchID), Notes: fmt.Sprintf("active-redistribution batch=%d", batchID),
-			IdempotencyKey: entry.IdempotencyKey,
-		})
-		if err != nil {
-			entry.Status = store.RedistributionEntryFailed
-			entry.Error = err.Error()
-			rewardFailures++
-		} else {
-			entry.Status = store.RedistributionEntrySuccess
-			entry.ActualAmount = amount
-			entry.LedgerID = res.LedgerID
-			entry.BalanceAfter = res.NewBalance
-			actualDistribute += amount
-		}
-		_ = s.store.UpdateRedistributionEntry(ctx, *entry)
-	}
-	batch.PlannedDistribute = floorMoney(plannedDistribute)
-	batch.ActualDistribute = floorMoney(actualDistribute)
-	batch.RecipientCount = len(allocations)
-	switch {
-	case pending > 0:
-		batch.Status = store.RedistributionBatchAwaitingClaim
-	case donorFailures > 0 || rewardFailures > 0:
+	batch.PlannedDistribute = 0
+	batch.ActualDistribute = 0
+	batch.RecipientCount = 0
+	if donorFailures > 0 {
 		batch.Status = store.RedistributionBatchPartial
-	default:
+	} else {
 		batch.Status = store.RedistributionBatchSuccess
 	}
 	if err := s.store.FinishRedistributionBatch(ctx, *batch); err != nil {
@@ -429,7 +363,7 @@ func (s *Service) Execute(ctx context.Context, batchID int64) (BatchDetail, erro
 	s.lastStatus = batch.Status
 	s.lastError = ""
 	s.mu.Unlock()
-	s.publishFinished(*batch, donorFailures, rewardFailures)
+	s.publishFinished(*batch, donorFailures, 0)
 	return s.Detail(ctx, batchID)
 }
 
@@ -484,6 +418,247 @@ func (s *Service) Claim(ctx context.Context, userID, batchID int64) (store.Redis
 		return store.RedistributionEntry{}, err
 	}
 	return *entry, nil
+}
+
+func (s *Service) Pool(ctx context.Context, userID int64, now time.Time) (PoolResult, error) {
+	rt := s.settings.Get()
+	loc, err := time.LoadLocation(rt.Timezone)
+	if err != nil {
+		loc = time.Local
+	}
+	local := now.In(loc)
+	drawDate := local.Format("2006-01-02")
+	draw, err := s.store.GetRedistributionPoolDraw(ctx, userID, drawDate)
+	if err != nil && err != sql.ErrNoRows {
+		return PoolResult{}, err
+	}
+	lots, err := s.store.ListRedistributionPoolLots(ctx, userID, false, 100)
+	if err != nil {
+		return PoolResult{}, err
+	}
+	validLots := lots[:0]
+	for _, lot := range lots {
+		if lot.ExpiresAt.IsZero() || lot.ExpiresAt.After(now.UTC()) {
+			validLots = append(validLots, lot)
+		}
+	}
+	return PoolResult{AvailablePool: func() float64 { v, _ := s.store.RedistributionAvailablePool(ctx); return v }(), TodayDraw: draw, Recoverable: validLots}, nil
+}
+
+func (s *Service) Draw(ctx context.Context, userID int64, now time.Time) (DrawResult, error) {
+	if userID <= 0 {
+		return DrawResult{}, fmt.Errorf("user id required")
+	}
+	rt := s.settings.Get()
+	if !rt.Enabled {
+		return DrawResult{}, fmt.Errorf("额度回流功能未启用")
+	}
+	loc, err := time.LoadLocation(rt.Timezone)
+	if err != nil {
+		loc = time.Local
+	}
+	local := now.In(loc)
+	drawDate := local.Format("2006-01-02")
+	var reserved *store.RedistributionPoolDraw
+	if existing, err := s.store.GetRedistributionPoolDraw(ctx, userID, drawDate); err == nil {
+		if existing.Status == store.PoolDrawSuccess {
+			return DrawResult{Draw: *existing, AvailablePool: s.pool(ctx)}, nil
+		}
+		if existing.Status == store.PoolDrawProcessing {
+			reserved = existing
+		}
+	} else if err != sql.ErrNoRows {
+		return DrawResult{}, err
+	}
+	if reserved != nil {
+		grant, err := s.credit.Grant(ctx, credit.Request{UserID: userID, Amount: reserved.Amount, Source: credit.SourceRedistribution, SourceRef: "redistribution-pool:" + drawDate, Scope: "redistribution-pool", Slot: drawDate, Notes: "redistribution pool draw", IdempotencyKey: reserved.IdempotencyKey})
+		if err != nil {
+			_ = s.store.ResetRedistributionPoolDraw(ctx, reserved.ID, err.Error())
+			return DrawResult{}, err
+		}
+		if err := s.store.CompleteRedistributionPoolDraw(ctx, reserved.ID, grant.LedgerID, ""); err != nil {
+			return DrawResult{}, err
+		}
+		reserved.Status = store.PoolDrawSuccess
+		reserved.LedgerID = grant.LedgerID
+		return DrawResult{Draw: *reserved, AvailablePool: s.pool(ctx)}, nil
+	}
+	if _, err := s.client.GetUserByAdmin(ctx, userID); err != nil {
+		return DrawResult{}, err
+	}
+	users, err := s.client.ListAllAdminUsers(ctx, rt.MaxUsers)
+	if err != nil {
+		return DrawResult{}, err
+	}
+	recentUsage := s.loadRecentUsage(ctx, rt, local)
+	active := make([]UserSnapshot, 0, len(users))
+	drawn, err := s.store.ListRedistributionPoolDrawUsers(ctx, drawDate)
+	if err != nil {
+		return DrawResult{}, err
+	}
+	extension, err := s.store.LatestExtensionActivity(ctx)
+	if err != nil {
+		return DrawResult{}, err
+	}
+	for _, candidate := range users {
+		if drawn[candidate.ID] {
+			continue
+		}
+		t := extension[candidate.ID]
+		var ext *time.Time
+		if !t.IsZero() {
+			ext = &t
+		}
+		snap := UserSnapshot{User: candidate, ExtensionAt: ext, RecentUsage: recentUsage[candidate.ID]}
+		if inactive, _ := IsInactive(rt, snap, local); inactive {
+			continue
+		}
+		if ok, _ := IsActive(rt, snap, local); ok {
+			active = append(active, snap)
+		}
+	}
+	if len(active) == 0 {
+		return DrawResult{}, fmt.Errorf("当前没有符合条件的活跃用户")
+	}
+	pool := s.pool(ctx)
+	if pool <= 0 {
+		return DrawResult{}, fmt.Errorf("回流池暂无可抽取额度")
+	}
+	amount, err := drawAmount(rt, pool, active, userID)
+	if err != nil {
+		return DrawResult{}, err
+	}
+	if amount <= 0 {
+		return DrawResult{}, fmt.Errorf("当前可抽取额度不足")
+	}
+	if reserved == nil {
+		draw := store.RedistributionPoolDraw{UserID: userID, DrawDate: drawDate, Mode: rt.DrawMode, Amount: amount, IdempotencyKey: sub2api.IdempotencyKey("redistribution-pool-draw", userID, drawDate)}
+		reserved, err = s.store.ReserveRedistributionPoolDraw(ctx, draw, now.UTC())
+		if err != nil {
+			return DrawResult{}, err
+		}
+	}
+	grant, err := s.credit.Grant(ctx, credit.Request{UserID: userID, Amount: reserved.Amount, Source: credit.SourceRedistribution, SourceRef: "redistribution-pool:" + drawDate, Scope: "redistribution-pool", Slot: drawDate, Notes: "redistribution pool draw", IdempotencyKey: reserved.IdempotencyKey})
+	if err != nil {
+		_ = s.store.ResetRedistributionPoolDraw(ctx, reserved.ID, err.Error())
+		return DrawResult{}, err
+	}
+	if err := s.store.CompleteRedistributionPoolDraw(ctx, reserved.ID, grant.LedgerID, ""); err != nil {
+		return DrawResult{}, err
+	}
+	reserved.Status = store.PoolDrawSuccess
+	reserved.LedgerID = grant.LedgerID
+	return DrawResult{Draw: *reserved, AvailablePool: s.pool(ctx)}, nil
+}
+
+func (s *Service) Recover(ctx context.Context, userID int64, now time.Time) ([]store.RedistributionPoolRefund, error) {
+	if userID <= 0 {
+		return nil, fmt.Errorf("user id required")
+	}
+	lots, err := s.store.ListRedistributionPoolLots(ctx, userID, false, 100)
+	if err != nil {
+		return nil, err
+	}
+	if len(lots) == 0 {
+		return nil, fmt.Errorf("暂无可追回额度")
+	}
+	refunded := []store.RedistributionPoolRefund{}
+	for _, lot := range lots {
+		if !lot.ExpiresAt.IsZero() && !lot.ExpiresAt.After(now) {
+			continue
+		}
+		refund, err := s.store.ReserveRedistributionPoolRefund(ctx, lot.ID, store.PoolRefundManual, now.UTC())
+		if err != nil {
+			return refunded, err
+		}
+		grant, err := s.credit.Grant(ctx, credit.Request{UserID: userID, Amount: refund.Amount, Source: credit.SourceRedistributionCompensation, SourceRef: fmt.Sprintf("redistribution-pool-lot:%d", lot.ID), Scope: "redistribution-pool-refund", Slot: fmt.Sprintf("lot-%d", lot.ID), Notes: "manual redistribution pool recovery", IdempotencyKey: refund.IdempotencyKey})
+		if err != nil {
+			_ = s.store.ResetRedistributionPoolRefund(ctx, refund.ID, err.Error())
+			return refunded, err
+		}
+		if err := s.store.CompleteRedistributionPoolRefund(ctx, refund.ID, grant.LedgerID); err != nil {
+			return refunded, err
+		}
+		refund.Status = store.PoolRefundSuccess
+		refund.LedgerID = grant.LedgerID
+		refunded = append(refunded, *refund)
+	}
+	return refunded, nil
+}
+
+func (s *Service) RefundExpired(ctx context.Context, now time.Time) error {
+	lots, err := s.store.ListExpiredRedistributionPoolLots(ctx, now.UTC(), 100)
+	if err != nil {
+		return err
+	}
+	for _, lot := range lots {
+		refund, err := s.store.ReserveRedistributionPoolRefund(ctx, lot.ID, store.PoolRefundAuto, now.UTC())
+		if err != nil {
+			continue
+		}
+		grant, err := s.credit.Grant(ctx, credit.Request{UserID: lot.SourceUserID, Amount: refund.Amount, Source: credit.SourceRedistributionCompensation, SourceRef: fmt.Sprintf("redistribution-pool-lot:%d", lot.ID), Scope: "redistribution-pool-refund", Slot: fmt.Sprintf("lot-%d", lot.ID), Notes: "expired redistribution pool refund", IdempotencyKey: refund.IdempotencyKey})
+		if err != nil {
+			_ = s.store.ResetRedistributionPoolRefund(ctx, refund.ID, err.Error())
+			continue
+		}
+		if err := s.store.CompleteRedistributionPoolRefund(ctx, refund.ID, grant.LedgerID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) pool(ctx context.Context) float64 {
+	v, _ := s.store.RedistributionAvailablePool(ctx)
+	return floorMoney(v)
+}
+
+func drawAmount(rt Runtime, pool float64, users []UserSnapshot, userID int64) (float64, error) {
+	switch rt.DrawMode {
+	case DrawFixed:
+		if pool < rt.DrawFixedAmount {
+			return 0, fmt.Errorf("回流池余额不足固定抽取金额")
+		}
+		return floorMoney(rt.DrawFixedAmount), nil
+	case DrawRandom:
+		max := rt.DrawMaxAmount
+		if max > pool {
+			max = pool
+		}
+		if max < rt.DrawMinAmount {
+			return 0, fmt.Errorf("回流池余额不足随机抽取下限")
+		}
+		var b [8]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return 0, err
+		}
+		var n uint64
+		for _, v := range b {
+			n = n<<8 | uint64(v)
+		}
+		ratio := float64(n) / float64(^uint64(0))
+		return floorMoney(rt.DrawMinAmount + ratio*(max-rt.DrawMinAmount)), nil
+	case DrawActiveShare:
+		if rt.ActiveShareMode == ActiveShareUsage {
+			total := 0.0
+			current := 0.0
+			for _, u := range users {
+				if u.RecentUsage > 0 {
+					total += u.RecentUsage
+				}
+				if u.User.ID == userID {
+					current = u.RecentUsage
+				}
+			}
+			if current <= 0 || total <= 0 {
+				return 0, fmt.Errorf("当前用户没有可用于占比计算的消费")
+			}
+			return floorMoney(pool * current / total), nil
+		}
+		return floorMoney(pool / float64(len(users))), nil
+	default:
+		return 0, fmt.Errorf("未知抽取模式")
+	}
 }
 
 func (s *Service) Stop() bool {
@@ -547,13 +722,28 @@ func (s *Service) schedulerLoop(stop <-chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	lastMinute := ""
+	lastRefundMinute := ""
 	for {
 		select {
 		case <-stop:
 			return
 		case now := <-ticker.C:
 			rt := s.settings.Get()
-			if !rt.Enabled || !rt.AutoExecute {
+			if !rt.Enabled {
+				continue
+			}
+			refundMinute := now.UTC().Format("2006-01-02 15:04")
+			if refundMinute != lastRefundMinute {
+				lastRefundMinute = refundMinute
+				go func(at time.Time) {
+					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+					defer cancel()
+					if err := s.RefundExpired(ctx, at); err != nil {
+						log.Printf("redistribution expired refund failed: %v", err)
+					}
+				}(now)
+			}
+			if !rt.AutoExecute {
 				continue
 			}
 			loc, err := time.LoadLocation(rt.Timezone)
@@ -604,7 +794,7 @@ func (s *Service) loadRecentUsage(ctx context.Context, rt Runtime, now time.Time
 	}
 	from := now.AddDate(0, 0, -(lookback - 1)).Format("2006-01-02")
 	to := now.Format("2006-01-02")
-	res, err := s.client.FetchUsageRanking(ctx, "", sub2api.ClientMeta{}, sub2api.UsageRankQuery{FromDate: from, ToDate: to, Limit: 50})
+	res, err := s.client.FetchUsageRanking(ctx, "", sub2api.ClientMeta{}, sub2api.UsageRankQuery{FromDate: from, ToDate: to, Limit: rt.MaxUsers})
 	if err != nil || res == nil {
 		return map[int64]float64{}
 	}

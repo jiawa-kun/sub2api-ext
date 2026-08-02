@@ -975,18 +975,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             </div>
           </div>
           <div>
-            <div class="section-title"><h3>分配策略</h3></div>
+            <div class="section-title"><h3>回流池与抽取</h3></div>
             <div class="grid3">
-              <div class="field"><label for="redisDistributionMode">发放模式</label><select id="redisDistributionMode"><option value="auto">自动到账</option><option value="claim">手动领取</option></select></div>
-              <div class="field"><label for="redisClaimExpire">领取有效天数</label><input id="redisClaimExpire" type="number" min="1" /></div>
-              <div class="field"><label for="redisAllocationMode">分配模式</label><select id="redisAllocationMode"><option value="equal">平均</option><option value="fixed">固定</option><option value="usage_weighted">消费加权</option><option value="mixed">混合</option></select></div>
-              <div class="field"><label for="redisAllocFixed">固定奖励</label><input id="redisAllocFixed" type="number" step="0.0001" min="0" /></div>
-              <div class="field"><label for="redisAllocEqualRatio">平均占比</label><input id="redisAllocEqualRatio" type="number" step="1" min="0" max="100" /></div>
-              <div class="field"><label for="redisAllocMin">最低奖励</label><input id="redisAllocMin" type="number" step="0.0001" min="0" /></div>
-              <div class="field"><label for="redisAllocMax">最高奖励</label><input id="redisAllocMax" type="number" step="0.0001" min="0" /></div>
-              <div class="field"><label for="redisAllocLimit">奖励人数上限</label><input id="redisAllocLimit" type="number" min="1" /></div>
+              <div class="field"><label for="redisPoolExpire">未抽取自动退还期限（天）</label><input id="redisPoolExpire" type="number" min="1" /></div>
+              <div class="field"><label for="redisDrawMode">每日抽取模式</label><select id="redisDrawMode"><option value="fixed">固定金额</option><option value="random">随机金额</option><option value="active_share">活跃用户占比</option></select></div>
+              <div class="field"><label for="redisDrawFixed">固定抽取金额</label><input id="redisDrawFixed" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisDrawMin">随机最小金额</label><input id="redisDrawMin" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisDrawMax">随机最大金额</label><input id="redisDrawMax" type="number" step="0.0001" min="0" /></div>
+              <div class="field"><label for="redisShareMode">活跃用户占比算法</label><select id="redisShareMode"><option value="equal">B：符合条件用户均分</option><option value="usage">C：按消费占比</option></select></div>
               <div class="field"><label for="redisFailureThreshold">失败熔断 %</label><input id="redisFailureThreshold" type="number" step="1" min="0" max="100" /></div>
             </div>
+            <div class="sub">每天每位用户最多成功抽取一次，周末也可抽取；活跃和不活跃天数均按周一至周五计数。</div>
           </div>
         </div>
         <div class="toolbar">
@@ -2579,15 +2578,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('redisReclaimReserve').value=rc.reserve_balance??0;
       el('redisReclaimMin').value=rc.min_per_user??0;
       el('redisReclaimMax').value=rc.max_per_user??0;
-      el('redisDistributionMode').value=rt.distribution_mode||'auto';
-      el('redisClaimExpire').value=rt.claim_expire_days??7;
-      const al=rt.allocation||{};
-      el('redisAllocationMode').value=al.mode||'mixed';
-      el('redisAllocFixed').value=al.fixed_amount??0;
-      el('redisAllocEqualRatio').value=al.equal_ratio??50;
-      el('redisAllocMin').value=al.min_reward??0;
-      el('redisAllocMax').value=al.max_reward_per_user??0;
-      el('redisAllocLimit').value=al.recipient_limit??100;
+      el('redisPoolExpire').value=rt.pool_expire_days??7;
+      el('redisDrawMode').value=rt.draw_mode||'active_share';
+      el('redisDrawFixed').value=rt.draw_fixed_amount??0.1;
+      el('redisDrawMin').value=rt.draw_min_amount??0.01;
+      el('redisDrawMax').value=rt.draw_max_amount??0.5;
+      el('redisShareMode').value=rt.active_share_mode||'equal';
       el('redisFailureThreshold').value=rt.failure_threshold_percent??10;
       el('redisPool').textContent=ledgerFmtMoney(stats.available_pool);
       el('redisLast').textContent=stats.last_batch_id?('#'+stats.last_batch_id+' '+redisStatusLabel(stats.last_status)):'—';
@@ -2617,16 +2613,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           max_per_user:redisNum('redisReclaimMax'),
           batch_cap:redisNum('redisReclaimBatchCap')
         },
-        distribution_mode:el('redisDistributionMode').value,
-        claim_expire_days:redisNum('redisClaimExpire'),
-        allocation:{
-          mode:el('redisAllocationMode').value,
-          fixed_amount:redisNum('redisAllocFixed'),
-          equal_ratio:redisNum('redisAllocEqualRatio'),
-          min_reward:redisNum('redisAllocMin'),
-          max_reward_per_user:redisNum('redisAllocMax'),
-          recipient_limit:redisNum('redisAllocLimit')
-        },
+        pool_expire_days:redisNum('redisPoolExpire'),
+        draw_mode:el('redisDrawMode').value,
+        draw_fixed_amount:redisNum('redisDrawFixed'),
+        draw_min_amount:redisNum('redisDrawMin'),
+        draw_max_amount:redisNum('redisDrawMax'),
+        active_share_mode:el('redisShareMode').value,
         max_users:redisNum('redisMaxUsers'),
         failure_threshold_percent:redisNum('redisFailureThreshold'),
         keep_batches:50

@@ -61,12 +61,12 @@ func matchInactiveRule(rule Rule, snap UserSnapshot, now time.Time) (bool, strin
 	switch rule.Type {
 	case RuleNoActiveDays:
 		ref := fallbackTime(u.LastActiveAt, u.CreatedAt)
-		ok := olderThan(ref, rule.Days, now)
-		return ok, fmt.Sprintf("%d 天无活跃", rule.Days)
+		ok := olderThanWorkdays(ref, rule.Days, now)
+		return ok, fmt.Sprintf("%d 个工作日无登录", rule.Days)
 	case RuleNoUsageDays:
 		ref := fallbackTime(u.LastUsedAt, u.CreatedAt)
-		ok := olderThan(ref, rule.Days, now)
-		return ok, fmt.Sprintf("%d 天无消费", rule.Days)
+		ok := olderThanWorkdays(ref, rule.Days, now)
+		return ok, fmt.Sprintf("%d 个工作日无额度消耗", rule.Days)
 	default:
 		return false, ""
 	}
@@ -96,11 +96,11 @@ func matchActiveRule(rule Rule, snap UserSnapshot, now time.Time) (bool, string)
 	u := snap.User
 	switch rule.Type {
 	case RuleActiveWithinDays:
-		ok := within(u.LastActiveAt, rule.Days, now)
-		return ok, fmt.Sprintf("最近 %d 天有活跃", rule.Days)
+		ok := withinWorkdays(u.LastActiveAt, rule.Days, now)
+		return ok, fmt.Sprintf("最近 %d 个工作日有登录", rule.Days)
 	case RuleUsedWithinDays:
-		ok := within(u.LastUsedAt, rule.Days, now)
-		return ok, fmt.Sprintf("最近 %d 天有消费", rule.Days)
+		ok := withinWorkdays(u.LastUsedAt, rule.Days, now)
+		return ok, fmt.Sprintf("最近 %d 个工作日有额度消耗", rule.Days)
 	default:
 		return false, ""
 	}
@@ -248,6 +248,48 @@ func olderThan(value *time.Time, days int, now time.Time) bool {
 		return true
 	}
 	return !value.After(now.AddDate(0, 0, -days))
+}
+
+// withinWorkdays treats Monday-Friday as workdays. Weekend timestamps remain
+// valid activity, but weekend dates do not advance the inactivity counter.
+func withinWorkdays(value *time.Time, days int, now time.Time) bool {
+	if value == nil || value.IsZero() {
+		return false
+	}
+	cutoff := addWorkdays(calendarDate(now), -days)
+	return !calendarDate(*value).Before(cutoff)
+}
+
+func olderThanWorkdays(value *time.Time, days int, now time.Time) bool {
+	if value == nil || value.IsZero() {
+		return true
+	}
+	cutoff := addWorkdays(calendarDate(now), -days)
+	return !calendarDate(*value).After(cutoff)
+}
+
+func calendarDate(value time.Time) time.Time {
+	local := value.In(value.Location())
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, local.Location())
+}
+
+func addWorkdays(date time.Time, delta int) time.Time {
+	step := 1
+	if delta < 0 {
+		step = -1
+		delta = -delta
+	}
+	for delta > 0 {
+		date = date.AddDate(0, 0, step)
+		if isWorkday(date) {
+			delta--
+		}
+	}
+	return date
+}
+
+func isWorkday(date time.Time) bool {
+	return date.Weekday() >= time.Monday && date.Weekday() <= time.Friday
 }
 
 func within(value *time.Time, days int, now time.Time) bool {

@@ -130,7 +130,7 @@ html.light .brand-title .logo.light{display:block}
     </header>
 
     <section class="pool-bar" id="poolBar" aria-live="polite">
-      <span class="pool-label">当前可分配额度</span>
+      <span class="pool-label">当前回流池余额</span>
       <strong class="pool-value" id="poolValue">0.0000</strong>
     </section>
 
@@ -229,7 +229,7 @@ html.light .brand-title .logo.light{display:block}
         });
       });
     }
-    function render(data, rewards){
+    function render(data, rewards, pool){
       const items = data.items||[];
       const box = el('list');
       const poolBar = el('poolBar');
@@ -262,15 +262,24 @@ html.light .brand-title .logo.light{display:block}
           </div>
         </div>`;
       }).join('');
+      const recoverable=(pool&&pool.recoverable||[]).reduce((sum,x)=>sum+Number(x.remaining_amount||0),0);
+      const today=pool&&pool.today_draw;
+      const poolHTML=pool?`<div class="task">
+        <div class="task-head">
+          <div><div class="task-title">额度回流池</div><div class="task-desc">活跃用户每天可主动抽取一次，周六、周日也可抽取</div></div>
+          <button type="button" class="btn" data-pool-draw ${today&&today.status==='success'?'disabled':''}>${today&&today.status==='success'?'今日已抽取 '+Number(today.amount||0).toFixed(4):'立即抽取'}</button>
+        </div>
+        <div class="task-meta"><span class="pill ok">池余额 ${Number(pool.available_pool||0).toFixed(4)}</span>${recoverable>0?`<span>可追回 ${recoverable.toFixed(4)}</span><button type="button" class="ghost-btn" data-pool-recover>追回我的额度</button>`:'<span>暂无可追回额度</span>'}</div>
+      </div>`:'';
       if(!data.enabled){
-        box.innerHTML = rewardHTML || '<div class="empty">任务中心已关闭</div>';
+        box.innerHTML = poolHTML + (rewardHTML || '<div class="empty">任务中心已关闭</div>');
         return;
       }
       if(!items.length){
-        box.innerHTML = rewardHTML || '<div class="empty">暂无可用任务</div>';
+        box.innerHTML = poolHTML + (rewardHTML || '<div class="empty">暂无可用任务</div>');
         return;
       }
-      box.innerHTML = rewardHTML + items.map(it=>{
+      box.innerHTML = poolHTML + rewardHTML + items.map(it=>{
         const target = Math.max(1, Number(it.target||1));
         const progress = Math.max(0, Number(it.progress||0));
         const pct = Math.min(100, Math.round(progress/target*100));
@@ -329,11 +338,12 @@ html.light .brand-title .logo.light{display:block}
       const panel=el('panel');
       panel.classList.add('loading');
       try{
-        const [data,rewards] = await Promise.all([
+        const [data,rewards,pool] = await Promise.all([
           api('./api/tasks'),
-          api('./api/redistribution/rewards').catch(()=>({items:[]}))
+          api('./api/redistribution/rewards').catch(()=>({items:[]})),
+          api('./api/redistribution/pool').catch(()=>null)
         ]);
-        render(data||{}, rewards||{});
+        render(data||{}, rewards||{}, pool);
         showMsg('');
       }catch(e){
         el('list').innerHTML = '<div class="empty">加载失败</div>';
@@ -361,6 +371,12 @@ html.light .brand-title .logo.light{display:block}
         showMsg(String(e.message||e), 'err');
       }
     }
+    async function drawPool(){
+      try{const res=await api('./api/redistribution/pool',{method:'POST',body:'{}'});showMsg(`抽取成功 +${Number(res.draw&&res.draw.amount||0).toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
+    }
+    async function recoverPool(){
+      try{const res=await api('./api/redistribution/recover',{method:'POST',body:'{}'});const amount=(res.items||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);showMsg(`追回成功 +${amount.toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
+    }
     async function resolveIsAdmin(){
       if(!accessToken) return false;
       try{
@@ -379,6 +395,10 @@ html.light .brand-title .logo.light{display:block}
     el('list').addEventListener('click', (e)=>{
       const b = e.target.closest('[data-claim]');
       const rb = e.target.closest('[data-redis-claim]');
+      const draw = e.target.closest('[data-pool-draw]');
+      const recover = e.target.closest('[data-pool-recover]');
+      if(draw && !draw.disabled){ drawPool(); return; }
+      if(recover){ recoverPool(); return; }
       if(rb && !rb.disabled){ claimRedistribution(rb.dataset.redisClaim); return; }
       if(!b || b.disabled) return;
       claim(b.dataset.claim);

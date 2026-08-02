@@ -10,7 +10,7 @@ import (
 func TestInactiveLogicAndPaidBalanceProtection(t *testing.T) {
 	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	created := now.AddDate(0, 0, -120)
-	lastActive := now.AddDate(0, 0, -70)
+	lastActive := now.AddDate(0, 0, -100)
 	lastUsed := now.AddDate(0, 0, -10)
 	rt := DefaultRuntime()
 	rt.NewUserProtectionDays = 0
@@ -29,6 +29,20 @@ func TestInactiveLogicAndPaidBalanceProtection(t *testing.T) {
 	snap.User.TotalRecharged = 1
 	if ok, _ := IsInactive(rt, snap, now); ok {
 		t.Fatal("recharged user must always be protected")
+	}
+}
+
+func TestWorkdayActivitySkipsWeekendButWeekendActivityIsValid(t *testing.T) {
+	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC) // Monday
+	weekendLogin := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	snap := UserSnapshot{User: sub2api.User{ID: 1, Role: "user", Status: "active", LastActiveAt: &weekendLogin}}
+	rt := DefaultRuntime()
+	rt.ActiveRules = []Rule{{Type: RuleActiveWithinDays, Enabled: true, Days: 1}}
+	if ok, _ := IsActive(rt, snap, now); !ok {
+		t.Fatal("Saturday activity should count on Monday")
+	}
+	if got := addWorkdays(calendarDate(now), -1); !got.Equal(time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("workday cutoff=%v", got)
 	}
 }
 
@@ -69,5 +83,19 @@ func TestAllocateNeverExceedsPool(t *testing.T) {
 	}
 	if got[3] <= got[1] {
 		t.Fatalf("higher usage should receive more: %+v", got)
+	}
+}
+
+func TestDrawAmountActiveShareModes(t *testing.T) {
+	users := []UserSnapshot{{User: sub2api.User{ID: 1}, RecentUsage: 1}, {User: sub2api.User{ID: 2}, RecentUsage: 3}}
+	rt := DefaultRuntime()
+	rt.DrawMode = DrawActiveShare
+	rt.ActiveShareMode = ActiveShareEqual
+	if got, err := drawAmount(rt, 1, users, 1); err != nil || got != .5 {
+		t.Fatalf("equal amount=%v err=%v", got, err)
+	}
+	rt.ActiveShareMode = ActiveShareUsage
+	if got, err := drawAmount(rt, 1, users, 2); err != nil || got != .75 {
+		t.Fatalf("usage amount=%v err=%v", got, err)
 	}
 }

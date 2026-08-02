@@ -101,6 +101,8 @@ func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
 	rt.Reclaim.MinBalance = 1
 	rt.Reclaim.ReserveBalance = 0.5
 	rt.Reclaim.MaxPerUser = 1
+	rt.DrawMode = DrawFixed
+	rt.DrawFixedAmount = 0.2
 	rt.Allocation.Mode = AllocationEqual
 	rt.Allocation.MaxRewardPerUser = 1
 	if _, err := settings.Save(context.Background(), rt); err != nil {
@@ -115,8 +117,8 @@ func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
 	if len(preview.Donors) != 1 || preview.Donors[0].UserID != 1 {
 		t.Fatalf("donors=%+v", preview.Donors)
 	}
-	if len(preview.Rewards) != 1 || preview.Rewards[0].UserID != 2 {
-		t.Fatalf("rewards=%+v", preview.Rewards)
+	if len(preview.Rewards) != 0 {
+		t.Fatalf("new pool batch must not create recipients: %+v", preview.Rewards)
 	}
 	result, err := svc.Execute(context.Background(), preview.Batch.ID)
 	if err != nil {
@@ -128,22 +130,47 @@ func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
 	if got := upstream.balance(1); got != 1.5 {
 		t.Fatalf("donor balance=%v", got)
 	}
-	if got := upstream.balance(2); got != 0.5 {
-		t.Fatalf("recipient balance=%v", got)
+	if got := upstream.balance(2); got != 0 {
+		t.Fatalf("active user must draw explicitly, balance=%v", got)
 	}
 	ledger, err := st.ListLedger(context.Background(), store.LedgerFilter{Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ledger) != 2 {
+	if len(ledger) != 1 {
 		t.Fatalf("ledger=%+v", ledger)
 	}
 	amounts := map[string]float64{}
 	for _, row := range ledger {
 		amounts[row.Source] += row.Amount
 	}
-	if amounts[store.LedgerSourceInactiveReclaim] != -0.5 || amounts[store.LedgerSourceRedistribution] != 0.5 {
+	if amounts[store.LedgerSourceInactiveReclaim] != -0.5 || amounts[store.LedgerSourceRedistribution] != 0 {
 		t.Fatalf("ledger amounts=%+v", amounts)
+	}
+	lots, err := st.ListRedistributionPoolLots(context.Background(), 0, false, 10)
+	if err != nil || len(lots) != 1 || lots[0].SourceUserID != 1 || lots[0].RemainingAmount != 0.5 {
+		t.Fatalf("lots=%+v err=%v", lots, err)
+	}
+	drawn, err := svc.Draw(context.Background(), 2, now)
+	if err != nil || drawn.Draw.Amount != 0.2 {
+		t.Fatalf("draw=%+v err=%v", drawn, err)
+	}
+	if got := upstream.balance(2); got != 0.2 {
+		t.Fatalf("draw balance=%v", got)
+	}
+	again, err := svc.Draw(context.Background(), 2, now.Add(time.Hour))
+	if err != nil || again.Draw.ID != drawn.Draw.ID || upstream.balance(2) != 0.2 {
+		t.Fatalf("daily draw must be idempotent: again=%+v err=%v balance=%v", again, err, upstream.balance(2))
+	}
+	refunds, err := svc.Recover(context.Background(), 1, now.Add(2*time.Hour))
+	if err != nil || len(refunds) != 1 || refunds[0].Amount != 0.3 {
+		t.Fatalf("refunds=%+v err=%v", refunds, err)
+	}
+	if got := upstream.balance(1); got != 1.8 {
+		t.Fatalf("recovered balance=%v", got)
+	}
+	if pool, err := st.RedistributionAvailablePool(context.Background()); err != nil || pool != 0 {
+		t.Fatalf("pool after recover=%v err=%v", pool, err)
 	}
 }
 
@@ -237,31 +264,67 @@ func TestExecuteClaimModeAndClaimCompletesBatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if executed.Batch.Status != store.RedistributionBatchAwaitingClaim {
+	if executed.Batch.Status != store.RedistributionBatchSuccess {
 		t.Fatalf("status=%s", executed.Batch.Status)
 	}
 	if got := upstream.balance(2); got != 0 {
 		t.Fatalf("recipient should not receive before claim, balance=%v", got)
 	}
-	reward, err := svc.Claim(context.Background(), 2, preview.Batch.ID)
+	if pool, err := st.RedistributionAvailablePool(context.Background()); err != nil || pool != 0.5 {
+		t.Fatalf("pool=%v err=%v", pool, err)
+	}
+}
+
+func TestRefundExpiredPoolLot(t *testing.T) {
+	now := time.Now().UTC()
+	upstream := &testBalanceState{balances: map[int64]float64{9: 0}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/balance"):
+			var body struct {
+				Balance   float64 `json:"balance"`
+				Operation string  `json:"operation"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			upstream.mu.Lock()
+			upstream.balances[9] += body.Balance
+			balance := upstream.balances[9]
+			upstream.mu.Unlock()
+			writeTestJSON(w, map[string]any{"code": 0, "data": map[string]any{"id": 9, "balance": balance, "role": "user", "status": "active"}})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	st, err := store.Open(filepath.Join(t.TempDir(), "expired-refund.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reward.Status != store.RedistributionEntryClaimed || reward.ActualAmount != 0.5 {
-		t.Fatalf("reward=%+v", reward)
-	}
-	if got := upstream.balance(2); got != 0.5 {
-		t.Fatalf("recipient balance=%v", got)
-	}
-	detail, err := svc.Detail(context.Background(), preview.Batch.ID)
+	defer st.Close()
+	batchID, err := st.CreateRedistributionBatch(context.Background(), store.RedistributionBatch{Status: store.RedistributionBatchSuccess, ActualReclaim: 1, CreatedAt: now.Add(-48 * time.Hour)}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Batch.Status != store.RedistributionBatchSuccess || detail.Batch.ActualDistribute != 0.5 {
-		t.Fatalf("batch=%+v", detail.Batch)
+	if _, err := st.CreateRedistributionPoolLot(context.Background(), store.RedistributionPoolLot{SourceBatchID: batchID, SourceUserID: 9, OriginalAmount: 1, CreatedAt: now.Add(-48 * time.Hour), ExpiresAt: now.Add(-time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	client := sub2api.New(server.URL, "admin-key", 5*time.Second)
+	svc := NewService(st, client, credit.New(st, client), NewSettings(st), nil)
+	if err := svc.RefundExpired(context.Background(), now); err != nil {
+		t.Fatal(err)
+	}
+	if got := upstream.balance(9); got != 1 {
+		t.Fatalf("refund balance=%v", got)
 	}
 	if pool, err := st.RedistributionAvailablePool(context.Background()); err != nil || pool != 0 {
 		t.Fatalf("pool=%v err=%v", pool, err)
+	}
+	if err := svc.RefundExpired(context.Background(), now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if got := upstream.balance(9); got != 1 {
+		t.Fatalf("refund must be idempotent, balance=%v", got)
 	}
 }
 

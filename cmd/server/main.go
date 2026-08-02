@@ -190,6 +190,8 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/redistribution/batches/", h.AdminRedistributionBatchByID)
 	mux.HandleFunc(base+"/api/redistribution/rewards", h.RedistributionRewards)
 	mux.HandleFunc(base+"/api/redistribution/rewards/claim", h.RedistributionClaim)
+	mux.HandleFunc(base+"/api/redistribution/pool", h.RedistributionPool)
+	mux.HandleFunc(base+"/api/redistribution/recover", h.RedistributionRecover)
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 
