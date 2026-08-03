@@ -742,6 +742,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           </section>
         </div>
 
+        <div class="lottery-summary" aria-label="当前奖池摘要">
+          <div><span>总权重</span><strong id="lotterySummaryWeight">0</strong></div>
+          <div><span>中奖率</span><strong id="lotterySummaryWinRate">0%</strong></div>
+          <div><span>单次期望</span><strong id="lotterySummaryExpected">0.0000</strong></div>
+          <div><span>预算预计支撑</span><strong id="lotterySummaryCapacity">不限</strong></div>
+        </div>
+        <div class="hint lottery-summary-warning" id="lotterySummaryWarning"></div>
+
         <section class="lottery-pool">
           <div class="section-title lottery-pool-head">
             <div>
@@ -2185,6 +2193,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!body) return;
       if(!lotteryPrizes.length){
         body.innerHTML='<tr><td colspan="5" class="hint">奖池为空，请新增奖项</td></tr>';
+        renderLotterySummary();
         return;
       }
       const total=lotteryPrizes.reduce((a,p)=>a+(Number(p.weight)>0?Number(p.weight):0),0);
@@ -2210,8 +2219,39 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           if(kind==='label') lotteryPrizes[idx].label=node.value;
           else lotteryPrizes[idx][kind]=Number(node.value);
           if(kind==='weight') renderLotteryPrizes();
+          else renderLotterySummary();
         };
       });
+      renderLotterySummary();
+    }
+    function renderLotterySummary(){
+      const total=lotteryPrizes.reduce((sum,p)=>sum+Math.max(0,Number(p.weight)||0),0);
+      const hardCap=Math.max(0,Number(el('lotteryHardCap').value)||0);
+      const budget=Math.max(0,Number(el('lotteryDailyBudget').value)||0);
+      let winWeight=0;
+      let expected=0;
+      const names=new Map();
+      const warnings=[];
+      lotteryPrizes.forEach(p=>{
+        const weight=Math.max(0,Number(p.weight)||0);
+        const rawAmount=Math.max(0,Number(p.amount)||0);
+        const amount=hardCap>0?Math.min(rawAmount,hardCap):rawAmount;
+        const name=String(p.label||'').trim();
+        if(name) names.set(name,(names.get(name)||0)+1);
+        if(weight<=0) warnings.push((name||'未命名奖项')+' 权重为 0，不会被抽中');
+        if(hardCap>0&&rawAmount>hardCap) warnings.push((name||'未命名奖项')+' 将按单次上限 '+hardCap.toFixed(4)+' 发放');
+        if(amount>0) winWeight+=weight;
+        expected+=amount*weight;
+      });
+      names.forEach((count,name)=>{ if(count>1) warnings.push('奖项名称“'+name+'”重复'); });
+      const winRate=total>0?winWeight/total*100:0;
+      expected=total>0?expected/total:0;
+      const capacity=budget<=0?'不限':(expected>0?('约 '+Math.floor(budget/expected)+' 次'):'无法估算');
+      el('lotterySummaryWeight').textContent=String(total);
+      el('lotterySummaryWinRate').textContent=winRate.toFixed(2)+'%';
+      el('lotterySummaryExpected').textContent=expected.toFixed(4);
+      el('lotterySummaryCapacity').textContent=capacity;
+      el('lotterySummaryWarning').textContent=warnings.join('；');
     }
     function fillLottery(s){
       if(!s) return;

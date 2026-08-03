@@ -39,23 +39,25 @@ func publicPrizes(rt lottery.Runtime) []publicPrize {
 }
 
 type lotteryStatusResponse struct {
-	Enabled        bool          `json:"enabled"`
-	RequireCheckin bool          `json:"require_checkin"`
-	Today          string        `json:"today"`
-	Prizes         []publicPrize `json:"prizes"`
-	CanDraw        bool          `json:"can_draw"`
-	Reason         string        `json:"reason,omitempty"`
-	DrawnToday     bool          `json:"drawn_today"`
-	TodayPrize     string        `json:"today_prize,omitempty"`
-	TodayAmount    float64       `json:"today_amount,omitempty"`
-	CheckedInToday bool          `json:"checked_in_today"`
-	BudgetLeft     *float64      `json:"budget_left,omitempty"`
+	Enabled         bool          `json:"enabled"`
+	RequireCheckin  bool          `json:"require_checkin"`
+	Today           string        `json:"today"`
+	Prizes          []publicPrize `json:"prizes"`
+	CanDraw         bool          `json:"can_draw"`
+	Reason          string        `json:"reason,omitempty"`
+	DrawnToday      bool          `json:"drawn_today"`
+	TodayPrize      string        `json:"today_prize,omitempty"`
+	TodayPrizeIndex *int          `json:"today_prize_index,omitempty"`
+	TodayAmount     float64       `json:"today_amount,omitempty"`
+	CheckedInToday  bool          `json:"checked_in_today"`
+	BudgetLeft      *float64      `json:"budget_left,omitempty"`
 }
 
 type lotteryDrawResponse struct {
 	Status     string  `json:"status"`
 	Message    string  `json:"message"`
 	PrizeLabel string  `json:"prize_label,omitempty"`
+	PrizeIndex *int    `json:"prize_index,omitempty"`
 	Amount     float64 `json:"amount,omitempty"`
 	NewBalance float64 `json:"new_balance,omitempty"`
 	DrawDate   string  `json:"draw_date,omitempty"`
@@ -107,6 +109,7 @@ func (h *Handler) LotteryStatus(w http.ResponseWriter, r *http.Request) {
 	if draw, err := h.store.GetLotteryDraw(r.Context(), user.ID, today); err == nil && draw != nil {
 		resp.DrawnToday = true
 		resp.TodayPrize = draw.PrizeLabel
+		resp.TodayPrizeIndex = publicPrizeIndex(rt, draw.PrizeIndex)
 		resp.TodayAmount = draw.Amount
 	}
 	if rec, err := h.store.Get(r.Context(), user.ID, today); err == nil && rec != nil {
@@ -214,6 +217,7 @@ func (h *Handler) LotteryDraw(w http.ResponseWriter, r *http.Request) {
 			resp := lotteryDrawResponse{Status: "already", Message: "今日已抽奖", DrawnToday: true, DrawDate: today}
 			if existing != nil {
 				resp.PrizeLabel = existing.PrizeLabel
+				resp.PrizeIndex = publicPrizeIndex(rt, existing.PrizeIndex)
 				resp.Amount = existing.Amount
 				resp.NewBalance = existing.NewBalance
 			}
@@ -224,25 +228,26 @@ func (h *Handler) LotteryDraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	picked := lottery.Pick(rt.Prizes, nil)
-	result := lottery.Resolve(rt, picked, spent)
+	picked := lottery.PickWithIndex(rt.Prizes, nil)
+	result := lottery.Resolve(rt, picked.Prize, spent)
 
 	if result.Status == lottery.StatusMiss {
-		if err := h.store.FinalizeLotteryDraw(r.Context(), drawID, picked.Label, store.PrizeTypeNone, 0, 0); err != nil {
+		if err := h.store.FinalizeLotteryDrawWithIndex(r.Context(), drawID, picked.Index, picked.Prize.Label, store.PrizeTypeNone, 0, 0); err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		writeJSON(w, http.StatusOK, lotteryDrawResponse{
 			Status:     "miss",
 			Message:    "很遗憾，未中奖",
-			PrizeLabel: picked.Label,
+			PrizeLabel: picked.Prize.Label,
+			PrizeIndex: publicPrizeIndex(rt, picked.Index),
 			DrawDate:   today,
 			DrawnToday: true,
 		})
 		return
 	}
 
-	notes := "lottery:" + picked.Label
+	notes := "lottery:" + picked.Prize.Label
 	newBalance := 0.0
 	if h.credit != nil {
 		res, err := h.credit.Grant(r.Context(), credit.Request{
@@ -272,12 +277,13 @@ func (h *Handler) LotteryDraw(w http.ResponseWriter, r *http.Request) {
 			newBalance = credited.Balance
 		}
 	}
-	if err := h.store.FinalizeLotteryDraw(r.Context(), drawID, picked.Label, store.PrizeTypeBalance, result.Amount, newBalance); err != nil {
+	if err := h.store.FinalizeLotteryDrawWithIndex(r.Context(), drawID, picked.Index, picked.Prize.Label, store.PrizeTypeBalance, result.Amount, newBalance); err != nil {
 		// Balance already moved; keep the row claimed and report success.
 		writeJSON(w, http.StatusOK, lotteryDrawResponse{
 			Status:     "win",
 			Message:    "恭喜中奖",
-			PrizeLabel: picked.Label,
+			PrizeLabel: picked.Prize.Label,
+			PrizeIndex: publicPrizeIndex(rt, picked.Index),
 			Amount:     result.Amount,
 			NewBalance: newBalance,
 			DrawDate:   today,
@@ -288,12 +294,30 @@ func (h *Handler) LotteryDraw(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, lotteryDrawResponse{
 		Status:     "win",
 		Message:    "恭喜中奖",
-		PrizeLabel: picked.Label,
+		PrizeLabel: picked.Prize.Label,
+		PrizeIndex: publicPrizeIndex(rt, picked.Index),
 		Amount:     result.Amount,
 		NewBalance: newBalance,
 		DrawDate:   today,
 		DrawnToday: true,
 	})
+}
+
+func publicPrizeIndex(rt lottery.Runtime, rawIndex int) *int {
+	if rawIndex < 0 {
+		return nil
+	}
+	visibleIndex := 0
+	for i, prize := range rt.Prizes {
+		if prize.Weight <= 0 {
+			continue
+		}
+		if i == rawIndex {
+			return &visibleIndex
+		}
+		visibleIndex++
+	}
+	return nil
 }
 
 func (h *Handler) publishLotteryBudget(today string, rt lottery.Runtime, spent float64) {

@@ -23,10 +23,10 @@ import (
 const lotteryUserToken = "user-token-abc"
 
 type lotteryFixture struct {
-	h       *handler.Handler
-	st      *store.Store
-	lot     *lottery.Settings
-	stg     *settings.Service
+	h        *handler.Handler
+	st       *store.Store
+	lot      *lottery.Settings
+	stg      *settings.Service
 	upstream *httptest.Server
 	// credits records every balance grant the upstream received.
 	credits []creditCall
@@ -134,6 +134,7 @@ type lotteryDrawBody struct {
 	Status     string  `json:"status"`
 	Message    string  `json:"message"`
 	PrizeLabel string  `json:"prize_label"`
+	PrizeIndex *int    `json:"prize_index"`
 	Amount     float64 `json:"amount"`
 	NewBalance float64 `json:"new_balance"`
 	DrawnToday bool    `json:"drawn_today"`
@@ -141,10 +142,10 @@ type lotteryDrawBody struct {
 }
 
 type lotteryStatusBody struct {
-	Enabled        bool `json:"enabled"`
-	CanDraw        bool `json:"can_draw"`
-	DrawnToday     bool `json:"drawn_today"`
-	CheckedInToday bool `json:"checked_in_today"`
+	Enabled        bool   `json:"enabled"`
+	CanDraw        bool   `json:"can_draw"`
+	DrawnToday     bool   `json:"drawn_today"`
+	CheckedInToday bool   `json:"checked_in_today"`
 	Reason         string `json:"reason"`
 	Prizes         []struct {
 		Label  string  `json:"label"`
@@ -171,6 +172,9 @@ func TestLotteryDrawCreditsAndIsOncePerDay(t *testing.T) {
 	if body.Amount != 2 {
 		t.Fatalf("amount = %v, want 2", body.Amount)
 	}
+	if body.PrizeIndex == nil || *body.PrizeIndex != 0 {
+		t.Fatalf("prize index = %v, want visible index 0", body.PrizeIndex)
+	}
 	if body.NewBalance != 102 {
 		t.Fatalf("new balance = %v, want 102", body.NewBalance)
 	}
@@ -188,6 +192,24 @@ func TestLotteryDrawCreditsAndIsOncePerDay(t *testing.T) {
 	}
 	if !strings.HasPrefix(f.credits[0].IdempotencyKey, "lottery-7-") {
 		t.Fatalf("idempotency key = %q, want lottery scope", f.credits[0].IdempotencyKey)
+	}
+}
+
+func TestLotteryDrawMapsHiddenPrizeIndexForPublicResponse(t *testing.T) {
+	rt := lottery.Runtime{
+		Enabled: true,
+		Prizes: []lottery.Prize{
+			{Label: "隐藏项", Amount: 99, Weight: 0},
+			{Label: "可中奖项", Amount: 2, Weight: 1},
+		},
+	}
+	f := newLotteryFixture(t, rt)
+	_, body := f.draw(t, true)
+	if body.Status != "win" {
+		t.Fatalf("draw failed: %+v", body)
+	}
+	if body.PrizeLabel != "可中奖项" || body.PrizeIndex == nil || *body.PrizeIndex != 0 {
+		t.Fatalf("public prize position = %+v, want visible index 0: %+v", body.PrizeIndex, body)
 	}
 }
 

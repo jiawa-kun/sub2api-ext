@@ -2,12 +2,15 @@ package store_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	"sub2api-ext/internal/store"
+
+	_ "modernc.org/sqlite"
 )
 
 func openLotteryStore(t *testing.T) *store.Store {
@@ -130,6 +133,49 @@ func TestGetLotteryDrawMissingReturnsNil(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("expected nil, got %+v", got)
+	}
+}
+
+func TestOpenMigratesLegacyLotteryDrawsPrizeIndex(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "legacy.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`
+CREATE TABLE lottery_draws (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  draw_date TEXT NOT NULL,
+  prize_label TEXT NOT NULL DEFAULT '',
+  prize_type TEXT NOT NULL DEFAULT 'none',
+  amount REAL NOT NULL DEFAULT 0,
+  new_balance REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX idx_lottery_user_date ON lottery_draws(user_id, draw_date);
+INSERT INTO lottery_draws(user_id, draw_date, prize_label, prize_type, amount, new_balance, created_at)
+VALUES(11, '2026-07-27', '旧记录', 'balance', 3, 103, '2026-07-27T00:00:00Z');
+`)
+	if err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	got, err := st.GetLotteryDraw(context.Background(), 11, "2026-07-27")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.PrizeIndex != -1 || got.PrizeLabel != "旧记录" || got.Amount != 3 {
+		t.Fatalf("legacy draw migration/read failed: %+v", got)
 	}
 }
 

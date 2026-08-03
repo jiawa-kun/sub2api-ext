@@ -18,15 +18,26 @@ type Result struct {
 	Status string
 }
 
+type PickedPrize struct {
+	Prize Prize
+	Index int
+}
+
 // Pick selects a prize using crypto/rand weighted sampling.
 //
 // randFn is injectable so tests can drive a deterministic sequence; nil uses
 // crypto/rand. Prizes with weight <= 0 are display-only and never selected.
 func Pick(prizes []Prize, randFn func(max int64) int64) Prize {
+	return PickWithIndex(prizes, randFn).Prize
+}
+
+// PickWithIndex selects a prize and preserves its configured position so the
+// client can stop the wheel on the exact segment even when labels repeat.
+func PickWithIndex(prizes []Prize, randFn func(max int64) int64) PickedPrize {
 	total := TotalWeight(prizes)
 	if total <= 0 {
 		// Callers normalize first, so this only guards direct misuse.
-		return Prize{Label: "谢谢参与", Amount: 0, Weight: 1}
+		return PickedPrize{Prize: Prize{Label: "谢谢参与", Amount: 0, Weight: 1}, Index: -1}
 	}
 	if randFn == nil {
 		randFn = cryptoRandInt63n
@@ -36,23 +47,23 @@ func Pick(prizes []Prize, randFn func(max int64) int64) Prize {
 		roll = 0
 	}
 	acc := int64(0)
-	for _, p := range prizes {
+	for i, p := range prizes {
 		if p.Weight <= 0 {
 			continue
 		}
 		acc += int64(p.Weight)
 		if roll < acc {
-			return p
+			return PickedPrize{Prize: p, Index: i}
 		}
 	}
 	// Unreachable unless weights mutated concurrently; fall back to the last
 	// eligible prize rather than returning a zero value.
 	for i := len(prizes) - 1; i >= 0; i-- {
 		if prizes[i].Weight > 0 {
-			return prizes[i]
+			return PickedPrize{Prize: prizes[i], Index: i}
 		}
 	}
-	return Prize{Label: "谢谢参与", Amount: 0, Weight: 1}
+	return PickedPrize{Prize: Prize{Label: "谢谢参与", Amount: 0, Weight: 1}, Index: -1}
 }
 
 // Resolve applies hard cap and remaining daily budget to a picked prize.

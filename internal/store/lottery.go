@@ -21,6 +21,7 @@ type LotteryDraw struct {
 	ID         int64     `json:"id"`
 	UserID     int64     `json:"user_id"`
 	DrawDate   string    `json:"draw_date"`
+	PrizeIndex int       `json:"prize_index"`
 	PrizeLabel string    `json:"prize_label"`
 	PrizeType  string    `json:"prize_type"`
 	Amount     float64   `json:"amount"`
@@ -31,7 +32,7 @@ type LotteryDraw struct {
 // GetLotteryDraw returns today's draw for a user, or nil when absent.
 func (s *Store) GetLotteryDraw(ctx context.Context, userID int64, drawDate string) (*LotteryDraw, error) {
 	row := s.db.QueryRowContext(ctx, `
-SELECT id, user_id, draw_date, prize_label, prize_type, amount, new_balance, created_at
+SELECT id, user_id, draw_date, prize_index, prize_label, prize_type, amount, new_balance, created_at
 FROM lottery_draws
 WHERE user_id = ? AND draw_date = ?
 `, userID, drawDate)
@@ -68,11 +69,16 @@ VALUES(?, ?, '', ?, 0, 0, ?)
 
 // FinalizeLotteryDraw writes the prize outcome onto a reserved row.
 func (s *Store) FinalizeLotteryDraw(ctx context.Context, id int64, label, prizeType string, amount, newBalance float64) error {
+	return s.FinalizeLotteryDrawWithIndex(ctx, id, -1, label, prizeType, amount, newBalance)
+}
+
+// FinalizeLotteryDrawWithIndex stores the exact configured prize position.
+func (s *Store) FinalizeLotteryDrawWithIndex(ctx context.Context, id int64, prizeIndex int, label, prizeType string, amount, newBalance float64) error {
 	_, err := s.db.ExecContext(ctx, `
 UPDATE lottery_draws
-SET prize_label = ?, prize_type = ?, amount = ?, new_balance = ?
+SET prize_index = ?, prize_label = ?, prize_type = ?, amount = ?, new_balance = ?
 WHERE id = ?
-`, label, prizeType, amount, newBalance, id)
+`, prizeIndex, label, prizeType, amount, newBalance, id)
 	if err == nil {
 		InvalidateRankingCache()
 	}
@@ -137,7 +143,7 @@ func (s *Store) ListLotteryDraws(ctx context.Context, userID int64, limit, offse
 		offset = 0
 	}
 	query := `
-SELECT id, user_id, draw_date, prize_label, prize_type, amount, new_balance, created_at
+SELECT id, user_id, draw_date, prize_index, prize_label, prize_type, amount, new_balance, created_at
 FROM lottery_draws
 `
 	args := []any{}
@@ -157,7 +163,7 @@ FROM lottery_draws
 	for rows.Next() {
 		var d LotteryDraw
 		var created string
-		if err := rows.Scan(&d.ID, &d.UserID, &d.DrawDate, &d.PrizeLabel, &d.PrizeType, &d.Amount, &d.NewBalance, &created); err != nil {
+		if err := rows.Scan(&d.ID, &d.UserID, &d.DrawDate, &d.PrizeIndex, &d.PrizeLabel, &d.PrizeType, &d.Amount, &d.NewBalance, &created); err != nil {
 			return nil, err
 		}
 		if t, err := time.Parse(time.RFC3339Nano, created); err == nil {
@@ -183,7 +189,7 @@ func (s *Store) CountLotteryDraws(ctx context.Context, userID int64) (int64, err
 func scanLotteryDraw(row *sql.Row) (*LotteryDraw, error) {
 	var d LotteryDraw
 	var created string
-	if err := row.Scan(&d.ID, &d.UserID, &d.DrawDate, &d.PrizeLabel, &d.PrizeType, &d.Amount, &d.NewBalance, &created); err != nil {
+	if err := row.Scan(&d.ID, &d.UserID, &d.DrawDate, &d.PrizeIndex, &d.PrizeLabel, &d.PrizeType, &d.Amount, &d.NewBalance, &created); err != nil {
 		return nil, err
 	}
 	if t, err := time.Parse(time.RFC3339Nano, created); err == nil {

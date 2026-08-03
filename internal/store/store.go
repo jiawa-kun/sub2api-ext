@@ -155,6 +155,7 @@ CREATE TABLE IF NOT EXISTS lottery_draws (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   draw_date TEXT NOT NULL,
+  prize_index INTEGER NOT NULL DEFAULT -1,
   prize_label TEXT NOT NULL DEFAULT '',
   prize_type TEXT NOT NULL DEFAULT 'none',
   amount REAL NOT NULL DEFAULT 0,
@@ -173,6 +174,7 @@ CREATE INDEX IF NOT EXISTS idx_lottery_created
 	if err != nil {
 		return err
 	}
+	_, _ = s.db.Exec(`ALTER TABLE lottery_draws ADD COLUMN prize_index INTEGER NOT NULL DEFAULT -1`)
 	if err := s.ensureLedgerSchema(); err != nil {
 		return err
 	}

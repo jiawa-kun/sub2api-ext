@@ -37,6 +37,17 @@ func TestPickSkipsZeroWeight(t *testing.T) {
 	}
 }
 
+func TestPickWithIndexPreservesConfiguredPosition(t *testing.T) {
+	prizes := []Prize{
+		{Label: "重复", Amount: 1, Weight: 1},
+		{Label: "重复", Amount: 1, Weight: 1},
+	}
+	got := PickWithIndex(prizes, func(int64) int64 { return 1 })
+	if got.Index != 1 || got.Prize != prizes[1] {
+		t.Fatalf("picked prize = %+v, want index 1 and second duplicate", got)
+	}
+}
+
 func TestPickTotalWeightPassedToRand(t *testing.T) {
 	prizes := []Prize{{Label: "a", Amount: 0, Weight: 4}, {Label: "b", Amount: 1, Weight: 6}}
 	var seen int64
