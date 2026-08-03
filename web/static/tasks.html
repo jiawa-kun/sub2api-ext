@@ -100,6 +100,9 @@ html.light .brand-title .logo.light{display:block}
 .btn:disabled{opacity:.45; cursor:not-allowed}
 .btn.secondary{background:var(--soft2); color:var(--text); border:1px solid var(--border)}
 .empty{text-align:center; color:var(--muted); padding:28px 8px; font-size:.86rem}
+.pool-rules{margin-top:10px; padding-top:10px; border-top:1px solid var(--border)}
+.pool-rules-title{font-size:.78rem; font-weight:700; color:var(--text); margin-bottom:6px}
+.pool-rules-list{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--muted); font-size:.74rem; line-height:1.45}
   </style>
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
@@ -270,6 +273,7 @@ html.light .brand-title .logo.light{display:block}
           <button type="button" class="btn" data-pool-draw ${today&&today.status==='success'?'disabled':''}>${today&&today.status==='success'?'今日已抽取 '+Number(today.amount||0).toFixed(4):'立即抽取'}</button>
         </div>
         <div class="task-meta"><span class="pill ok">池余额 ${Number(pool.available_pool||0).toFixed(4)}</span>${recoverable>0?`<span>可追回 ${recoverable.toFixed(4)}</span><button type="button" class="ghost-btn" data-pool-recover>追回我的额度</button>`:'<span>暂无可追回额度</span>'}</div>
+        ${renderPoolRules(pool.rules, pool.recoverable)}
       </div>`:'';
       if(!data.enabled){
         box.innerHTML = poolHTML + (rewardHTML || '<div class="empty">任务中心已关闭</div>');
@@ -334,6 +338,73 @@ html.light .brand-title .logo.light{display:block}
     function escapeHtml(s){
       return String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
     }
+    function formatRule(rule, inactive){
+      const days=Number(rule&&rule.days||0);
+      const labels={
+        no_active_days:'连续 '+days+' 个工作日未登录',
+        no_usage_days:'连续 '+days+' 个工作日未消耗额度',
+        active_within_days:'最近 '+days+' 个工作日登录过',
+        used_within_days:'最近 '+days+' 个工作日消耗过额度'
+      };
+      return labels[String(rule&&rule.type||'')] || (inactive?'已配置的不活跃条件':'已配置的活跃条件');
+    }
+    function formatLogic(value){ return value==='all' ? '需同时满足' : '满足任一即可'; }
+    function formatDrawRules(rules){
+      const draw=rules||{};
+      if(draw.draw_mode==='fixed') return '抽取金额：固定 '+Number(draw.draw_fixed_amount||0).toFixed(4);
+      if(draw.draw_mode==='random') return '抽取金额：随机 '+Number(draw.draw_min_amount||0).toFixed(4)+'～'+Number(draw.draw_max_amount||0).toFixed(4);
+      if(draw.active_share_mode==='usage') return '抽取金额：按活跃用户近期额度消耗占比计算';
+      return '抽取金额：按符合条件的活跃用户均分';
+    }
+    function formatReclaimRules(rules){
+      const r=rules||{};
+      let amount='固定回收 '+Number(r.reclaim_value||0).toFixed(4);
+      if(r.reclaim_mode==='percent') amount='按余额的 '+Number(r.reclaim_value||0)+'% 回收';
+      if(r.reclaim_mode==='excess') amount='回收保留额度以上的余额';
+      const range=[];
+      if(Number(r.reclaim_min_per_user||0)>0) range.push('最低 '+Number(r.reclaim_min_per_user).toFixed(4));
+      if(Number(r.reclaim_max_per_user||0)>0) range.push('最高 '+Number(r.reclaim_max_per_user).toFixed(4));
+      return amount+'；余额至少 '+Number(r.reclaim_min_balance||0).toFixed(4)+'，保留 '+Number(r.reclaim_reserve_balance||0).toFixed(4)+(range.length?'；'+range.join('，'):'');
+    }
+    function formatDateTime(value){
+      if(!value) return '';
+      const d=new Date(value);
+      if(Number.isNaN(d.getTime())) return String(value).replace('T',' ').slice(0,19);
+      return d.toLocaleString('zh-CN',{hour12:false});
+    }
+    function earliestExpiry(lots){
+      const values=(lots||[]).map(x=>x&&x.expires_at).filter(Boolean).sort();
+      return values.length ? formatDateTime(values[0]) : '';
+    }
+    function renderPoolRules(rules, recoverableLots){
+      if(!rules) return '';
+      const inactive=(rules.inactive_rules||[]).map(rule=>formatRule(rule,true)).join('、') || '暂无不活跃条件';
+      const active=(rules.active_rules||[]).map(rule=>formatRule(rule,false)).join('、') || '暂无活跃条件';
+      const frequency=rules.draw_frequency==='daily' ? '每天可抽取一次，周六、周日也可抽取' : '抽取频率以当前页面显示为准';
+      const protect=[];
+      if(rules.paid_balance_protected) protect.push('存在充值记录的用户不回收');
+      if(Number(rules.new_user_protection_days||0)>0) protect.push('新用户保护 '+Number(rules.new_user_protection_days)+' 天');
+      const recovery=rules.can_recover_before_expiry
+        ? '未被抽取的剩余额度可在自动退还前追回；超过期限后自动退还给原用户'
+        : '未被抽取的额度按系统规则自动处理';
+      const expiry=earliestExpiry(recoverableLots);
+      return `<div class="pool-rules">
+        <div class="pool-rules-title">当前生效规则</div>
+        <ul class="pool-rules-list">
+          <li>入池条件：${escapeHtml(inactive)}（${formatLogic(rules.inactive_logic)}）</li>
+          ${protect.length?`<li>保护规则：${escapeHtml(protect.join('；'))}</li>`:''}
+          <li>回收额度：${escapeHtml(formatReclaimRules(rules))}</li>
+          <li>活跃条件：${escapeHtml(active)}（${formatLogic(rules.active_logic)}）</li>
+          <li>工作日定义：${escapeHtml(rules.workday_definition||'周一至周五计入工作日；周末不计天数，但周末活动仍有效')}</li>
+          <li>${frequency}</li>
+          <li>${escapeHtml(formatDrawRules(rules))}</li>
+          <li>自动退还：入池后 ${Number(rules.pool_expire_days||0)} 天未被抽取，自动退还给原用户</li>
+          <li>${recovery}</li>
+          ${expiry?`<li>我的最近自动退还时间：${escapeHtml(expiry)}</li>`:''}
+          ${rules.effective_at?`<li>规则更新时间：${escapeHtml(formatDateTime(rules.effective_at))}</li>`:''}
+        </ul>
+      </div>`;
+    }
     async function load(){
       const panel=el('panel');
       panel.classList.add('loading');
@@ -345,9 +416,11 @@ html.light .brand-title .logo.light{display:block}
         ]);
         render(data||{}, rewards||{}, pool);
         showMsg('');
+        return true;
       }catch(e){
         el('list').innerHTML = '<div class="empty">加载失败</div>';
         showMsg(String(e.message||e), 'err');
+        return false;
       }finally{
         panel.classList.remove('loading');
       }
@@ -372,7 +445,7 @@ html.light .brand-title .logo.light{display:block}
       }
     }
     async function drawPool(){
-      try{const res=await api('./api/redistribution/pool',{method:'POST',body:'{}'});showMsg(`抽取成功 +${Number(res.draw&&res.draw.amount||0).toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
+      try{if(!await load()) return;const res=await api('./api/redistribution/pool',{method:'POST',body:'{}'});showMsg(`抽取成功 +${Number(res.draw&&res.draw.amount||0).toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
     }
     async function recoverPool(){
       try{const res=await api('./api/redistribution/recover',{method:'POST',body:'{}'});const amount=(res.items||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);showMsg(`追回成功 +${amount.toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}

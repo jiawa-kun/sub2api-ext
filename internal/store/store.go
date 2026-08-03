@@ -200,6 +200,18 @@ func (s *Store) GetSetting(ctx context.Context, key string) (string, bool, error
 	return v, true, nil
 }
 
+func (s *Store) GetSettingUpdatedAt(ctx context.Context, key string) (string, bool, error) {
+	var updatedAt string
+	err := s.db.QueryRowContext(ctx, `SELECT updated_at FROM app_settings WHERE key = ?`, key).Scan(&updatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return updatedAt, true, nil
+}
+
 func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.db.ExecContext(ctx, `

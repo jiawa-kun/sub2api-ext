@@ -144,9 +144,10 @@ func DefaultRuntime() Runtime {
 }
 
 type Settings struct {
-	mu      sync.RWMutex
-	store   *store.Store
-	current Runtime
+	mu        sync.RWMutex
+	store     *store.Store
+	current   Runtime
+	updatedAt string
 }
 
 func NewSettings(st *store.Store) *Settings {
@@ -159,6 +160,12 @@ func (s *Settings) Get() Runtime {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneRuntime(s.current)
+}
+
+func (s *Settings) UpdatedAt() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.updatedAt
 }
 
 func (s *Settings) Reload(ctx context.Context) error {
@@ -176,8 +183,13 @@ func (s *Settings) Reload(ctx context.Context) error {
 	if err := validateRuntime(rt); err != nil {
 		return err
 	}
+	updatedAt, _, err := s.store.GetSettingUpdatedAt(ctx, SettingsKey)
+	if err != nil {
+		return err
+	}
 	s.mu.Lock()
 	s.current = rt
+	s.updatedAt = updatedAt
 	s.mu.Unlock()
 	return nil
 }
@@ -194,8 +206,13 @@ func (s *Settings) Save(ctx context.Context, rt Runtime) (Runtime, error) {
 	if err := s.store.SetSetting(ctx, SettingsKey, string(raw)); err != nil {
 		return s.Get(), err
 	}
+	updatedAt, _, err := s.store.GetSettingUpdatedAt(ctx, SettingsKey)
+	if err != nil {
+		return s.Get(), err
+	}
 	s.mu.Lock()
 	s.current = rt
+	s.updatedAt = updatedAt
 	s.mu.Unlock()
 	return cloneRuntime(rt), nil
 }

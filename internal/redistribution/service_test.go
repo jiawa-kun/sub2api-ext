@@ -103,6 +103,7 @@ func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
 	rt.Reclaim.MaxPerUser = 1
 	rt.DrawMode = DrawFixed
 	rt.DrawFixedAmount = 0.2
+	rt.PoolExpireDays = 9
 	rt.Allocation.Mode = AllocationEqual
 	rt.Allocation.MaxRewardPerUser = 1
 	if _, err := settings.Save(context.Background(), rt); err != nil {
@@ -150,6 +151,19 @@ func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
 	lots, err := st.ListRedistributionPoolLots(context.Background(), 0, false, 10)
 	if err != nil || len(lots) != 1 || lots[0].SourceUserID != 1 || lots[0].RemainingAmount != 0.5 {
 		t.Fatalf("lots=%+v err=%v", lots, err)
+	}
+	poolResult, err := svc.Pool(context.Background(), 1, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if poolResult.Rules.DrawMode != DrawFixed || poolResult.Rules.DrawFixedAmount != 0.2 || poolResult.Rules.PoolExpireDays != 9 {
+		t.Fatalf("public pool rules=%+v", poolResult.Rules)
+	}
+	if !poolResult.Rules.PaidBalanceProtected || !poolResult.Rules.DrawIncludesWeekends || !poolResult.Rules.CanRecoverBeforeExpiry {
+		t.Fatalf("public protections=%+v", poolResult.Rules)
+	}
+	if poolResult.Rules.EffectiveAt == "" || len(poolResult.Rules.InactiveRules) == 0 || len(poolResult.Rules.ActiveRules) == 0 {
+		t.Fatalf("public rule metadata=%+v", poolResult.Rules)
 	}
 	drawn, err := svc.Draw(context.Background(), 2, now)
 	if err != nil || drawn.Draw.Amount != 0.2 {

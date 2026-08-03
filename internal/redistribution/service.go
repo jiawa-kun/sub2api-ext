@@ -41,6 +41,76 @@ type PoolResult struct {
 	AvailablePool float64                       `json:"available_pool"`
 	TodayDraw     *store.RedistributionPoolDraw `json:"today_draw,omitempty"`
 	Recoverable   []store.RedistributionPoolLot `json:"recoverable"`
+	Rules         PublicPoolRules               `json:"rules"`
+}
+
+type PublicPoolRules struct {
+	WorkdayDefinition      string       `json:"workday_definition"`
+	EffectiveAt            string       `json:"effective_at,omitempty"`
+	InactiveLogic          string       `json:"inactive_logic"`
+	InactiveRules          []PublicRule `json:"inactive_rules"`
+	ActiveLogic            string       `json:"active_logic"`
+	ActiveRules            []PublicRule `json:"active_rules"`
+	PaidBalanceProtected   bool         `json:"paid_balance_protected"`
+	NewUserProtectionDays  int          `json:"new_user_protection_days"`
+	ReclaimMode            string       `json:"reclaim_mode"`
+	ReclaimValue           float64      `json:"reclaim_value"`
+	ReclaimMinBalance      float64      `json:"reclaim_min_balance"`
+	ReclaimReserveBalance  float64      `json:"reclaim_reserve_balance"`
+	ReclaimMinPerUser      float64      `json:"reclaim_min_per_user"`
+	ReclaimMaxPerUser      float64      `json:"reclaim_max_per_user"`
+	DrawFrequency          string       `json:"draw_frequency"`
+	DrawIncludesWeekends   bool         `json:"draw_includes_weekends"`
+	DrawMode               string       `json:"draw_mode"`
+	DrawFixedAmount        float64      `json:"draw_fixed_amount,omitempty"`
+	DrawMinAmount          float64      `json:"draw_min_amount,omitempty"`
+	DrawMaxAmount          float64      `json:"draw_max_amount,omitempty"`
+	ActiveShareMode        string       `json:"active_share_mode,omitempty"`
+	PoolExpireDays         int          `json:"pool_expire_days"`
+	CanRecoverBeforeExpiry bool         `json:"can_recover_before_expiry"`
+}
+
+type PublicRule struct {
+	Type string `json:"type"`
+	Days int    `json:"days"`
+}
+
+func publicPoolRules(rt Runtime, effectiveAt string) PublicPoolRules {
+	return PublicPoolRules{
+		WorkdayDefinition:      "周一至周五计入工作日；周末不计天数，但周末活动仍有效",
+		EffectiveAt:            effectiveAt,
+		InactiveLogic:          rt.InactiveLogic,
+		InactiveRules:          publicRules(rt.InactiveRules),
+		ActiveLogic:            rt.ActiveLogic,
+		ActiveRules:            publicRules(rt.ActiveRules),
+		PaidBalanceProtected:   true,
+		NewUserProtectionDays:  rt.NewUserProtectionDays,
+		ReclaimMode:            rt.Reclaim.Mode,
+		ReclaimValue:           rt.Reclaim.Value,
+		ReclaimMinBalance:      rt.Reclaim.MinBalance,
+		ReclaimReserveBalance:  rt.Reclaim.ReserveBalance,
+		ReclaimMinPerUser:      rt.Reclaim.MinPerUser,
+		ReclaimMaxPerUser:      rt.Reclaim.MaxPerUser,
+		DrawFrequency:          "daily",
+		DrawIncludesWeekends:   true,
+		DrawMode:               rt.DrawMode,
+		DrawFixedAmount:        rt.DrawFixedAmount,
+		DrawMinAmount:          rt.DrawMinAmount,
+		DrawMaxAmount:          rt.DrawMaxAmount,
+		ActiveShareMode:        rt.ActiveShareMode,
+		PoolExpireDays:         rt.PoolExpireDays,
+		CanRecoverBeforeExpiry: true,
+	}
+}
+
+func publicRules(rules []Rule) []PublicRule {
+	out := make([]PublicRule, 0, len(rules))
+	for _, rule := range rules {
+		if rule.Enabled {
+			out = append(out, PublicRule{Type: rule.Type, Days: rule.Days})
+		}
+	}
+	return out
 }
 
 type BatchDetail struct {
@@ -442,7 +512,12 @@ func (s *Service) Pool(ctx context.Context, userID int64, now time.Time) (PoolRe
 			validLots = append(validLots, lot)
 		}
 	}
-	return PoolResult{AvailablePool: func() float64 { v, _ := s.store.RedistributionAvailablePool(ctx); return v }(), TodayDraw: draw, Recoverable: validLots}, nil
+	return PoolResult{
+		AvailablePool: func() float64 { v, _ := s.store.RedistributionAvailablePool(ctx); return v }(),
+		TodayDraw:     draw,
+		Recoverable:   validLots,
+		Rules:         publicPoolRules(rt, s.settings.UpdatedAt()),
+	}, nil
 }
 
 func (s *Service) Draw(ctx context.Context, userID int64, now time.Time) (DrawResult, error) {
