@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="使用教程">
+  <rect width="64" height="64" rx="16" fill="#F3F7FF"/>
+  <path d="M12 17.5A4.5 4.5 0 0 1 16.5 13H28a8 8 0 0 1 8 8v32a8 8 0 0 0-8-8H16.5a4.5 4.5 0 0 0-4.5 4.5v-32Z" fill="#FFFFFF" stroke="#B9C9EE" stroke-width="2"/>
+  <path d="M52 17.5A4.5 4.5 0 0 0 47.5 13H40a8 8 0 0 0-8 8v32a8 8 0 0 1 8-8h7.5a4.5 4.5 0 0 1 4.5 4.5v-32Z" fill="#E7EEFF" stroke="#B9C9EE" stroke-width="2"/>
+  <path d="M21 25h7M21 31h7M43 25h-7M43 31h-7" stroke="#5B8CFF" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="45" cy="45" r="11" fill="#5B8CFF"/>
+  <path d="M45 50v-6M45 40h.01" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+</svg>
