@@ -304,7 +304,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
-    <details class="fold"
+    <details class="fold" id="authDetails">
       <summary>鉴权与密钥</summary>
       <div class="fold-body">
         <div class="auth-grid u-mt-12">
@@ -1128,32 +1128,33 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
-  </div>
-
-    <div class="panel hidden" id="sec-tutorial">
+    <div class="hidden admin-module" id="sec-tutorial">
       <div class="card">
         <div class="card-head">
-          <h2>使用教程</h2>
-          <div class="desc">编辑展示给用户的教程内容，支持 HTML 格式</div>
-        </div>
-        <div class="section-title">
-          <h3>教程内容</h3>
+          <div>
+            <h2>使用教程</h2>
+            <p class="desc">编辑展示给用户的教程内容，保存后立即生效。</p>
+          </div>
+          <a class="secondary sm" href="./tutorial.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:var(--app-radius-sm);border:1px solid var(--border);text-decoration:none;color:var(--text)">打开用户教程页</a>
         </div>
         <div class="field">
-          <label for="tutorialEditor">HTML 源码</label>
-          <textarea id="tutorialEditor" rows="20" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;resize:vertical;white-space:pre-wrap"></textarea>
-          <div class="hint">支持 HTML 标签，如 h1-h3、p、ul/ol、pre/code、table、blockquote 等。内容将在教程页面直接渲染。</div>
+          <label for="tutorialEditor">教程内容（HTML）</label>
+          <textarea id="tutorialEditor" rows="18" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;resize:vertical;white-space:pre-wrap"></textarea>
+          <div class="hint">支持 h1-h3、p、ul/ol、pre/code、table、blockquote 等常用 HTML 标签。</div>
         </div>
         <div class="msg" id="tutorialMsg"></div>
         <div class="toolbar">
-          <button type="button" id="btnTutorialPreview">预览</button>
-          <button type="button" id="btnTutorialSave" class="secondary">保存教程</button>
+          <button type="button" id="btnTutorialSave">保存教程</button>
+          <button type="button" id="btnTutorialPreview" class="secondary">预览</button>
           <button type="button" id="btnTutorialRefresh" class="secondary">重新加载</button>
           <button type="button" id="btnTutorialClear" class="danger">清空内容</button>
         </div>
-        <div class="panel hidden" id="tutorialPreview" style="margin-top:10px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel);line-height:1.7;font-size:.92rem"></div>
+        <div class="hidden" id="tutorialPreview" style="margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:var(--app-radius);background:var(--panel);line-height:1.7;font-size:.92rem"></div>
       </div>
     </div>
+
+  </div>
+
     <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
