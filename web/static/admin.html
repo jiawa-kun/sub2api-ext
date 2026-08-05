@@ -208,6 +208,10 @@ details.fold[open] > summary::after{content:"▴"}
 .hero .label{font-size:.72rem; color:var(--muted); font-weight:650}
 .hero .value{margin-top:3px; font-size:.95rem; font-weight:760}
 .toolbar{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; padding:10px; border-radius:14px; border:1px solid var(--border); background:var(--panel)}
+.toolbar button svg{width:15px;height:15px;flex:none}
+#btnTutorialUpload{display:inline-flex;align-items:center;gap:6px}
+#tutorialEditor.upload-target{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,140,255,.16)}
+#tutorialPreview img{display:block;max-width:100%;height:auto;border-radius:10px;margin:12px 0}
 .log-card{border:1px solid var(--border); border-radius:14px; overflow:hidden; background:rgba(2,6,23,.35)}
 html.light .log-card{background:#0f172a08}
 .log-head{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-bottom:1px solid var(--border); background:rgba(127,127,127,.05); font-size:.76rem; font-weight:700}
@@ -1140,11 +1144,13 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="field">
           <label for="tutorialEditor">教程内容（HTML）</label>
           <textarea id="tutorialEditor" rows="18" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;resize:vertical;white-space:pre-wrap"></textarea>
-          <div class="hint">支持 h1-h3、p、ul/ol、pre/code、table、blockquote 等常用 HTML 标签。</div>
+          <div class="hint">支持常用 HTML 标签，以及上传、粘贴或拖放 PNG、JPG、WebP、GIF 图片。</div>
         </div>
         <div class="msg" id="tutorialMsg"></div>
         <div class="toolbar">
           <button type="button" id="btnTutorialSave">保存教程</button>
+          <button type="button" id="btnTutorialUpload" class="secondary"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>上传图片</button>
+          <input type="file" id="tutorialImageInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
           <button type="button" id="btnTutorialPreview" class="secondary">预览</button>
           <button type="button" id="btnTutorialRefresh" class="secondary">重新加载</button>
           <button type="button" id="btnTutorialClear" class="danger">清空内容</button>
@@ -1306,12 +1312,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       accessToken=''; authMode='none';
     }
     function setAuthStatus(text,cls){ const n=el('authStatus'); n.textContent=text; n.className='auth-status'+(cls?' '+cls:''); }
-    function authHeaders(){
-      const headers={'Accept':'application/json','Content-Type':'application/json'};
+    function authOnlyHeaders(){
+      const headers={'Accept':'application/json'};
       if(!accessToken) return headers;
       if(authMode==='api_key') headers['x-api-key']=accessToken;
       else { headers['Authorization']='Bearer '+accessToken; headers['X-User-Token']=accessToken; }
       return headers;
+    }
+    function authHeaders(){
+      return Object.assign(authOnlyHeaders(), {'Content-Type':'application/json'});
     }
     async function api(path, opts={}){
       resolveAuth();
@@ -3165,7 +3174,84 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(pv) pv.classList.add('hidden');
       showTutorialMsg('内容已清空','ok');
     }
+    async function uploadTutorialImage(file){
+      if(file.size>5*1024*1024) throw new Error(file.name+' 超过 5MB');
+      const allowed=['image/png','image/jpeg','image/webp','image/gif'];
+      if(file.type && !allowed.includes(file.type)) throw new Error(file.name+' 的格式不受支持');
+      resolveAuth();
+      const form=new FormData();
+      form.append('file',file,file.name);
+      const res=await fetch('./api/admin/pages/tutorial/assets',{method:'POST',headers:authOnlyHeaders(),body:form});
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.error||data.message||('HTTP '+res.status));
+      return data;
+    }
+    function insertTutorialMarkup(markup,start,end){
+      const editor=el('tutorialEditor');
+      const value=editor.value;
+      const from=Number.isInteger(start)?start:editor.selectionStart;
+      const to=Number.isInteger(end)?end:editor.selectionEnd;
+      const before=value.slice(0,from);
+      const after=value.slice(to);
+      const prefix=before && !before.endsWith('\n')?'\n':'';
+      const suffix=after && !after.startsWith('\n')?'\n':'';
+      editor.value=before+prefix+markup+suffix+after;
+      const next=before.length+prefix.length+markup.length+suffix.length;
+      editor.focus();
+      editor.setSelectionRange(next,next);
+      return next;
+    }
+    async function uploadTutorialImages(files,start,end){
+      const list=Array.from(files||[]).filter(Boolean);
+      if(!list.length) return;
+      const button=el('btnTutorialUpload');
+      if(button) button.disabled=true;
+      let pos=Number.isInteger(start)?start:el('tutorialEditor').selectionStart;
+      let tail=Number.isInteger(end)?end:el('tutorialEditor').selectionEnd;
+      try{
+        showTutorialMsg('正在上传图片…','ok');
+        for(const file of list){
+          const data=await uploadTutorialImage(file);
+          const alt=file.name.replace(/\.[^.]+$/,'');
+          const markup='<img src="'+escapeHtml(data.url)+'" alt="'+escapeHtml(alt)+'" loading="lazy">\n';
+          pos=insertTutorialMarkup(markup,pos,tail);
+          tail=pos;
+        }
+        showTutorialMsg('图片已上传并插入教程内容','ok');
+      }catch(e){
+        showTutorialMsg(e.message||String(e),'err');
+      }finally{
+        if(button) button.disabled=false;
+      }
+    }
+    let tutorialImageSelection={start:0,end:0};
     const btnTutSave=el('btnTutorialSave'); if(btnTutSave) btnTutSave.onclick=()=>saveTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
+    const btnTutUpload=el('btnTutorialUpload'); if(btnTutUpload) btnTutUpload.onclick=()=>{
+      const editor=el('tutorialEditor');
+      tutorialImageSelection={start:editor.selectionStart,end:editor.selectionEnd};
+      el('tutorialImageInput').click();
+    };
+    const tutImageInput=el('tutorialImageInput'); if(tutImageInput) tutImageInput.onchange=()=>{
+      uploadTutorialImages(tutImageInput.files,tutorialImageSelection.start,tutorialImageSelection.end);
+      tutImageInput.value='';
+    };
+    const tutEditor=el('tutorialEditor'); if(tutEditor){
+      tutEditor.addEventListener('paste',e=>{
+        const files=Array.from((e.clipboardData&&e.clipboardData.items)||[]).filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
+        if(!files.length) return;
+        e.preventDefault();
+        uploadTutorialImages(files,tutEditor.selectionStart,tutEditor.selectionEnd);
+      });
+      tutEditor.addEventListener('dragover',e=>{ if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files')){ e.preventDefault(); tutEditor.classList.add('upload-target'); } });
+      tutEditor.addEventListener('dragleave',()=>tutEditor.classList.remove('upload-target'));
+      tutEditor.addEventListener('drop',e=>{
+        tutEditor.classList.remove('upload-target');
+        const files=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]).filter(file=>file.type.startsWith('image/'));
+        if(!files.length) return;
+        e.preventDefault();
+        uploadTutorialImages(files,tutEditor.selectionStart,tutEditor.selectionEnd);
+      });
+    }
     const btnTutPreview=el('btnTutorialPreview'); if(btnTutPreview) btnTutPreview.onclick=()=>previewTutorial();
     const btnTutRefresh=el('btnTutorialRefresh'); if(btnTutRefresh) btnTutRefresh.onclick=()=>refreshTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
     const btnTutClear=el('btnTutorialClear'); if(btnTutClear) btnTutClear.onclick=()=>clearTutorial();
