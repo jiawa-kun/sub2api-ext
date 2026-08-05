@@ -1334,6 +1334,85 @@ func (h *Handler) Calendar(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+
+// PublicGetTutorial returns the public tutorial page content.
+func (h *Handler) PublicGetTutorial(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	html, err := h.store.GetTutorial(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"html":  html,
+		"title": "使用教程",
+	})
+}
+
+// AdminGetTutorial returns the tutorial content (admin, same as public but implicitly authenticated).
+func (h *Handler) AdminGetTutorial(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.limitAdminRead.Allow("AT:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	html, err := h.store.GetTutorial(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"html":  html,
+		"title": "使用教程",
+	})
+}
+
+// AdminSetTutorial saves the tutorial content.
+func (h *Handler) AdminSetTutorial(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut && r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !h.limitAdminWrite.Allow("ATW:" + clientIP(r)) {
+		writeErr(w, http.StatusTooManyRequests, "rate limited")
+		return
+	}
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "read body failed")
+		return
+	}
+	var req struct {
+		HTML string `json:"html"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid json: "+err.Error())
+		return
+	}
+	if err := h.store.SetTutorial(r.Context(), req.HTML); err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"message": "教程已保存",
+		"html":    req.HTML,
+	})
+}
+
 // truncateForNotify keeps notification payloads compact.
 func truncateForNotify(s string, n int) string {
 	if len(s) <= n {

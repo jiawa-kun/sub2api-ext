@@ -195,6 +195,19 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/patrol/run", h.AdminPatrolRun)
 	mux.HandleFunc(base+"/api/admin/patrol/stop", h.AdminPatrolStop)
 
+	
+	mux.HandleFunc(base+"/api/pages/tutorial", h.PublicGetTutorial)
+	mux.HandleFunc(base+"/api/admin/pages/tutorial", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			h.AdminGetTutorial(w, r)
+		case http.MethodPut, http.MethodPost:
+			h.AdminSetTutorial(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	staticRoot, err := fs.Sub(web.StaticFS, "static")
 	if err != nil {
 		log.Fatalf("static fs: %v", err)

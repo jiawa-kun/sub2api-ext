@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>使用教程 · Sub2API</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="./assets/ext-center-icon-light.svg" media="(prefers-color-scheme: light)" />
+  <link id="favicon" rel="icon" type="image/svg+xml" href="./assets/ext-center-icon.svg" />
+  <style>
+:root {
+  --bg0:#070b16; --bg1:#121a2f; --card:rgba(18,26,43,.92); --text:#eef3ff; --muted:#93a0b8;
+  --primary:#5b8cff; --primary2:#7c5cff; --ok:#22c55e; --danger:#f43f5e; --warn:#f59e0b;
+  --border:rgba(255,255,255,.09); --soft:rgba(255,255,255,.04);
+  --shadow:0 16px 40px rgba(0,0,0,.28); --glow:rgba(91,140,255,.28);
+  --radius:18px; --radius-sm:12px; --line:rgba(255,255,255,.06);
+  --input-bg:rgba(7,11,22,.45);
+}
+html.light {
+  --bg0:#eef2ff; --bg1:#f8fafc; --card:rgba(255,255,255,.96); --text:#0f172a; --muted:#64748b;
+  --border:rgba(15,23,42,.08); --soft:rgba(15,23,42,.03);
+  --shadow:0 12px 30px rgba(15,23,42,.08); --glow:rgba(59,130,246,.16);
+  --line:rgba(15,23,42,.06); --input-bg:#fff;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family:ui-sans-serif,system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:radial-gradient(900px 420px at 10% -12%, var(--glow), transparent 58%),
+    radial-gradient(720px 340px at 100% 0%, rgba(124,92,255,.14), transparent 52%),
+    linear-gradient(180deg,var(--bg0),var(--bg1));
+  display:flex; justify-content:center; padding:16px 14px 108px;
+}
+.wrap{width:min(920px,100%); display:flex; flex-direction:column; gap:12px}
+a{color:var(--primary); text-decoration:none}
+.topnav{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px}
+.topnav a{
+  text-decoration:none; color:var(--text); font-size:.78rem; font-weight:650;
+  border:1px solid var(--border); border-radius:999px; padding:6px 10px 6px 8px; background:var(--soft);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.topnav a svg{width:14px; height:14px; flex:none; opacity:.9}
+.topnav a.active{border-color:rgba(91,140,255,.45); background:rgba(91,140,255,.12); color:#9db7ff}
+html.light .topnav a.active{color:#4f46e5}
+.topnav a.nav-extra{display:none}
+.brand-title{display:flex; align-items:center; gap:10px}
+.brand-title .logo{width:34px; height:34px; border-radius:10px; flex:none}
+.brand-title .logo.dark{display:block}
+.brand-title .logo.light{display:none}
+html.light .brand-title .logo.dark{display:none}
+html.light .brand-title .logo.light{display:block}
+.brand-title h1{margin:0; font-size:1.22rem}
+.lead{margin:6px 0 0; color:var(--muted); font-size:.84rem; line-height:1.45}
+.top-meta{display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end}
+.theme-btn,.chip{
+  border:1px solid var(--border); background:var(--soft); color:var(--text);
+  border-radius:999px; padding:5px 10px; font-size:.72rem; font-weight:650; cursor:pointer;
+}
+.card{background:var(--card); backdrop-filter:blur(14px); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
+.card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin:0 0 12px}
+.card-head h2{margin:0; font-size:1rem; font-weight:750}
+.msg{display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; font-size:.84rem}
+.msg.show{display:block}
+.msg.ok{background:rgba(34,197,94,.1); color:var(--ok); border:1px solid rgba(34,197,94,.2)}
+.msg.err{background:rgba(244,63,94,.1); color:var(--danger); border:1px solid rgba(244,63,94,.2)}
+.sub{color:var(--muted); font-size:.8rem; line-height:1.45; margin:0 0 8px}
+.hint{font-size:.72rem; color:var(--muted); margin-top:6px; line-height:1.4}
+#content{line-height:1.7; font-size:.92rem}
+#content h1{font-size:1.2rem; margin:1.2em 0 .6em}
+#content h2{font-size:1.05rem; margin:1.2em 0 .5em}
+#content h3{font-size:.95rem; margin:1em 0 .4em}
+#content p{margin:.6em 0}
+#content ul,#content ol{padding-left:1.5em; margin:.6em 0}
+#content li{margin:.3em 0}
+#content pre{background:rgba(0,0,0,.3); border:1px solid var(--border); border-radius:10px; padding:12px; overflow-x:auto; font-size:.82rem; line-height:1.5}
+#content code{background:rgba(0,0,0,.25); padding:2px 6px; border-radius:5px; font-size:.85em}
+#content pre code{background:transparent; padding:0}
+#content img{max-width:100%; border-radius:10px; margin:1em 0}
+#content table{border-collapse:collapse; width:100%; margin:1em 0; font-size:.85rem}
+#content th,#content td{border:1px solid var(--border); padding:8px 10px; text-align:left}
+#content th{background:var(--soft); font-weight:700}
+#content blockquote{border-left:3px solid var(--primary); padding:6px 12px; margin:1em 0; background:rgba(91,140,255,.05); border-radius:0 10px 10px 0; color:var(--muted)}
+#content a{color:var(--primary); text-decoration:underline}
+.empty{text-align:center; padding:40px 16px; color:var(--muted)}
+.empty svg{width:48px; height:48px; opacity:.4; margin-bottom:12px}
+.empty .t{font-size:.95rem; margin-bottom:6px}
+.empty .d{font-size:.8rem}
+  </style>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <div class="topnav">
+          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
+          <a href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</a>
+          <a href="./rewards.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>我的奖励</a>
+          <a class="active" href="./tutorial.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</a>
+          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
+          <a class="nav-extra" id="adminTopLink" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
+        </div>
+        <div class="brand-title">
+          <img class="logo dark" src="./assets/ext-center-icon.svg" alt="" width="34" height="34" />
+          <img class="logo light" src="./assets/ext-center-icon-light.svg" alt="" width="34" height="34" />
+          <h1>使用教程</h1>
+        </div>
+        <p class="lead">了解如何使用扩展中心各项功能</p>
+      </div>
+      <div class="top-meta">
+        <button type="button" class="theme-btn" id="themeBtn">🌓 主题</button>
+      </div>
+    </header>
+
+    <div class="card" id="tutorialContent">
+      <div class="card-head">
+        <h2>教程</h2>
+      </div>
+      <div id="content" class="empty">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div class="t">暂无教程内容</div>
+        <div class="d">管理员可在管理台中编辑此页面内容</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const el = id => document.getElementById(id);
+    const THEME_KEY = 'sub2api_ext_theme';
+    const THEME_KEY_LEGACY = 'sub2api_admin_theme';
+    function initTheme(){
+      const q = (params.get('theme')||'').toLowerCase();
+      if(q==='light'||q==='dark'){ applyTheme(q==='light'); return; }
+      const stored = localStorage.getItem(THEME_KEY) || localStorage.getItem(THEME_KEY_LEGACY);
+      if(stored){ applyTheme(stored==='light'); return; }
+      applyTheme(window.matchMedia('(prefers-color-scheme:light)').matches);
+    }
+    function applyTheme(light){
+      document.documentElement.classList.toggle('light', !!light);
+      localStorage.setItem(THEME_KEY, light?'light':'dark');
+      const link = document.getElementById('favicon');
+      if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
+    }
+    function toggleTheme(){ applyTheme(!document.documentElement.classList.contains('light')); }
+    el('themeBtn').addEventListener('click', toggleTheme);
+    initTheme();
+
+    // reveal admin links
+    async function revealAdmin(){
+      try{
+        const st = await (await fetch('./api/status')).json();
+        const isAdmin = st.is_admin===true || String((st.role||'')).toLowerCase()==='admin';
+        document.querySelectorAll('.topnav a.nav-extra').forEach(a=>{ a.style.display = isAdmin ? 'inline-flex' : 'none'; });
+      }catch{}
+    }
+
+    // load tutorial content
+    async function loadTutorial(){
+      try{
+        const r = await fetch('./api/pages/tutorial');
+        const data = await r.json();
+        if(data && data.html){
+          el('content').className = '';
+          el('content').innerHTML = data.html;
+        }
+      }catch(e){
+        console.error('load tutorial:', e);
+      }
+    }
+
+    // token-preserving nav
+    function pickToken(){
+      return params.get('token') || '';
+    }
+    const accessToken = pickToken();
+    document.querySelectorAll('.topnav a').forEach(a=>{
+      const href=a.getAttribute('href');
+      if(href && href.startsWith('./') && accessToken && !href.includes('token=')){
+        a.addEventListener('click', (e)=>{
+          e.preventDefault();
+          const u=new URL(href, location.href);
+          u.searchParams.set('token', accessToken);
+          location.href=u.pathname+u.search+u.hash;
+        });
+      }
+    });
+
+    revealAdmin();
+    loadTutorial();
+  </script>
+</body>
+</html>

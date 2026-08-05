@@ -247,6 +247,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="topnav">
           <a href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>扩展中心</a>
           <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a href="./tutorial.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</a>
           <a class="active" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
         <div class="brand-title">
@@ -294,10 +295,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
           <button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
         </div>
+            </div>
+      <div class="modnav-group" data-group="content">
+        <div class="modnav-group-title">内容管理</div>
+        <div class="modnav-group-btns">
+          <button type="button" id="nav-tutorial"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</button>
+        </div>
       </div>
     </div>
 
-    <details class="fold" id="authDetails">
+    <details class="fold"
       <summary>鉴权与密钥</summary>
       <div class="fold-body">
         <div class="auth-grid u-mt-12">
@@ -1123,7 +1130,31 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
   </div>
 
-<div class="save-dock" id="checkinSaveDock">
+    <div class="panel hidden" id="sec-tutorial">
+      <div class="card">
+        <div class="card-head">
+          <h2>使用教程</h2>
+          <div class="desc">编辑展示给用户的教程内容，支持 HTML 格式</div>
+        </div>
+        <div class="section-title">
+          <h3>教程内容</h3>
+        </div>
+        <div class="field">
+          <label for="tutorialEditor">HTML 源码</label>
+          <textarea id="tutorialEditor" rows="20" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;resize:vertical;white-space:pre-wrap"></textarea>
+          <div class="hint">支持 HTML 标签，如 h1-h3、p、ul/ol、pre/code、table、blockquote 等。内容将在教程页面直接渲染。</div>
+        </div>
+        <div class="msg" id="tutorialMsg"></div>
+        <div class="toolbar">
+          <button type="button" id="btnTutorialPreview">预览</button>
+          <button type="button" id="btnTutorialSave" class="secondary">保存教程</button>
+          <button type="button" id="btnTutorialRefresh" class="secondary">重新加载</button>
+          <button type="button" id="btnTutorialClear" class="danger">清空内容</button>
+        </div>
+        <div class="panel hidden" id="tutorialPreview" style="margin-top:10px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel);line-height:1.7;font-size:.92rem"></div>
+      </div>
+    </div>
+    <div class="save-dock" id="checkinSaveDock">
     <div class="inner">
       <div class="summary" id="draftSummary">即将保存：—</div>
       <button id="btn" disabled>保存设置</button>
@@ -1136,7 +1167,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const el=id=>document.getElementById(id);
     if(window.self!==window.top) document.body.classList.add('is-embedded');
     function setAdminSection(name){
-      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks'];
+      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks','tutorial'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -2992,6 +3023,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navRedis=el('nav-redistribution'); if(navRedis) navRedis.onclick=(e)=>{ e.preventDefault(); setAdminSection('redistribution'); refreshRedistribution().catch(e2=>show(e2.message||String(e2),'err')); };
     const navCampaign=el('nav-campaign'); if(navCampaign) navCampaign.onclick=(e)=>{ e.preventDefault(); setAdminSection('campaign'); refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err')); };
     const navTasks=el('nav-tasks'); if(navTasks) navTasks.onclick=(e)=>{ e.preventDefault(); setAdminSection('tasks'); refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err')); };
+    const navTutorial=el('nav-tutorial'); if(navTutorial) navTutorial.onclick=(e)=>{ e.preventDefault(); setAdminSection('tutorial'); refreshTutorial().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedgerRefresh=el('btnLedgerRefresh'); if(btnLedgerRefresh) btnLedgerRefresh.onclick=()=>refreshLedger().catch(e2=>show(e2.message||String(e2),'err'));
     const btnLedgerToday=el('btnLedgerToday'); if(btnLedgerToday) btnLedgerToday.onclick=()=>{ ledgerSetRangeDays(1); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedger7d=el('btnLedger7d'); if(btnLedger7d) btnLedger7d.onclick=()=>{ ledgerSetRangeDays(7); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
@@ -3076,6 +3108,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     else if(initHash==='#redistribution'){ setAdminSection('redistribution'); refreshRedistribution().catch(()=>{}); }
     else if(initHash==='#campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
     else if(initHash==='#tasks'){ setAdminSection('tasks'); refreshTasksAdmin().catch(()=>{}); }
+    else if(initHash==='#tutorial'){ setAdminSection('tutorial'); refreshTutorial().catch(()=>{}); }
     else if(initHash==='#checkin') setAdminSection('checkin');
     else if(initHash==='#overview'){ setAdminSection('overview'); refreshOverview().catch(()=>{}); }
     else { setAdminSection('overview'); refreshOverview().catch(()=>{}); }
@@ -3086,6 +3119,55 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       setAuthStatus('页面初始化失败：'+(e.message||e), 'err');
       try { show('页面初始化失败：'+(e.message||e), 'err'); } catch {}
     }
-  </script>
+  
+    // === Tutorial editor ===
+    async function refreshTutorial(){
+      try{
+        const r = await api('./api/admin/pages/tutorial');
+        const data = r||{};
+        el('tutorialEditor').value = data.html||'';
+        showTutorialMsg('教程已加载','ok');
+      }catch(e){
+        showTutorialMsg(e.message||String(e),'err');
+      }
+    }
+    function showTutorialMsg(msg, type){
+      const m=el('tutorialMsg');
+      if(!m) return;
+      m.textContent=msg; m.className='msg show '+(type||'ok');
+      setTimeout(()=>{ m.className='msg'; }, 5000);
+    }
+    async function saveTutorial(){
+      const html = el('tutorialEditor').value;
+      try{
+        const r = await api('./api/admin/pages/tutorial',{method:'PUT',body:JSON.stringify({html})});
+        showTutorialMsg('教程已保存','ok');
+      }catch(e){
+        showTutorialMsg(e.message||String(e),'err');
+      }
+    }
+    function previewTutorial(){
+      const html = el('tutorialEditor').value;
+      const pv = el('tutorialPreview');
+      if(!pv) return;
+      if(!html){
+        pv.classList.add('hidden');
+        return;
+      }
+      pv.classList.remove('hidden');
+      pv.innerHTML = html;
+      showTutorialMsg('预览已生成','ok');
+    }
+    function clearTutorial(){
+      el('tutorialEditor').value = '';
+      const pv = el('tutorialPreview');
+      if(pv) pv.classList.add('hidden');
+      showTutorialMsg('内容已清空','ok');
+    }
+    const btnTutSave=el('btnTutorialSave'); if(btnTutSave) btnTutSave.onclick=()=>saveTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
+    const btnTutPreview=el('btnTutorialPreview'); if(btnTutPreview) btnTutPreview.onclick=()=>previewTutorial();
+    const btnTutRefresh=el('btnTutorialRefresh'); if(btnTutRefresh) btnTutRefresh.onclick=()=>refreshTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
+    const btnTutClear=el('btnTutorialClear'); if(btnTutClear) btnTutClear.onclick=()=>clearTutorial();
+</script>
 </body>
 </html>

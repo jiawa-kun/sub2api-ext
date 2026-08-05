@@ -573,3 +573,17 @@ func isUniqueViolation(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "UNIQUE constraint failed") || strings.Contains(msg, "unique constraint")
 }
+func (s *Store) GetTutorial(ctx context.Context) (string, error) {
+	v, ok, err := s.GetSetting(ctx, "page:tutorial")
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", nil
+	}
+	return v, nil
+}
+
+func (s *Store) SetTutorial(ctx context.Context, html string) error {
+	return s.SetSetting(ctx, "page:tutorial", html)
+}
