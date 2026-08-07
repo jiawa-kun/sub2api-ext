@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -152,6 +153,11 @@ type lotteryStatusBody struct {
 		Amount float64 `json:"amount"`
 	} `json:"prizes"`
 	TodayPrize string `json:"today_prize"`
+	Recent     []struct {
+		DrawDate   string  `json:"draw_date"`
+		PrizeLabel string  `json:"prize_label"`
+		Amount     float64 `json:"amount"`
+	} `json:"recent"`
 }
 
 func alwaysWinPool() lottery.Runtime {
@@ -374,6 +380,66 @@ func TestLotteryStatusReportsState(t *testing.T) {
 }
 
 // Weights are an operator secret; the public payload must not leak them.
+func TestLotteryStatusReturnsLatestSevenUserDrawsAndAdminDefaultsToTen(t *testing.T) {
+	f := newLotteryFixture(t, alwaysWinPool())
+	ctx := context.Background()
+	dates := []string{"2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06", "2026-07-07", "2026-07-08"}
+	for i, date := range dates {
+		id, err := f.st.ReserveLotteryDraw(ctx, 7, date)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.st.FinalizeLotteryDraw(ctx, id, "prize-"+strconv.Itoa(i+1), store.PrizeTypeBalance, float64(i+1), 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 5; i++ {
+		id, err := f.st.ReserveLotteryDraw(ctx, 8, dates[i])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.st.FinalizeLotteryDraw(ctx, id, "other", store.PrizeTypeNone, 0, 0); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/lottery/status", nil)
+	req.Header.Set("Authorization", "Bearer "+lotteryUserToken)
+	rec := httptest.NewRecorder()
+	f.h.LotteryStatus(rec, req)
+	var body lotteryStatusBody
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Recent) != 7 {
+		t.Fatalf("recent=%d body=%s", len(body.Recent), rec.Body.String())
+	}
+	if body.Recent[0].PrizeLabel != "prize-8" || body.Recent[6].PrizeLabel != "prize-2" {
+		t.Fatalf("unexpected recent order: %+v", body.Recent)
+	}
+	for _, item := range body.Recent {
+		if item.PrizeLabel == "other" {
+			t.Fatalf("another user's draw leaked: %+v", item)
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/admin/lottery/draws", nil)
+	req.Header.Set("x-api-key", "admin-key")
+	rec = httptest.NewRecorder()
+	f.h.AdminLotteryDraws(rec, req)
+	var page struct {
+		Items []store.LotteryDraw `json:"items"`
+		Limit int                 `json:"limit"`
+		Total int64               `json:"total"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if page.Limit != 10 || len(page.Items) != 10 || page.Total != 13 {
+		t.Fatalf("page=%+v body=%s", page, rec.Body.String())
+	}
+}
+
 func TestLotteryStatusHidesWeights(t *testing.T) {
 	f := newLotteryFixture(t, alwaysWinPool())
 	req := httptest.NewRequest(http.MethodGet, "/api/lottery/status", nil)

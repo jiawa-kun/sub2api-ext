@@ -93,7 +93,7 @@ func (h *Handler) AdminListLedger(w http.ResponseWriter, r *http.Request) {
 	}
 	f := ledgerFilterFromRequest(r)
 	if f.Limit <= 0 {
-		f.Limit = 20
+		f.Limit = 10
 	}
 	if f.Limit > 200 {
 		f.Limit = 200
@@ -269,7 +269,7 @@ func (h *Handler) MeLedger(w http.ResponseWriter, r *http.Request) {
 	// Always pin to the authenticated user; ignore client-supplied user_id.
 	f.UserID = user.ID
 	if f.Limit <= 0 {
-		f.Limit = 50
+		f.Limit = 10
 	}
 	if f.Limit > 100 {
 		f.Limit = 100

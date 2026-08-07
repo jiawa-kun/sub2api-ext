@@ -171,7 +171,7 @@ FROM credit_ledger WHERE idempotency_key = ? ORDER BY id DESC LIMIT 1
 // ListLedger returns newest first.
 func (s *Store) ListLedger(ctx context.Context, f LedgerFilter) ([]LedgerEntry, error) {
 	if f.Limit <= 0 {
-		f.Limit = 50
+		f.Limit = 10
 	}
 	if f.Limit > 5000 {
 		f.Limit = 5000

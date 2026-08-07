@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -50,6 +51,7 @@ func TestMeLedgerPinsUserAndIgnoresQueryUserID(t *testing.T) {
 
 	cfg := config.Config{}
 	cfg.Sub2API.BaseURL = upstream.URL
+	cfg.Sub2API.AdminToken = "admin-key"
 	cfg.Checkin.Timezone = "Asia/Shanghai"
 	cfg.Security.RateStatusPerMin = 1000
 	cfg.Security.RateCheckinPerMin = 1000
@@ -95,6 +97,39 @@ func TestMeLedgerPinsUserAndIgnoresQueryUserID(t *testing.T) {
 	}
 	if body["success_amount"].(float64) != 0.5 {
 		t.Fatalf("success_amount=%v", body["success_amount"])
+	}
+
+	for i := 0; i < 11; i++ {
+		if _, err := st.InsertLedger(ctx, store.LedgerEntry{
+			UserID: 7, Source: store.LedgerSourceCheckin, Amount: 1,
+			IdempotencyKey: fmt.Sprintf("extra-%d", i), Status: store.LedgerStatusSuccess,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/me/ledger", nil)
+	req.Header.Set("Authorization", "Bearer user-token")
+	rec = httptest.NewRecorder()
+	h.MeLedger(rec, req)
+	body = map[string]any{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if int(body["limit"].(float64)) != 10 || len(body["items"].([]any)) != 10 || int(body["total"].(float64)) != 12 {
+		t.Fatalf("me ledger default paging=%s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/admin/ledger", nil)
+	req.Header.Set("x-api-key", "admin-key")
+	rec = httptest.NewRecorder()
+	h.AdminListLedger(rec, req)
+	body = map[string]any{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if int(body["limit"].(float64)) != 10 || len(body["items"].([]any)) != 10 || int(body["total"].(float64)) != 13 {
+		t.Fatalf("admin ledger default paging=%s", rec.Body.String())
 	}
 }
 

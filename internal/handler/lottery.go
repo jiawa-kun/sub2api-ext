@@ -38,19 +38,26 @@ func publicPrizes(rt lottery.Runtime) []publicPrize {
 	return out
 }
 
+type lotteryRecentItem struct {
+	DrawDate   string  `json:"draw_date"`
+	PrizeLabel string  `json:"prize_label"`
+	Amount     float64 `json:"amount"`
+}
+
 type lotteryStatusResponse struct {
-	Enabled         bool          `json:"enabled"`
-	RequireCheckin  bool          `json:"require_checkin"`
-	Today           string        `json:"today"`
-	Prizes          []publicPrize `json:"prizes"`
-	CanDraw         bool          `json:"can_draw"`
-	Reason          string        `json:"reason,omitempty"`
-	DrawnToday      bool          `json:"drawn_today"`
-	TodayPrize      string        `json:"today_prize,omitempty"`
-	TodayPrizeIndex *int          `json:"today_prize_index,omitempty"`
-	TodayAmount     float64       `json:"today_amount,omitempty"`
-	CheckedInToday  bool          `json:"checked_in_today"`
-	BudgetLeft      *float64      `json:"budget_left,omitempty"`
+	Enabled         bool                `json:"enabled"`
+	RequireCheckin  bool                `json:"require_checkin"`
+	Today           string              `json:"today"`
+	Prizes          []publicPrize       `json:"prizes"`
+	CanDraw         bool                `json:"can_draw"`
+	Reason          string              `json:"reason,omitempty"`
+	DrawnToday      bool                `json:"drawn_today"`
+	TodayPrize      string              `json:"today_prize,omitempty"`
+	TodayPrizeIndex *int                `json:"today_prize_index,omitempty"`
+	TodayAmount     float64             `json:"today_amount,omitempty"`
+	CheckedInToday  bool                `json:"checked_in_today"`
+	BudgetLeft      *float64            `json:"budget_left,omitempty"`
+	Recent          []lotteryRecentItem `json:"recent,omitempty"`
 }
 
 type lotteryDrawResponse struct {
@@ -86,22 +93,37 @@ func (h *Handler) LotteryStatus(w http.ResponseWriter, r *http.Request) {
 		Today:          today,
 		Prizes:         publicPrizes(rt),
 	}
-	if !rt.Enabled {
-		resp.Reason = "抽奖未开启"
-		writeJSON(w, http.StatusOK, resp)
-		return
-	}
-
 	// Anonymous callers still see the pool, just no personal state.
 	token := extractToken(r)
 	if token == "" {
-		resp.Reason = "请先登录"
+		if rt.Enabled {
+			resp.Reason = "请先登录"
+		} else {
+			resp.Reason = "抽奖未开启"
+		}
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
 	user, err := h.client.ResolveUser(r.Context(), token, clientMetaFromRequest(r))
 	if err != nil {
-		resp.Reason = "请先登录"
+		if rt.Enabled {
+			resp.Reason = "请先登录"
+		} else {
+			resp.Reason = "抽奖未开启"
+		}
+		writeJSON(w, http.StatusOK, resp)
+		return
+	}
+	if draws, err := h.store.ListLotteryDraws(r.Context(), user.ID, 7, 0); err == nil {
+		resp.Recent = make([]lotteryRecentItem, 0, len(draws))
+		for _, draw := range draws {
+			resp.Recent = append(resp.Recent, lotteryRecentItem{
+				DrawDate: draw.DrawDate, PrizeLabel: draw.PrizeLabel, Amount: draw.Amount,
+			})
+		}
+	}
+	if !rt.Enabled {
+		resp.Reason = "抽奖未开启"
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
@@ -415,7 +437,7 @@ func (h *Handler) AdminLotteryDraws(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(strings.TrimSpace(q.Get("offset")))
 	userID, _ := strconv.ParseInt(strings.TrimSpace(q.Get("user_id")), 10, 64)
 	if limit <= 0 || limit > 200 {
-		limit = 20
+		limit = 10
 	}
 	items, err := h.store.ListLotteryDraws(r.Context(), userID, limit, offset)
 	if err != nil {

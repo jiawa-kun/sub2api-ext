@@ -137,7 +137,7 @@ FROM lottery_draws
 // ListLotteryDraws returns draws newest first, optionally filtered by user.
 func (s *Store) ListLotteryDraws(ctx context.Context, userID int64, limit, offset int) ([]LotteryDraw, error) {
 	if limit <= 0 || limit > 200 {
-		limit = 50
+		limit = 10
 	}
 	if offset < 0 {
 		offset = 0

@@ -918,6 +918,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" class="secondary sm" id="btnLedgerRefresh">刷新</button>
           <button type="button" class="secondary sm" id="btnLedgerExport">导出 CSV</button>
           <select id="ledgerPageSize" class="sm" title="每页条数">
+            <option value="10">10条/页</option>
             <option value="20">20条/页</option>
             <option value="50">50条/页</option>
             <option value="100">100条/页</option>
@@ -2339,7 +2340,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const body=el('lotteryDrawBody');
       if(!body) return;
       body.innerHTML='<tr><td colspan="5" class="hint">加载中…</td></tr>';
-      const data=await api('./api/admin/lottery/draws?limit=20&offset='+(lotteryDrawPage.offset||0));
+      const data=await api('./api/admin/lottery/draws?limit='+(lotteryDrawPage.limit||10)+'&offset='+(lotteryDrawPage.offset||0));
       const items=data.items||[];
       lotteryDrawPage.total=Number(data.total||0);
       if(!items.length){
@@ -2491,8 +2492,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!Number.isFinite(n)) return '0';
       return n.toFixed(4).replace(/\.?0+$/,'') || '0';
     }
-    let lotteryDrawPage={offset:0,limit:20,total:0};
-    let ledgerPage={offset:0, limit:20, total:0};
+    let lotteryDrawPage={offset:0,limit:10,total:0};
+    let ledgerPage={offset:0, limit:10, total:0};
     function ledgerEnsureDefaultRange(){
       const fromEl=el('ledgerFrom'), toEl=el('ledgerTo');
       if(!fromEl || !toEl) return;
@@ -2525,8 +2526,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function ledgerResetPage(){ ledgerPage.offset=0; }
     async function refreshLedger(){
       ledgerEnsureDefaultRange();
-      const size=Number(el('ledgerPageSize')?.value||20);
-      ledgerPage.limit = [20,50,100].includes(size)?size:20;
+      const size=Number(el('ledgerPageSize')?.value||10);
+      ledgerPage.limit = [10,20,50,100].includes(size)?size:10;
       const q=ledgerQueryParams({limit:ledgerPage.limit, offset:ledgerPage.offset});
       const sq=ledgerQueryParams();
       // stats should not carry pagination
