@@ -29,7 +29,8 @@ func (s *testBalanceState) balance(id int64) float64 {
 }
 
 func TestPreviewAndExecuteAutoRedistribution(t *testing.T) {
-	now := time.Now().UTC()
+	// fixed away from any timezone day boundary so now+1h stays on the same draw date
+	now := time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
 	old := now.AddDate(0, 0, -90)
 	recent := now.AddDate(0, 0, -1)
 	created := now.AddDate(0, 0, -120)
