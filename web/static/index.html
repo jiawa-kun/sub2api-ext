@@ -255,64 +255,70 @@ details.more .body{padding:0 12px 12px}
     </header>
 
     <section class="card">
-      <div class="hero" id="hero">
-        <div class="label" id="rewardLabel">今日奖励</div>
-        <div class="amount" id="reward">—</div>
-        <div class="meta" id="rewardMeta">—</div>
-        <a class="task-link" id="taskHint" href="./tasks.html">去任务中心查看进度 →</a>
-      </div>
-
-      <div class="grid2">
-        <div class="stat"><div class="k">余额</div><div class="v" id="balance">—</div></div>
-        <div class="stat"><div class="k">连续签到</div><div class="v" id="streak">—</div></div>
-      </div>
-      <div class="meta-line" id="extraMeta">累计 <span id="total">—</span> · 连签加成 <span id="streakBonus">—</span></div>
-
-      <div class="budget" id="budgetBox" style="display:none">
-        <div class="row"><span>今日预算</span><span id="budgetText">—</span></div>
-        <div class="bar"><i id="budgetBar"></i></div>
-      </div>
-
-      <button id="btn" class="btn" disabled>签到</button>
-      <div id="msg" class="msg"></div>
-      <div class="chips" id="milestoneHint" style="display:none"></div>
-
-      <div id="lotteryBox" class="lottery" style="display:none">
-        <div class="lottery-head">
-          <span class="lottery-title">幸运抽奖</span>
-          <span class="lottery-state" id="lotteryState">—</span>
-        </div>
-        <div class="lottery-wheel-area" aria-label="幸运抽奖转盘">
-          <div class="lottery-pointer" aria-hidden="true"></div>
-          <div class="lottery-wheel" id="lotteryWheel"></div>
-          <div class="lottery-center">
-            <button id="lotteryBtn" class="btn lottery-spin-btn" disabled>抽奖</button>
+      <div class="checkin-layout">
+        <div class="checkin-primary">
+          <div class="hero" id="hero">
+            <div class="label" id="rewardLabel">今日奖励</div>
+            <div class="amount" id="reward">—</div>
+            <div class="meta" id="rewardMeta">—</div>
+            <a class="task-link" id="taskHint" href="./tasks.html">去任务中心查看进度 →</a>
           </div>
-        </div>
-        <div class="lottery-prizes" id="lotteryPrizes"></div>
-        <div class="lottery-result" id="lotteryResult" aria-live="polite" style="display:none"></div>
-      </div>
 
-      <details class="more">
-        <summary>签到月历</summary>
-        <div class="body cal">
-          <div class="cal-head">
-            <h2 class="sec-title" id="calTitle">—</h2>
-            <div class="row-inline">
-              <button type="button" class="btn-mini" id="calPrev">‹</button>
-              <button type="button" class="btn-mini" id="calNext">›</button>
+          <div class="grid2">
+            <div class="stat"><div class="k">余额</div><div class="v" id="balance">—</div></div>
+            <div class="stat"><div class="k">连续签到</div><div class="v" id="streak">—</div></div>
+          </div>
+          <div class="meta-line" id="extraMeta">累计 <span id="total">—</span> · 连签加成 <span id="streakBonus">—</span></div>
+
+          <div class="budget" id="budgetBox" style="display:none">
+            <div class="row"><span>今日预算</span><span id="budgetText">—</span></div>
+            <div class="bar"><i id="budgetBar"></i></div>
+          </div>
+
+          <button id="btn" class="btn" disabled>签到</button>
+          <div id="msg" class="msg"></div>
+          <div class="chips" id="milestoneHint" style="display:none"></div>
             </div>
-          </div>
-          <div class="cal-grid" id="calendar"></div>
-        </div>
-      </details>
 
-      <details class="more">
-        <summary>近 7 次记录</summary>
-        <div class="body history">
-          <div id="recent"><div class="sub" style="margin:0">暂无记录</div></div>
+        <div class="checkin-secondary">
+          <div id="lotteryBox" class="lottery" style="display:none">
+            <div class="lottery-head">
+              <span class="lottery-title">幸运抽奖</span>
+              <span class="lottery-state" id="lotteryState">—</span>
+            </div>
+            <div class="lottery-wheel-area" aria-label="幸运抽奖转盘">
+              <div class="lottery-pointer" aria-hidden="true"></div>
+              <div class="lottery-wheel" id="lotteryWheel"></div>
+              <div class="lottery-center">
+                <button id="lotteryBtn" class="btn lottery-spin-btn" disabled>抽奖</button>
+              </div>
+            </div>
+            <div class="lottery-prizes" id="lotteryPrizes"></div>
+            <div class="lottery-result" id="lotteryResult" aria-live="polite" style="display:none"></div>
+          </div>
+
+          <details class="more">
+            <summary>签到月历</summary>
+            <div class="body cal">
+              <div class="cal-head">
+                <h2 class="sec-title" id="calTitle">—</h2>
+                <div class="row-inline">
+                  <button type="button" class="btn-mini" id="calPrev">‹</button>
+                  <button type="button" class="btn-mini" id="calNext">›</button>
+                </div>
+              </div>
+              <div class="cal-grid" id="calendar"></div>
+            </div>
+          </details>
+
+          <details class="more">
+            <summary>近 7 次记录</summary>
+            <div class="body history">
+              <div id="recent"><div class="sub" style="margin:0">暂无记录</div></div>
+            </div>
+          </details>
         </div>
-      </details>
+      </div>
 
       <div class="foot">
         <span><a id="adminLink" href="./admin.html">管理台</a></span>
