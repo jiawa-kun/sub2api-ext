@@ -78,7 +78,7 @@ html.light .brand-title .logo.light{display:block}
 #content img{display:block; max-width:100%; height:auto; border-radius:10px; margin:1em 0; cursor:zoom-in}
 .lightbox{position:fixed; inset:0; z-index:999; display:none; align-items:center; justify-content:center; background:rgba(4,8,18,.82); backdrop-filter:blur(6px); cursor:zoom-out; padding:28px}
 .lightbox.show{display:flex}
-.lightbox img{max-width:100%; max-height:100%; border-radius:10px; box-shadow:0 24px 80px rgba(0,0,0,.55); cursor:default}
+.lightbox img{max-width:100%; max-height:100%; border-radius:10px; box-shadow:0 24px 80px rgba(0,0,0,.55); cursor:grab; user-select:none; -webkit-user-drag:none}
 #content table{border-collapse:collapse; width:100%; margin:1em 0; font-size:.85rem}
 #content th,#content td{border:1px solid var(--border); padding:8px 10px; text-align:left}
 #content th{background:var(--soft); font-weight:700}
@@ -190,17 +190,38 @@ html.light .brand-title .logo.light{display:block}
       }
     });
 
-    // image lightbox: click a tutorial image to view it full size
+    // image lightbox: click to view, wheel to zoom, drag to pan
     const lightbox = el('lightbox');
     const lightboxImg = lightbox.querySelector('img');
-    function closeLightbox(){ lightbox.classList.remove('show'); lightboxImg.removeAttribute('src'); }
+    let lbScale = 1, lbX = 0, lbY = 0, lbDrag = null;
+    function lbApply(){ lightboxImg.style.transform = 'translate(' + lbX + 'px,' + lbY + 'px) scale(' + lbScale + ')'; }
+    function lbReset(){ lbScale = 1; lbX = 0; lbY = 0; lbApply(); }
+    function closeLightbox(){ lightbox.classList.remove('show'); lightboxImg.removeAttribute('src'); lbReset(); }
     el('content').addEventListener('click', (e)=>{
       const t = e.target;
       const img = t && t.closest ? t.closest('#content img') : null;
-      if(img){ lightboxImg.src = img.currentSrc || img.src; lightbox.classList.add('show'); }
+      if(img){ lbReset(); lightboxImg.src = img.currentSrc || img.src; lightbox.classList.add('show'); }
     });
-    lightbox.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', (e)=>{ if(e.target === lightbox) closeLightbox(); });
     document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeLightbox(); });
+    lightbox.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+      const f = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      lbScale = Math.min(10, Math.max(0.2, lbScale * f));
+      lbApply();
+    }, {passive:false});
+    lightboxImg.addEventListener('mousedown', (e)=>{
+      e.preventDefault();
+      lbDrag = {sx:e.clientX, sy:e.clientY, ox:lbX, oy:lbY};
+      lightboxImg.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', (e)=>{
+      if(!lbDrag) return;
+      lbX = lbDrag.ox + (e.clientX - lbDrag.sx);
+      lbY = lbDrag.oy + (e.clientY - lbDrag.sy);
+      lbApply();
+    });
+    window.addEventListener('mouseup', ()=>{ if(lbDrag){ lbDrag = null; lightboxImg.style.cursor = 'grab'; } });
 
     revealAdmin();
     loadTutorial();
