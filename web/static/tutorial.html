@@ -91,7 +91,7 @@ html.light .brand-title .logo.light{display:block}
   </style>
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
-<body>
+<body class="app-page app-tutorial">
   <div class="wrap">
     <header class="top">
       <div>
@@ -112,7 +112,7 @@ html.light .brand-title .logo.light{display:block}
         <p class="lead">了解如何使用扩展中心各项功能</p>
       </div>
       <div class="top-meta">
-        <button type="button" class="theme-btn" id="themeBtn">🌓 主题</button>
+        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
       </div>
     </header>
 
@@ -143,6 +143,8 @@ html.light .brand-title .logo.light{display:block}
     function applyTheme(light){
       document.documentElement.classList.toggle('light', !!light);
       localStorage.setItem(THEME_KEY, light?'light':'dark');
+      const button = el('themeBtn');
+      if(button) button.textContent = light ? '深色' : '浅色';
       const link = document.getElementById('favicon');
       if(link) link.href = light ? './assets/ext-center-icon-light.svg' : './assets/ext-center-icon.svg';
     }

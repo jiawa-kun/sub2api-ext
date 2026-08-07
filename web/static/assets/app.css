@@ -324,6 +324,15 @@ body.app-checkin .wrap {
   width: min(760px, 100%);
 }
 
+/* Tutorial uses the shared shell but keeps room for wide screenshots. */
+body.app-tutorial .wrap {
+  width: min(1400px, 100%);
+}
+
+body.app-tutorial #content table {
+  max-width: 100%;
+}
+
 body.app-checkin .hero {
   padding: 18px;
 }
@@ -771,6 +780,15 @@ body.app-admin .admin-module-lottery .tbl {
 
   body.app-page .card {
     padding: 14px;
+  }
+
+  body.app-tutorial #content table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  body.app-tutorial .lightbox {
+    padding: 12px;
   }
 
   body.app-home .list {

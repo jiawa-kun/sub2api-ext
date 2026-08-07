@@ -211,7 +211,11 @@ details.fold[open] > summary::after{content:"▴"}
 .toolbar button svg{width:15px;height:15px;flex:none}
 #btnTutorialUpload{display:inline-flex;align-items:center;gap:6px}
 #tutorialEditor.upload-target{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,140,255,.16)}
+#tutorialPreview{white-space:pre-wrap;overflow-wrap:anywhere}
 #tutorialPreview img{display:block;max-width:100%;height:auto;border-radius:10px;margin:12px 0}
+#tutorialPreview pre{overflow-x:auto;white-space:pre}
+#tutorialPreview table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse}
+#tutorialPreview th,#tutorialPreview td{padding:8px 10px;border:1px solid var(--border);text-align:left;white-space:normal}
 .log-card{border:1px solid var(--border); border-radius:14px; overflow:hidden; background:rgba(2,6,23,.35)}
 html.light .log-card{background:#0f172a08}
 .log-head{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-bottom:1px solid var(--border); background:rgba(127,127,127,.05); font-size:.76rem; font-weight:700}
