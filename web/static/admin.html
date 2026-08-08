@@ -210,12 +210,31 @@ details.fold[open] > summary::after{content:"▴"}
 .toolbar{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; padding:10px; border-radius:14px; border:1px solid var(--border); background:var(--panel)}
 .toolbar button svg{width:15px;height:15px;flex:none}
 #btnTutorialUpload{display:inline-flex;align-items:center;gap:6px}
-#tutorialEditor.upload-target{border-color:var(--primary);box-shadow:0 0 0 3px rgba(91,140,255,.16)}
-#tutorialPreview{white-space:pre-wrap;overflow-wrap:anywhere}
-#tutorialPreview img{display:block;max-width:100%;height:auto;border-radius:10px;margin:12px 0}
-#tutorialPreview pre{overflow-x:auto;white-space:pre}
-#tutorialPreview table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse}
-#tutorialPreview th,#tutorialPreview td{padding:8px 10px;border:1px solid var(--border);text-align:left;white-space:normal}
+.tutorial-editor-shell{border:1px solid var(--border);border-radius:var(--app-radius);background:var(--panel);overflow:hidden}
+.tutorial-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:10px;border-bottom:1px solid var(--border);background:var(--soft)}
+.tutorial-toolbar .tb{min-height:32px;padding:6px 10px;border:1px solid var(--border);border-radius:var(--app-radius-sm);background:var(--card);color:var(--text);font-size:.78rem;font-weight:650;cursor:pointer}
+.tutorial-toolbar .tb:hover{border-color:rgba(91,140,255,.4);color:var(--primary)}
+.tutorial-toolbar .tb.active{border-color:rgba(91,140,255,.45);background:rgba(91,140,255,.12);color:var(--primary)}
+.tutorial-toolbar .tb-sep{width:1px;align-self:stretch;background:var(--border);margin:0 2px}
+#tutorialVisual{min-height:360px;max-height:62vh;overflow:auto;padding:14px 16px;line-height:1.7;font-size:.92rem;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--card)}
+#tutorialVisual.upload-target{box-shadow:inset 0 0 0 2px rgba(91,140,255,.35)}
+#tutorialVisual:empty:before{content:attr(data-placeholder);color:var(--muted)}
+#tutorialVisual h1{font-size:1.2rem;margin:1.1em 0 .5em}
+#tutorialVisual h2{font-size:1.05rem;margin:1.1em 0 .45em}
+#tutorialVisual h3{font-size:.95rem;margin:1em 0 .4em}
+#tutorialVisual p{margin:.55em 0}
+#tutorialVisual ul,#tutorialVisual ol{padding-left:1.5em;margin:.55em 0}
+#tutorialVisual li{margin:.25em 0}
+#tutorialVisual blockquote{border-left:3px solid var(--primary);padding:6px 12px;margin:1em 0;background:rgba(91,140,255,.05);border-radius:0 10px 10px 0;color:var(--muted)}
+#tutorialVisual a{color:var(--primary);text-decoration:underline}
+#tutorialVisual img{display:block;max-width:100%;height:auto;border-radius:10px;margin:12px 0}
+#tutorialVisual pre{overflow-x:auto;white-space:pre;background:rgba(0,0,0,.08);border:1px solid var(--border);border-radius:10px;padding:12px}
+#tutorialVisual table{display:block;width:100%;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1em 0}
+#tutorialVisual th,#tutorialVisual td{padding:8px 10px;border:1px solid var(--border);text-align:left;white-space:normal}
+#tutorialSource{display:none;width:100%;min-height:360px;max-height:62vh;border:0;border-radius:0;resize:vertical;padding:14px 16px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;white-space:pre-wrap;background:var(--card);color:var(--text)}
+.tutorial-editor-shell.source-mode #tutorialVisual{display:none}
+.tutorial-editor-shell.source-mode #tutorialSource{display:block}
+.tutorial-editor-hint{margin-top:8px;color:var(--muted);font-size:.76rem;line-height:1.45}
 .log-card{border:1px solid var(--border); border-radius:14px; overflow:hidden; background:rgba(2,6,23,.35)}
 html.light .log-card{background:#0f172a08}
 .log-head{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:9px 12px; border-bottom:1px solid var(--border); background:rgba(127,127,127,.05); font-size:.76rem; font-weight:700}
@@ -1147,20 +1166,38 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <a class="secondary sm" href="./tutorial.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:var(--app-radius-sm);border:1px solid var(--border);text-decoration:none;color:var(--text)">打开用户教程页</a>
         </div>
         <div class="field">
-          <label for="tutorialEditor">教程内容（HTML）</label>
-          <textarea id="tutorialEditor" rows="18" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.6;resize:vertical;white-space:pre-wrap"></textarea>
-          <div class="hint">支持常用 HTML 标签，以及上传、粘贴或拖放 PNG、JPG、WebP、GIF 图片。</div>
+          <label>教程内容</label>
+          <div class="tutorial-editor-shell" id="tutorialEditorShell">
+            <div class="tutorial-toolbar" role="toolbar" aria-label="教程编辑工具">
+              <button type="button" class="tb" data-cmd="formatBlock" data-value="H2" title="二级标题">H2</button>
+              <button type="button" class="tb" data-cmd="formatBlock" data-value="H3" title="三级标题">H3</button>
+              <button type="button" class="tb" data-cmd="formatBlock" data-value="P" title="正文">正文</button>
+              <span class="tb-sep" aria-hidden="true"></span>
+              <button type="button" class="tb" data-cmd="bold" title="加粗">加粗</button>
+              <button type="button" class="tb" data-cmd="italic" title="斜体">斜体</button>
+              <button type="button" class="tb" data-cmd="insertUnorderedList" title="无序列表">列表</button>
+              <button type="button" class="tb" data-cmd="insertOrderedList" title="有序列表">编号</button>
+              <button type="button" class="tb" data-cmd="formatBlock" data-value="BLOCKQUOTE" title="引用">引用</button>
+              <button type="button" class="tb" data-cmd="insertHorizontalRule" title="分割线">分割线</button>
+              <span class="tb-sep" aria-hidden="true"></span>
+              <button type="button" class="tb" id="btnTutorialLink" title="插入链接">链接</button>
+              <button type="button" class="tb" id="btnTutorialUpload" title="上传图片">图片</button>
+              <button type="button" class="tb" data-cmd="removeFormat" title="清除格式">清除格式</button>
+              <span class="tb-sep" aria-hidden="true"></span>
+              <button type="button" class="tb" id="btnTutorialSource" title="切换源码">源码</button>
+            </div>
+            <div id="tutorialVisual" contenteditable="true" spellcheck="true" data-placeholder="直接输入教程内容。可用工具栏插入标题、列表、链接和图片，不必手写 HTML。"></div>
+            <textarea id="tutorialSource" spellcheck="false" aria-label="教程 HTML 源码"></textarea>
+          </div>
+          <div class="tutorial-editor-hint">默认所见即所得。支持上传、粘贴、拖放 PNG / JPG / WebP / GIF。需要时再切到源码模式。</div>
+          <input type="file" id="tutorialImageInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
         </div>
         <div class="msg" id="tutorialMsg"></div>
         <div class="toolbar">
           <button type="button" id="btnTutorialSave">保存教程</button>
-          <button type="button" id="btnTutorialUpload" class="secondary"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>上传图片</button>
-          <input type="file" id="tutorialImageInput" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
-          <button type="button" id="btnTutorialPreview" class="secondary">预览</button>
           <button type="button" id="btnTutorialRefresh" class="secondary">重新加载</button>
           <button type="button" id="btnTutorialClear" class="danger">清空内容</button>
         </div>
-        <div class="hidden" id="tutorialPreview" style="margin-top:12px;padding:14px;border:1px solid var(--border);border-radius:var(--app-radius);background:var(--panel);line-height:1.7;font-size:.92rem"></div>
       </div>
     </div>
 
@@ -3135,48 +3172,246 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       try { show('页面初始化失败：'+(e.message||e), 'err'); } catch {}
     }
   
-    // === Tutorial editor ===
-    async function refreshTutorial(){
-      try{
-        const r = await api('./api/admin/pages/tutorial');
-        const data = r||{};
-        el('tutorialEditor').value = data.html||'';
-        showTutorialMsg('教程已加载','ok');
-      }catch(e){
-        showTutorialMsg(e.message||String(e),'err');
-      }
-    }
+    // === Tutorial visual editor ===
+    let tutorialSourceMode=false;
+    let tutorialSavedRange=null;
+    function tutorialShell(){ return el('tutorialEditorShell'); }
+    function tutorialVisual(){ return el('tutorialVisual'); }
+    function tutorialSource(){ return el('tutorialSource'); }
     function showTutorialMsg(msg, type){
       const m=el('tutorialMsg');
       if(!m) return;
       m.textContent=msg; m.className='msg show '+(type||'ok');
       setTimeout(()=>{ m.className='msg'; }, 5000);
     }
-    async function saveTutorial(){
-      const html = el('tutorialEditor').value;
+    function normalizeTutorialHtml(html){
+      const raw=String(html||'').trim();
+      if(!raw) return '';
+      if(/<\w+[\s>/]/.test(raw)) return raw;
+      return raw.split(/\n{2,}/).map(block=>{
+        const lines=block.split('\n').map(line=>escapeHtml(line)).join('<br>');
+        return '<p>'+lines+'</p>';
+      }).join('');
+    }
+    function rememberTutorialSelection(){
+      const vis=tutorialVisual();
+      const sel=window.getSelection();
+      if(!vis || !sel || !sel.rangeCount) return;
+      const range=sel.getRangeAt(0);
+      if(vis.contains(range.commonAncestorContainer)) tutorialSavedRange=range.cloneRange();
+    }
+    function restoreTutorialSelection(){
+      const vis=tutorialVisual();
+      if(!vis) return;
+      vis.focus();
+      const sel=window.getSelection();
+      if(!sel) return;
+      sel.removeAllRanges();
+      if(tutorialSavedRange) sel.addRange(tutorialSavedRange);
+    }
+    function setTutorialHtml(html){
+      const vis=tutorialVisual();
+      const src=tutorialSource();
+      const normalized=normalizeTutorialHtml(html);
+      if(src) src.value=normalized;
+      if(vis){
+        vis.innerHTML=normalized;
+        enhanceTutorialContent(vis);
+      }
+    }
+    function getTutorialHtml(){
+      if(tutorialSourceMode){
+        const src=tutorialSource();
+        return src ? src.value : '';
+      }
+      const vis=tutorialVisual();
+      if(!vis) return '';
+      enhanceTutorialContent(vis);
+      return vis.innerHTML.trim();
+    }
+    function enhanceTutorialContent(root){
+      if(!root) return;
+      root.querySelectorAll('a[href]').forEach(a=>{
+        const href=(a.getAttribute('href')||'').trim();
+        if(!href) return;
+        if(/^https?:\/\//i.test(href) || href.startsWith('//')){
+          a.setAttribute('target','_blank');
+          a.setAttribute('rel','noopener noreferrer');
+        }
+      });
+      const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node){
+          if(!node.nodeValue || !/[a-zA-Z]/.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+          if(!/https?:\/\//i.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+          const parent=node.parentElement;
+          if(!parent || parent.closest('a,script,style,textarea,code,pre')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes=[];
+      while(walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(node=>{
+        const text=node.nodeValue;
+        const re=/https?:\/\/[^\s<>"'\`]+/gi;
+        let match, last=0;
+        const frag=document.createDocumentFragment();
+        let found=false;
+        while((match=re.exec(text))){
+          found=true;
+          if(match.index>last) frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+          let url=match[0];
+          let trail='';
+          while(/[.,);:!?]/.test(url.slice(-1))){ trail=url.slice(-1)+trail; url=url.slice(0,-1); }
+          const a=document.createElement('a');
+          a.href=url;
+          a.textContent=url;
+          a.target='_blank';
+          a.rel='noopener noreferrer';
+          frag.appendChild(a);
+          if(trail) frag.appendChild(document.createTextNode(trail));
+          last=match.index+match[0].length;
+        }
+        if(!found) return;
+        if(last<text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    }
+    function syncTutorialSourceFromVisual(){
+      const vis=tutorialVisual();
+      const src=tutorialSource();
+      if(vis && src) src.value=vis.innerHTML.trim();
+    }
+    function syncTutorialVisualFromSource(){
+      const vis=tutorialVisual();
+      const src=tutorialSource();
+      if(vis && src){
+        vis.innerHTML=src.value||'';
+        enhanceTutorialContent(vis);
+      }
+    }
+    function setTutorialSourceMode(on){
+      tutorialSourceMode=!!on;
+      const shell=tutorialShell();
+      const btn=el('btnTutorialSource');
+      if(shell) shell.classList.toggle('source-mode', tutorialSourceMode);
+      if(btn){
+        btn.classList.toggle('active', tutorialSourceMode);
+        btn.textContent=tutorialSourceMode?'可视化':'源码';
+      }
+      if(tutorialSourceMode){
+        syncTutorialSourceFromVisual();
+        const src=tutorialSource();
+        if(src) src.focus();
+      }else{
+        syncTutorialVisualFromSource();
+        const vis=tutorialVisual();
+        if(vis) vis.focus();
+      }
+    }
+    function runTutorialCommand(cmd, value){
+      if(tutorialSourceMode){
+        showTutorialMsg('请先切回可视化模式再使用格式按钮','err');
+        return;
+      }
+      restoreTutorialSelection();
+      if(cmd==='formatBlock'){
+        document.execCommand('formatBlock', false, value || 'P');
+      }else{
+        document.execCommand(cmd, false, value || null);
+      }
+      rememberTutorialSelection();
+    }
+    function insertTutorialHtml(html){
+      if(tutorialSourceMode){
+        const src=tutorialSource();
+        if(!src) return;
+        const start=src.selectionStart||0;
+        const end=src.selectionEnd||0;
+        const before=src.value.slice(0,start);
+        const after=src.value.slice(end);
+        const prefix=before && !before.endsWith('\n') ? '\n' : '';
+        const suffix=after && !after.startsWith('\n') ? '\n' : '';
+        src.value=before+prefix+html+suffix+after;
+        const next=before.length+prefix.length+html.length+suffix.length;
+        src.focus();
+        src.setSelectionRange(next,next);
+        return;
+      }
+      restoreTutorialSelection();
+      const vis=tutorialVisual();
+      if(!vis) return;
+      vis.focus();
+      let ok=false;
+      try{ ok=document.execCommand('insertHTML', false, html); }catch{}
+      if(!ok){
+        const sel=window.getSelection();
+        if(sel && sel.rangeCount){
+          const range=sel.getRangeAt(0);
+          range.deleteContents();
+          const temp=document.createElement('div');
+          temp.innerHTML=html;
+          const frag=document.createDocumentFragment();
+          let node, last=null;
+          while((node=temp.firstChild)){ last=frag.appendChild(node); }
+          range.insertNode(frag);
+          if(last){
+            range.setStartAfter(last);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }else{
+          vis.insertAdjacentHTML('beforeend', html);
+        }
+      }
+      enhanceTutorialContent(vis);
+      rememberTutorialSelection();
+    }
+    function insertTutorialLink(){
+      if(tutorialSourceMode){
+        showTutorialMsg('请先切回可视化模式再插入链接','err');
+        return;
+      }
+      restoreTutorialSelection();
+      const sel=window.getSelection();
+      const selected=(sel && String(sel)) || '';
+      const url=window.prompt('请输入链接地址（https://...）', selected.startsWith('http')?selected:'https://');
+      if(url===null) return;
+      const href=String(url||'').trim();
+      if(!href){ showTutorialMsg('链接地址不能为空','err'); return; }
+      let text=selected;
+      if(!text){
+        text=window.prompt('链接文字', href) || href;
+      }
+      const safeHref=escapeHtml(href);
+      const safeText=escapeHtml(text);
+      const external=/^https?:\/\//i.test(href) || href.startsWith('//');
+      const attrs=external?' target="_blank" rel="noopener noreferrer"':'';
+      insertTutorialHtml('<a href="'+safeHref+'"'+attrs+'>'+safeText+'</a>');
+    }
+    async function refreshTutorial(){
       try{
-        const r = await api('./api/admin/pages/tutorial',{method:'PUT',body:JSON.stringify({html})});
+        const r = await api('./api/admin/pages/tutorial');
+        const data = r||{};
+        setTutorialHtml(data.html||'');
+        setTutorialSourceMode(false);
+        showTutorialMsg('教程已加载','ok');
+      }catch(e){
+        showTutorialMsg(e.message||String(e),'err');
+      }
+    }
+    async function saveTutorial(){
+      const html = getTutorialHtml();
+      try{
+        await api('./api/admin/pages/tutorial',{method:'PUT',body:JSON.stringify({html})});
+        setTutorialHtml(html);
         showTutorialMsg('教程已保存','ok');
       }catch(e){
         showTutorialMsg(e.message||String(e),'err');
       }
     }
-    function previewTutorial(){
-      const html = el('tutorialEditor').value;
-      const pv = el('tutorialPreview');
-      if(!pv) return;
-      if(!html){
-        pv.classList.add('hidden');
-        return;
-      }
-      pv.classList.remove('hidden');
-      pv.innerHTML = html;
-      showTutorialMsg('预览已生成','ok');
-    }
     function clearTutorial(){
-      el('tutorialEditor').value = '';
-      const pv = el('tutorialPreview');
-      if(pv) pv.classList.add('hidden');
+      setTutorialHtml('');
       showTutorialMsg('内容已清空','ok');
     }
     async function uploadTutorialImage(file){
@@ -3191,36 +3426,17 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(!res.ok) throw new Error(data.error||data.message||('HTTP '+res.status));
       return data;
     }
-    function insertTutorialMarkup(markup,start,end){
-      const editor=el('tutorialEditor');
-      const value=editor.value;
-      const from=Number.isInteger(start)?start:editor.selectionStart;
-      const to=Number.isInteger(end)?end:editor.selectionEnd;
-      const before=value.slice(0,from);
-      const after=value.slice(to);
-      const prefix=before && !before.endsWith('\n')?'\n':'';
-      const suffix=after && !after.startsWith('\n')?'\n':'';
-      editor.value=before+prefix+markup+suffix+after;
-      const next=before.length+prefix.length+markup.length+suffix.length;
-      editor.focus();
-      editor.setSelectionRange(next,next);
-      return next;
-    }
-    async function uploadTutorialImages(files,start,end){
+    async function uploadTutorialImages(files){
       const list=Array.from(files||[]).filter(Boolean);
       if(!list.length) return;
       const button=el('btnTutorialUpload');
       if(button) button.disabled=true;
-      let pos=Number.isInteger(start)?start:el('tutorialEditor').selectionStart;
-      let tail=Number.isInteger(end)?end:el('tutorialEditor').selectionEnd;
       try{
         showTutorialMsg('正在上传图片…','ok');
         for(const file of list){
           const data=await uploadTutorialImage(file);
           const alt=file.name.replace(/\.[^.]+$/,'');
-          const markup='<img src="'+escapeHtml(data.url)+'" alt="'+escapeHtml(alt)+'" loading="lazy">\n';
-          pos=insertTutorialMarkup(markup,pos,tail);
-          tail=pos;
+          insertTutorialHtml('<img src="'+escapeHtml(data.url)+'" alt="'+escapeHtml(alt)+'" loading="lazy">');
         }
         showTutorialMsg('图片已上传并插入教程内容','ok');
       }catch(e){
@@ -3229,37 +3445,69 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         if(button) button.disabled=false;
       }
     }
-    let tutorialImageSelection={start:0,end:0};
-    const btnTutSave=el('btnTutorialSave'); if(btnTutSave) btnTutSave.onclick=()=>saveTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
-    const btnTutUpload=el('btnTutorialUpload'); if(btnTutUpload) btnTutUpload.onclick=()=>{
-      const editor=el('tutorialEditor');
-      tutorialImageSelection={start:editor.selectionStart,end:editor.selectionEnd};
-      el('tutorialImageInput').click();
-    };
-    const tutImageInput=el('tutorialImageInput'); if(tutImageInput) tutImageInput.onchange=()=>{
-      uploadTutorialImages(tutImageInput.files,tutorialImageSelection.start,tutorialImageSelection.end);
-      tutImageInput.value='';
-    };
-    const tutEditor=el('tutorialEditor'); if(tutEditor){
-      tutEditor.addEventListener('paste',e=>{
-        const files=Array.from((e.clipboardData&&e.clipboardData.items)||[]).filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
-        if(!files.length) return;
-        e.preventDefault();
-        uploadTutorialImages(files,tutEditor.selectionStart,tutEditor.selectionEnd);
+    function bindTutorialEditor(){
+      const shell=tutorialShell();
+      const vis=tutorialVisual();
+      const src=tutorialSource();
+      if(!shell || !vis || !src) return;
+      shell.querySelectorAll('[data-cmd]').forEach(btn=>{
+        btn.addEventListener('mousedown', e=>e.preventDefault());
+        btn.addEventListener('click', ()=>{
+          runTutorialCommand(btn.getAttribute('data-cmd'), btn.getAttribute('data-value'));
+        });
       });
-      tutEditor.addEventListener('dragover',e=>{ if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files')){ e.preventDefault(); tutEditor.classList.add('upload-target'); } });
-      tutEditor.addEventListener('dragleave',()=>tutEditor.classList.remove('upload-target'));
-      tutEditor.addEventListener('drop',e=>{
-        tutEditor.classList.remove('upload-target');
+      const linkBtn=el('btnTutorialLink');
+      if(linkBtn){
+        linkBtn.addEventListener('mousedown', e=>e.preventDefault());
+        linkBtn.onclick=()=>insertTutorialLink();
+      }
+      const sourceBtn=el('btnTutorialSource');
+      if(sourceBtn) sourceBtn.onclick=()=>setTutorialSourceMode(!tutorialSourceMode);
+      vis.addEventListener('mouseup', rememberTutorialSelection);
+      vis.addEventListener('keyup', rememberTutorialSelection);
+      vis.addEventListener('blur', rememberTutorialSelection);
+      vis.addEventListener('paste', e=>{
+        const files=Array.from((e.clipboardData&&e.clipboardData.items)||[]).filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
+        if(files.length){
+          e.preventDefault();
+          uploadTutorialImages(files);
+          return;
+        }
+        setTimeout(()=>enhanceTutorialContent(vis), 0);
+      });
+      vis.addEventListener('dragover', e=>{
+        if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files')){
+          e.preventDefault();
+          vis.classList.add('upload-target');
+        }
+      });
+      vis.addEventListener('dragleave', ()=>vis.classList.remove('upload-target'));
+      vis.addEventListener('drop', e=>{
+        vis.classList.remove('upload-target');
         const files=Array.from((e.dataTransfer&&e.dataTransfer.files)||[]).filter(file=>file.type.startsWith('image/'));
         if(!files.length) return;
         e.preventDefault();
-        uploadTutorialImages(files,tutEditor.selectionStart,tutEditor.selectionEnd);
+        uploadTutorialImages(files);
+      });
+      src.addEventListener('paste', e=>{
+        const files=Array.from((e.clipboardData&&e.clipboardData.items)||[]).filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).filter(Boolean);
+        if(!files.length) return;
+        e.preventDefault();
+        uploadTutorialImages(files);
       });
     }
-    const btnTutPreview=el('btnTutorialPreview'); if(btnTutPreview) btnTutPreview.onclick=()=>previewTutorial();
+    const btnTutSave=el('btnTutorialSave'); if(btnTutSave) btnTutSave.onclick=()=>saveTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
+    const btnTutUpload=el('btnTutorialUpload'); if(btnTutUpload) btnTutUpload.onclick=()=>{
+      rememberTutorialSelection();
+      el('tutorialImageInput').click();
+    };
+    const tutImageInput=el('tutorialImageInput'); if(tutImageInput) tutImageInput.onchange=()=>{
+      uploadTutorialImages(tutImageInput.files);
+      tutImageInput.value='';
+    };
     const btnTutRefresh=el('btnTutorialRefresh'); if(btnTutRefresh) btnTutRefresh.onclick=()=>refreshTutorial().catch(e=>showTutorialMsg(e.message||String(e),'err'));
     const btnTutClear=el('btnTutorialClear'); if(btnTutClear) btnTutClear.onclick=()=>clearTutorial();
+    bindTutorialEditor();
 </script>
 </body>
 </html>

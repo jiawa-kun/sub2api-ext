@@ -10,7 +10,8 @@ func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 		"static/tasks.html":     {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
 		"static/index.html":     {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\""},
 		"static/rewards.html":   {"const LIMIT = 10;"},
-		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>"},
+		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink"},
+		"static/tutorial.html":  {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
 		"static/assets/app.css": {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "flex-direction: column"},
 	}
 	for name, required := range files {

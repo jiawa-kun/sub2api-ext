@@ -161,14 +161,57 @@ html.light .brand-title .logo.light{display:block}
       }catch{}
     }
 
+    function enhanceTutorialContent(root){
+      if(!root) return;
+      root.querySelectorAll('a[href]').forEach(a=>{
+        const href=(a.getAttribute('href')||'').trim();
+        if(!href) return;
+        if(/^https?:\/\//i.test(href) || href.startsWith('//')){
+          a.setAttribute('target','_blank');
+          a.setAttribute('rel','noopener noreferrer');
+        }
+      });
+      const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node){
+          if(!node.nodeValue || !/https?:\/\//i.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+          const parent=node.parentElement;
+          if(!parent || parent.closest('a,script,style,textarea,code,pre')) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+      const nodes=[];
+      while(walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(node=>{
+        const text=node.nodeValue;
+        const re=/https?:\/\/[^\s<>"'\`]+/gi;
+        let match, last=0, found=false;
+        const frag=document.createDocumentFragment();
+        while((match=re.exec(text))){
+          found=true;
+          if(match.index>last) frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+          let url=match[0], trail='';
+          while(/[.,);:!?]/.test(url.slice(-1))){ trail=url.slice(-1)+trail; url=url.slice(0,-1); }
+          const a=document.createElement('a');
+          a.href=url; a.textContent=url; a.target='_blank'; a.rel='noopener noreferrer';
+          frag.appendChild(a);
+          if(trail) frag.appendChild(document.createTextNode(trail));
+          last=match.index+match[0].length;
+        }
+        if(!found) return;
+        if(last<text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    }
     // load tutorial content
     async function loadTutorial(){
       try{
         const r = await fetch('./api/pages/tutorial');
         const data = await r.json();
         if(data && data.html){
-          el('content').className = '';
-          el('content').innerHTML = data.html;
+          const box=el('content');
+          box.className = '';
+          box.innerHTML = data.html;
+          enhanceTutorialContent(box);
         }
       }catch(e){
         console.error('load tutorial:', e);
@@ -201,6 +244,22 @@ html.light .brand-title .logo.light{display:block}
     function closeLightbox(){ lightbox.classList.remove('show'); lightboxImg.removeAttribute('src'); lbReset(); }
     el('content').addEventListener('click', (e)=>{
       const t = e.target;
+      const link = t && t.closest ? t.closest('#content a[href]') : null;
+      if(link){
+        const href=(link.getAttribute('href')||'').trim();
+        if(accessToken && href && !/^https?:\/\//i.test(href) && !href.startsWith('//') && !href.startsWith('mailto:') && !href.startsWith('#')){
+          try{
+            const u=new URL(href, location.href);
+            if(u.origin===location.origin && !u.searchParams.get('token')){
+              e.preventDefault();
+              u.searchParams.set('token', accessToken);
+              location.href=u.pathname+u.search+u.hash;
+              return;
+            }
+          }catch{}
+        }
+        return;
+      }
       const img = t && t.closest ? t.closest('#content img') : null;
       if(img){ lbReset(); lightboxImg.src = img.currentSrc || img.src; lightbox.classList.add('show'); }
     });
