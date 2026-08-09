@@ -27,18 +27,19 @@ type CreativeProvider struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 type CreativeModel struct {
-	ID              int64     `json:"id"`
-	ProviderID      int64     `json:"provider_id"`
-	ModelID         string    `json:"model_id"`
-	DisplayName     string    `json:"display_name"`
-	Capability      string    `json:"capability"`
-	Protocol        string    `json:"protocol"`
-	PriceJSON       string    `json:"price_json"`
-	ConstraintsJSON string    `json:"constraints_json"`
-	SourceGroup     string    `json:"source_group"`
-	Enabled         bool      `json:"enabled"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                int64     `json:"id"`
+	ProviderID        int64     `json:"provider_id"`
+	ModelID           string    `json:"model_id"`
+	DisplayName       string    `json:"display_name"`
+	Capability        string    `json:"capability"`
+	Protocol          string    `json:"protocol"`
+	PriceJSON         string    `json:"price_json"`
+	ConstraintsJSON   string    `json:"constraints_json"`
+	SourceGroup       string    `json:"source_group"`
+	Enabled           bool      `json:"enabled"`
+	AvailableAccounts int       `json:"available_accounts"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 type CreativeJob struct {
 	ID                int64      `json:"id"`

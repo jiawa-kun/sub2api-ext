@@ -63,7 +63,11 @@ func (h *Handler) CreativeImages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in creative.ImageInput
-	if err := decodeCreativeJSON(r, &in, 1<<20); err != nil {
+	if err := decodeCreativeJSON(r, &in, 8<<20); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := creative.ValidateImageDataURL(in.ImageDataURL); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -254,6 +258,23 @@ func (h *Handler) AdminCreativeProviders(w http.ResponseWriter, r *http.Request)
 	default:
 		writeErr(w, 405, "method not allowed")
 	}
+}
+
+func (h *Handler) AdminCreativeAccountPool(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	overview, err := h.creative.AccountPoolOverview(r.Context(), r.URL.Query().Get("group"))
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, overview)
 }
 func providerPublic(p store.CreativeProvider) map[string]any {
 	return map[string]any{"id": p.ID, "name": p.Name, "kind": p.Kind, "base_url": p.BaseURL, "source_group": p.SourceGroup, "enabled": p.Enabled, "api_key_configured": strings.TrimSpace(p.APIKey) != "", "api_key_masked": maskCreativeSecret(p.APIKey), "created_at": p.CreatedAt, "updated_at": p.UpdatedAt}

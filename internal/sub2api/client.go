@@ -106,6 +106,21 @@ func (c *Client) AdminToken() string {
 	return strings.TrimSpace(c.adminToken)
 }
 
+// BaseURL returns the configured internal Sub2API endpoint without credentials.
+func (c *Client) BaseURL() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return strings.TrimRight(strings.TrimSpace(c.baseURL), "/")
+}
+
+// PrepareGatewayRequest applies public host metadata when BaseURL points to a
+// Docker-internal service name.
+func (c *Client) PrepareGatewayRequest(req *http.Request) {
+	if req != nil {
+		c.applyInternalHost(req)
+	}
+}
+
 func (c *Client) ResolveUser(ctx context.Context, userToken string, meta ClientMeta) (*User, error) {
 	userToken = normalizeToken(userToken)
 	if userToken == "" {

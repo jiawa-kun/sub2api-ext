@@ -285,6 +285,309 @@ body.app-page .bar > i {
   background: var(--app-primary);
 }
 
+/* AI creation admin */
+.creative-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.creative-admin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 2px 0;
+}
+
+.creative-admin-head h2,
+.creative-admin-head p {
+  margin: 0;
+}
+
+.creative-admin-head h2 {
+  font-size: 1.15rem;
+}
+
+.creative-admin-head p {
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: .8rem;
+}
+
+.creative-open-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface-soft);
+  font-size: .78rem;
+  font-weight: 680;
+}
+
+.creative-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.creative-kpi {
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid var(--app-border);
+}
+
+.creative-kpi:last-child {
+  border-right: 0;
+}
+
+.creative-kpi span,
+.creative-kpi strong {
+  display: block;
+}
+
+.creative-kpi span {
+  color: var(--app-muted);
+  font-size: .72rem;
+  font-weight: 650;
+}
+
+.creative-kpi strong {
+  margin-top: 5px;
+  font-size: 1.16rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.creative-source-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  width: min(430px, 100%);
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-soft);
+}
+
+.creative-source-tabs button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  color: var(--app-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.creative-source-tabs button.active {
+  color: var(--app-text);
+  background: var(--app-surface-raised);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+
+.creative-channel-form {
+  margin-top: 4px;
+}
+
+.creative-actions {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.creative-channel-list {
+  margin-top: 12px;
+}
+
+.creative-channel-list tr.selected td {
+  background: var(--app-primary-soft);
+}
+
+.creative-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: .75rem;
+  font-weight: 680;
+}
+
+.creative-status::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--app-muted);
+  content: "";
+}
+
+.creative-status.ok { color: var(--app-success); }
+.creative-status.ok::before { background: var(--app-success); }
+.creative-status.warn { color: var(--app-warning); }
+.creative-status.warn::before { background: var(--app-warning); }
+.creative-status.bad { color: var(--app-danger); }
+.creative-status.bad::before { background: var(--app-danger); }
+
+.creative-model-table {
+  min-width: 860px;
+}
+
+.creative-model-name {
+  min-width: 180px;
+}
+
+.creative-model-name strong,
+.creative-model-name span {
+  display: block;
+}
+
+.creative-model-name span {
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: .7rem;
+}
+
+.creative-price-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.creative-price-field {
+  display: grid;
+  grid-template-columns: auto 76px;
+  align-items: center;
+  gap: 5px;
+  color: var(--app-muted);
+  font-size: .68rem;
+}
+
+.creative-price-field input {
+  width: 76px;
+  min-height: 32px;
+  padding: 5px 7px;
+  font-size: .76rem;
+}
+
+.creative-model-advanced {
+  margin-top: 7px;
+}
+
+.creative-model-advanced summary {
+  color: var(--app-muted);
+  cursor: pointer;
+  font-size: .7rem;
+}
+
+.creative-model-advanced textarea {
+  min-width: 260px;
+  min-height: 70px;
+  margin-top: 6px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .7rem;
+}
+
+.creative-capability {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  padding: 3px 7px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface-soft);
+  font-size: .72rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .creative-admin-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .creative-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .creative-kpi:nth-child(2) {
+    border-right: 0;
+  }
+  .creative-kpi:nth-child(-n+2) {
+    border-bottom: 1px solid var(--app-border);
+  }
+  .creative-source-tabs {
+    width: 100%;
+  }
+  .creative-responsive-table {
+    display: block;
+    min-width: 0;
+  }
+  .creative-responsive-table thead {
+    display: none;
+  }
+  .creative-responsive-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+  .creative-responsive-table tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-surface-soft);
+  }
+  .creative-responsive-table td {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px;
+    border: 0;
+    border-bottom: 1px solid var(--app-border);
+    overflow-wrap: anywhere;
+  }
+  .creative-responsive-table td:last-child {
+    border-bottom: 0;
+  }
+  .creative-responsive-table td::before {
+    color: var(--app-muted);
+    content: attr(data-label);
+    font-size: .7rem;
+    font-weight: 650;
+  }
+  .creative-responsive-table td[colspan] {
+    display: block;
+  }
+  .creative-responsive-table td[colspan]::before {
+    display: none;
+  }
+  .creative-responsive-table select {
+    min-width: 0;
+    width: 100%;
+  }
+  .creative-model-name {
+    min-width: 0;
+  }
+  .creative-price-editor {
+    min-width: 0;
+  }
+  .creative-price-field {
+    grid-template-columns: auto minmax(70px, 1fr);
+  }
+  .creative-price-field input {
+    width: 100%;
+  }
+  .creative-model-advanced textarea {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Extension hub */
 body.app-home .brand-banner {
   height: clamp(220px, 22vw, 300px);

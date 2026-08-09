@@ -28,6 +28,8 @@ const (
 	CapabilityVideo = "video_generation"
 	ProtocolImages  = "openai_images"
 	ProtocolVideo   = "openai_video_task"
+	ProviderOpenAI  = "openai_compatible"
+	ProviderPool    = "sub2api_pool"
 	SourceCharge    = "creative_charge"
 	SourceRefund    = "creative_refund"
 )
@@ -37,6 +39,9 @@ type Pricing struct {
 	Unit        string             `json:"unit"`
 	Fixed       float64            `json:"fixed,omitempty"`
 	Resolutions map[string]float64 `json:"resolutions,omitempty"`
+	InputImage  float64            `json:"input_image,omitempty"`
+	Source      string             `json:"source,omitempty"`
+	AsOf        string             `json:"as_of,omitempty"`
 }
 type Constraints struct {
 	Resolutions  []string `json:"resolutions,omitempty"`
@@ -45,14 +50,16 @@ type Constraints struct {
 	DurationMin  int      `json:"duration_min,omitempty"`
 	DurationMax  int      `json:"duration_max,omitempty"`
 	MaxUploadMB  int      `json:"max_upload_mb,omitempty"`
+	SupportsEdit bool     `json:"supports_edit,omitempty"`
 }
 type ImageInput struct {
-	ModelDBID   int64  `json:"model_id"`
-	Prompt      string `json:"prompt"`
-	Count       int    `json:"n"`
-	AspectRatio string `json:"aspect_ratio"`
-	Resolution  string `json:"resolution"`
-	RequestKey  string `json:"request_key"`
+	ModelDBID    int64  `json:"model_id"`
+	Prompt       string `json:"prompt"`
+	Count        int    `json:"n"`
+	AspectRatio  string `json:"aspect_ratio"`
+	Resolution   string `json:"resolution"`
+	ImageDataURL string `json:"image_data_url,omitempty"`
+	RequestKey   string `json:"request_key"`
 }
 type VideoInput struct {
 	ModelDBID    int64  `json:"model_id"`
@@ -113,9 +120,24 @@ func (s *Service) ListProviders(ctx context.Context) ([]store.CreativeProvider, 
 	return s.store.ListCreativeProviders(ctx)
 }
 func (s *Service) SaveProvider(ctx context.Context, p store.CreativeProvider) (*store.CreativeProvider, error) {
-	p.Kind = defaultString(strings.TrimSpace(p.Kind), "openai_compatible")
-	if p.Kind != "openai_compatible" {
+	p.Kind = defaultString(strings.TrimSpace(p.Kind), ProviderOpenAI)
+	if p.Kind != ProviderOpenAI && p.Kind != ProviderPool {
 		return nil, fmt.Errorf("暂不支持 Provider 类型 %s", p.Kind)
+	}
+	if p.Kind == ProviderPool {
+		if s.accounts == nil {
+			return nil, fmt.Errorf("Sub2API 客户端未配置")
+		}
+		p.Name = defaultString(strings.TrimSpace(p.Name), "Sub2API 账号池")
+		p.BaseURL = s.accounts.BaseURL()
+	}
+	if p.ID > 0 && strings.TrimSpace(p.APIKey) == "" {
+		if current, err := s.store.GetCreativeProvider(ctx, p.ID); err == nil {
+			p.APIKey = current.APIKey
+		}
+	}
+	if p.Enabled && strings.TrimSpace(p.APIKey) == "" {
+		return nil, fmt.Errorf("启用渠道前必须配置媒体调用 API Key")
 	}
 	return s.store.SaveCreativeProvider(ctx, p)
 }
@@ -123,7 +145,22 @@ func (s *Service) DeleteProvider(ctx context.Context, id int64) error {
 	return s.store.DeleteCreativeProvider(ctx, id)
 }
 func (s *Service) ListModels(ctx context.Context, pid int64, enabled bool) ([]store.CreativeModel, error) {
-	return s.store.ListCreativeModels(ctx, pid, enabled)
+	models, err := s.store.ListCreativeModels(ctx, pid, enabled)
+	if err != nil || pid <= 0 {
+		return models, err
+	}
+	p, err := s.store.GetCreativeProvider(ctx, pid)
+	if err != nil || p.Kind != ProviderPool {
+		return models, err
+	}
+	availability, discoverErr := s.discoverAccountModels(ctx, *p)
+	if discoverErr != nil {
+		return models, nil
+	}
+	for i := range models {
+		models[i].AvailableAccounts = availability[models[i].ModelID]
+	}
+	return models, nil
 }
 func (s *Service) SaveModel(ctx context.Context, m store.CreativeModel) (*store.CreativeModel, error) {
 	if _, err := decodePricing(m.PriceJSON); err != nil {
@@ -151,9 +188,17 @@ func (s *Service) ModelOptions(ctx context.Context) ([]ModelOption, error) {
 		return nil, err
 	}
 	pm := map[int64]string{}
+	availability := map[int64]map[string]int{}
 	for _, p := range providers {
 		if p.Enabled {
 			pm[p.ID] = p.Name
+			if p.Kind == ProviderPool {
+				if counts, e := s.discoverAccountModels(ctx, p); e == nil {
+					availability[p.ID] = counts
+				} else {
+					availability[p.ID] = map[string]int{}
+				}
+			}
 		}
 	}
 	out := []ModelOption{}
@@ -165,6 +210,12 @@ func (s *Service) ModelOptions(ctx context.Context) ([]ModelOption, error) {
 		p, e := decodePricing(m.PriceJSON)
 		if e != nil {
 			continue
+		}
+		if counts, isPool := availability[m.ProviderID]; isPool {
+			m.AvailableAccounts = counts[m.ModelID]
+			if m.AvailableAccounts <= 0 {
+				continue
+			}
 		}
 		var c Constraints
 		_ = json.Unmarshal([]byte(m.ConstraintsJSON), &c)
@@ -178,26 +229,36 @@ func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int
 	if err != nil {
 		return 0, err
 	}
-	remote, err := s.listRemoteModels(ctx, *p)
-	if err != nil {
-		return 0, fmt.Errorf("provider models: %w", err)
-	}
-	remoteSet := map[string]bool{}
-	for _, m := range remote {
-		remoteSet[m] = true
-	}
-	accounts, err := s.accounts.ListAllAccounts(ctx, p.SourceGroup, 100, "Asia/Shanghai")
-	if err != nil {
-		return 0, fmt.Errorf("account models: %w", err)
-	}
 	set := map[string]bool{}
-	for _, a := range accounts {
-		if !a.Schedulable || badAccountStatus(a.Status) {
-			continue
+	if p.Kind == ProviderPool {
+		counts, discoverErr := s.discoverAccountModels(ctx, *p)
+		if discoverErr != nil {
+			return 0, fmt.Errorf("account models: %w", discoverErr)
 		}
-		for _, m := range a.ModelMappingKeys() {
-			if remoteSet[m] {
-				set[m] = true
+		for modelID := range counts {
+			set[modelID] = true
+		}
+	} else {
+		remote, remoteErr := s.listRemoteModels(ctx, *p)
+		if remoteErr != nil {
+			return 0, fmt.Errorf("provider models: %w", remoteErr)
+		}
+		remoteSet := map[string]bool{}
+		for _, m := range remote {
+			remoteSet[m] = true
+		}
+		accounts, accountsErr := s.accounts.ListAllAccounts(ctx, p.SourceGroup, 100, "Asia/Shanghai")
+		if accountsErr != nil {
+			return 0, fmt.Errorf("account models: %w", accountsErr)
+		}
+		for _, account := range accounts {
+			if !account.Schedulable || badAccountStatus(account.Status) {
+				continue
+			}
+			for _, modelID := range account.ModelMappingKeys() {
+				if remoteSet[modelID] {
+					set[modelID] = true
+				}
 			}
 		}
 	}
@@ -214,6 +275,55 @@ func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int
 	}
 	return count, nil
 }
+
+func (s *Service) discoverAccountModels(ctx context.Context, p store.CreativeProvider) (map[string]int, error) {
+	accounts, err := s.accounts.ListAllAccounts(ctx, p.SourceGroup, 100, "Asia/Shanghai")
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{}
+	for _, account := range accounts {
+		if !account.Schedulable || badAccountStatus(account.Status) {
+			continue
+		}
+		for _, modelID := range account.ModelMappingKeys() {
+			counts[modelID]++
+		}
+	}
+	return counts, nil
+}
+
+type AccountPoolOverview struct {
+	Groups          []sub2api.Group `json:"groups"`
+	Accounts        int             `json:"accounts"`
+	HealthyAccounts int             `json:"healthy_accounts"`
+	Models          map[string]int  `json:"models"`
+}
+
+func (s *Service) AccountPoolOverview(ctx context.Context, group string) (AccountPoolOverview, error) {
+	groups, groupsErr := s.accounts.ListGroups(ctx, "")
+	accounts, err := s.accounts.ListAllAccounts(ctx, strings.TrimSpace(group), 100, "Asia/Shanghai")
+	if err != nil {
+		return AccountPoolOverview{}, err
+	}
+	out := AccountPoolOverview{Groups: groups, Accounts: len(accounts), Models: map[string]int{}}
+	if groupsErr != nil {
+		out.Groups = []sub2api.Group{}
+	}
+	for _, account := range accounts {
+		if !account.Schedulable || badAccountStatus(account.Status) {
+			continue
+		}
+		out.HealthyAccounts++
+		for _, modelID := range account.ModelMappingKeys() {
+			capability, _, _, _, known := inferModel(modelID)
+			if known && (capability == CapabilityImage || capability == CapabilityVideo) {
+				out.Models[modelID]++
+			}
+		}
+	}
+	return out, nil
+}
 func badAccountStatus(v string) bool {
 	v = strings.ToLower(strings.TrimSpace(v))
 	return strings.Contains(v, "disable") || strings.Contains(v, "suspend") || strings.Contains(v, "inactive") || strings.Contains(v, "error") || strings.Contains(v, "删除") || strings.Contains(v, "暂停")
@@ -224,12 +334,18 @@ func inferModel(id string) (string, string, Pricing, Constraints, bool) {
 	imageC := Constraints{Resolutions: []string{"1k", "2k"}, AspectRatios: []string{"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}, MaxImages: 4, MaxUploadMB: 5}
 	videoC := Constraints{Resolutions: []string{"480p", "720p"}, AspectRatios: []string{"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"}, DurationMin: 1, DurationMax: 15, MaxUploadMB: 5}
 	switch n {
-	case "grok-imagine-image", "grok-imagine-image-lite":
-		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Fixed: .02}, imageC, true
-	case "grok-imagine-image-quality", "grok-imagine-image-quality-lite":
-		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}}, imageC, true
+	case "grok-imagine-image":
+		imageC.SupportsEdit = true
+		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Fixed: .02, InputImage: .002, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
+	case "grok-imagine-image-lite":
+		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Fixed: .02, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
+	case "grok-imagine-image-quality":
+		imageC.SupportsEdit = true
+		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}, InputImage: .01, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
+	case "grok-imagine-image-quality-lite":
+		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
 	case "grok-imagine-video", "grok-imagine-video-1.5":
-		return CapabilityVideo, ProtocolVideo, Pricing{Currency: "USD", Unit: "second", Resolutions: map[string]float64{"480p": .08, "720p": .14}}, videoC, true
+		return CapabilityVideo, ProtocolVideo, Pricing{Currency: "USD", Unit: "second", Resolutions: map[string]float64{"480p": .08, "720p": .14}, Source: "xAI official", AsOf: "2026-07-14"}, videoC, true
 	}
 	if strings.Contains(n, "image") || strings.Contains(n, "flux") || strings.Contains(n, "imagen") || strings.Contains(n, "dall-e") {
 		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image"}, imageC, false
@@ -252,18 +368,28 @@ func (s *Service) TestProvider(ctx context.Context, id int64) error {
 	if err != nil {
 		return err
 	}
+	if p.Kind == ProviderPool {
+		models, discoverErr := s.discoverAccountModels(ctx, *p)
+		if discoverErr != nil {
+			return discoverErr
+		}
+		if len(models) == 0 {
+			return fmt.Errorf("所选账号分组没有可用媒体模型")
+		}
+	}
 	_, err = s.listRemoteModels(ctx, *p)
 	return err
 }
 func (s *Service) listRemoteModels(ctx context.Context, p store.CreativeProvider) ([]string, error) {
-	if p.Kind != "openai_compatible" {
+	if p.Kind != ProviderOpenAI && p.Kind != ProviderPool {
 		return nil, fmt.Errorf("unsupported provider kind %s", p.Kind)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, providerEndpoint(p.BaseURL, "/v1/models"), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.providerEndpoint(p, "/v1/models"), nil)
 	if err != nil {
 		return nil, err
 	}
 	applyProviderAuth(req, p)
+	s.prepareProviderRequest(req, p)
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -310,13 +436,33 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 	if err := validateModelConstraints(m, in.AspectRatio, in.Resolution, in.Count); err != nil {
 		return nil, err
 	}
-	params, _ := json.Marshal(in)
+	if in.ImageDataURL != "" {
+		constraints, _ := decodeConstraints(m.ConstraintsJSON)
+		if !constraints.SupportsEdit {
+			return nil, fmt.Errorf("该模型不支持图片编辑")
+		}
+		pricing, pricingErr := decodePricing(m.PriceJSON)
+		if pricingErr != nil || pricing.InputImage <= 0 {
+			return nil, fmt.Errorf("模型没有有效的图片编辑价格")
+		}
+		price = roundMoney(price + pricing.InputImage)
+	}
+	params, _ := json.Marshal(map[string]any{
+		"model_id": in.ModelDBID, "prompt": in.Prompt, "n": in.Count,
+		"aspect_ratio": in.AspectRatio, "resolution": in.Resolution,
+		"has_reference_image": in.ImageDataURL != "",
+	})
 	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "image", in.Prompt, string(params), in.RequestKey, price)
 	if err != nil || existing {
 		return job, err
 	}
 	payload := map[string]any{"model": m.ModelID, "prompt": in.Prompt, "n": in.Count, "aspect_ratio": in.AspectRatio, "resolution": in.Resolution, "response_format": "url", "stream": false}
-	body, status, err := s.providerJSON(ctx, p, http.MethodPost, "/v1/images/generations", payload)
+	path := "/v1/images/generations"
+	if in.ImageDataURL != "" {
+		path = "/v1/images/edits"
+		payload["image"] = map[string]any{"url": in.ImageDataURL}
+	}
+	body, status, err := s.providerJSON(ctx, p, http.MethodPost, path, payload)
 	if err != nil || status >= 300 {
 		return s.failAndRefund(ctx, job, "upstream_error", providerError(status, body, err))
 	}
@@ -359,7 +505,11 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 	if err := validateModelConstraints(m, in.AspectRatio, in.Resolution, in.Duration); err != nil {
 		return nil, err
 	}
-	params, _ := json.Marshal(in)
+	params, _ := json.Marshal(map[string]any{
+		"model_id": in.ModelDBID, "prompt": in.Prompt, "duration": in.Duration,
+		"aspect_ratio": in.AspectRatio, "resolution": in.Resolution,
+		"has_reference_image": in.ImageDataURL != "",
+	})
 	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "video", in.Prompt, string(params), in.RequestKey, price)
 	if err != nil || existing {
 		return job, err
@@ -605,7 +755,7 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 		rawURL = v.Video.URL
 	}
 	if strings.HasPrefix(rawURL, "/") {
-		rawURL = providerEndpoint(p.BaseURL, rawURL)
+		rawURL = s.providerEndpoint(*p, rawURL)
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
@@ -615,14 +765,16 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	if err != nil {
 		return nil, "", 0, err
 	}
-	providerURL, _ := url.Parse(p.BaseURL)
+	providerURL, _ := url.Parse(s.providerBaseURL(*p))
 	if sameURLOrigin(u, providerURL) {
 		applyProviderAuth(req, *p)
+		s.prepareProviderRequest(req, *p)
 	}
 	mediaClient := *s.client
 	mediaClient.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 		if !sameURLOrigin(next.URL, providerURL) {
 			next.Header.Del("Authorization")
+			next.Host = ""
 		}
 		return nil
 	}
@@ -648,11 +800,12 @@ func (s *Service) providerJSON(ctx context.Context, p store.CreativeProvider, me
 		}
 		body = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, providerEndpoint(p.BaseURL, path), body)
+	req, err := http.NewRequestWithContext(ctx, method, s.providerEndpoint(p, path), body)
 	if err != nil {
 		return nil, 0, err
 	}
 	applyProviderAuth(req, p)
+	s.prepareProviderRequest(req, p)
 	req.Header.Set("Accept", "application/json")
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -664,6 +817,23 @@ func (s *Service) providerJSON(ctx context.Context, p store.CreativeProvider, me
 	defer resp.Body.Close()
 	raw, readErr := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	return raw, resp.StatusCode, readErr
+}
+
+func (s *Service) providerBaseURL(p store.CreativeProvider) string {
+	if p.Kind == ProviderPool && s.accounts != nil {
+		return s.accounts.BaseURL()
+	}
+	return p.BaseURL
+}
+
+func (s *Service) providerEndpoint(p store.CreativeProvider, path string) string {
+	return providerEndpoint(s.providerBaseURL(p), path)
+}
+
+func (s *Service) prepareProviderRequest(req *http.Request, p store.CreativeProvider) {
+	if p.Kind == ProviderPool && s.accounts != nil {
+		s.accounts.PrepareGatewayRequest(req)
+	}
 }
 func applyProviderAuth(req *http.Request, p store.CreativeProvider) {
 	if strings.TrimSpace(p.APIKey) != "" {
