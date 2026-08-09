@@ -325,6 +325,7 @@ cp configs/config.example.yaml configs/config.yaml
 | `SUB2API_BASE_URL` | 容器内访问 sub2api，生产为 `http://sub2api:8080` |
 | `SUB2API_ADMIN_API_KEY` | **推荐** 管理员 API Key（`x-api-key`，长期有效） |
 | `SUB2API_ADMIN_TOKEN` | 或管理员登录 JWT（会过期） |
+| `CREATIVE_CREDENTIAL_SECRET` | AI 创作用户 API Key 加密密钥；生产环境必须设置至少 32 个随机字符，且不可随意更换 |
 | `CHECKIN_ENABLED` | 启动默认开关（可被管理页覆盖） |
 | `CHECKIN_REWARD_AMOUNT` | 启动默认额度（可被管理页覆盖） |
 | `CHECKIN_TIMEZONE` | 启动默认时区 |

@@ -92,7 +92,13 @@ func main() {
 	h.SetRedistribution(redistributionSvc)
 	taskSettings := tasks.NewSettings(st)
 	h.SetTasks(taskSettings)
-	creativeSvc := creative.New(st, client, creditSvc)
+	creativeSvc := creative.New(st, client, creditSvc, cfg.Security.CreativeCredentialSecret)
+	if len(strings.TrimSpace(cfg.Security.CreativeCredentialSecret)) < 32 {
+		log.Printf("creative user API key storage disabled: CREATIVE_CREDENTIAL_SECRET must be at least 32 characters")
+	}
+	if _, err := creativeSvc.EnsureAccountPoolProvider(context.Background()); err != nil {
+		log.Printf("creative account pool bootstrap: %v", err)
+	}
 	creativeSvc.Start()
 	defer creativeSvc.Stop()
 	h.SetCreative(creativeSvc)
@@ -162,6 +168,7 @@ func main() {
 	mux.HandleFunc(base+"/api/tasks/claim", h.TasksClaim)
 	mux.HandleFunc(base+"/api/admin/tasks/settings", h.AdminTasksSettings)
 	mux.HandleFunc(base+"/api/creative/options", h.CreativeOptions)
+	mux.HandleFunc(base+"/api/creative/credentials", h.CreativeCredentials)
 	mux.HandleFunc(base+"/api/creative/images", h.CreativeImages)
 	mux.HandleFunc(base+"/api/creative/videos", h.CreativeVideos)
 	mux.HandleFunc(base+"/api/creative/jobs", h.CreativeJobs)

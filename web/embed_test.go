@@ -10,8 +10,8 @@ func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 		"static/tasks.html":     {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
 		"static/index.html":     {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\"", "./create.html", "AI 创作"},
 		"static/rewards.html":   {"const LIMIT = 10;"},
-		"static/create.html":    {"./api/creative/options", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs?page=1&page_size=10", "image_data_url", "contentBlob"},
-		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:el('creativeProviderKey')"},
+		"static/create.html":    {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs?page=1&page_size=10", "image_data_url", "contentBlob", "Sub2API 结算", "扩展扣费"},
+		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key"},
 		"static/tutorial.html":  {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
 		"static/assets/app.css": {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "flex-direction: column"},
 	}

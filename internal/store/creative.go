@@ -26,6 +26,14 @@ type CreativeProvider struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+type CreativeUserCredential struct {
+	UserID       int64     `json:"user_id"`
+	ProviderID   int64     `json:"provider_id"`
+	APIKeyCipher string    `json:"-"`
+	KeyHint      string    `json:"key_hint"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
 type CreativeModel struct {
 	ID                int64     `json:"id"`
 	ProviderID        int64     `json:"provider_id"`
@@ -92,6 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_creative_jobs_user ON creative_jobs(user_id,creat
 CREATE INDEX IF NOT EXISTS idx_creative_jobs_status ON creative_jobs(status,updated_at);
 CREATE TABLE IF NOT EXISTS creative_job_events (id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,event_type TEXT NOT NULL,message TEXT NOT NULL DEFAULT '',data_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,FOREIGN KEY(job_id) REFERENCES creative_jobs(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS idx_creative_events_job ON creative_job_events(job_id,created_at);
+CREATE TABLE IF NOT EXISTS creative_user_credentials (user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,api_key_cipher TEXT NOT NULL,key_hint TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,provider_id),FOREIGN KEY(provider_id) REFERENCES creative_providers(id) ON DELETE CASCADE);
+CREATE INDEX IF NOT EXISTS idx_creative_user_credentials_provider ON creative_user_credentials(provider_id,user_id);
 `)
 	return err
 }
@@ -150,6 +160,10 @@ func (s *Store) DeleteCreativeProvider(ctx context.Context, id int64) error {
 	_, err := s.db.ExecContext(ctx, `DELETE FROM creative_providers WHERE id=?`, id)
 	return err
 }
+func (s *Store) ClearCreativeProviderAPIKey(ctx context.Context, id int64) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE creative_providers SET api_key='',updated_at=? WHERE id=?`, time.Now().UTC().Format(time.RFC3339Nano), id)
+	return err
+}
 func scanCreativeProvider(row interface{ Scan(...any) error }) (*CreativeProvider, error) {
 	var p CreativeProvider
 	var e int
@@ -161,6 +175,71 @@ func scanCreativeProvider(row interface{ Scan(...any) error }) (*CreativeProvide
 	p.CreatedAt = parseStoreTime(c)
 	p.UpdatedAt = parseStoreTime(u)
 	return &p, nil
+}
+
+func (s *Store) SaveCreativeUserCredential(ctx context.Context, value CreativeUserCredential) (*CreativeUserCredential, error) {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO creative_user_credentials(user_id,provider_id,api_key_cipher,key_hint,created_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(user_id,provider_id) DO UPDATE SET api_key_cipher=excluded.api_key_cipher,key_hint=excluded.key_hint,updated_at=excluded.updated_at`, value.UserID, value.ProviderID, value.APIKeyCipher, value.KeyHint, now, now)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetCreativeUserCredential(ctx, value.UserID, value.ProviderID)
+}
+
+func (s *Store) GetCreativeUserCredential(ctx context.Context, userID, providerID int64) (*CreativeUserCredential, error) {
+	return scanCreativeUserCredential(s.db.QueryRowContext(ctx, `SELECT user_id,provider_id,api_key_cipher,key_hint,created_at,updated_at FROM creative_user_credentials WHERE user_id=? AND provider_id=?`, userID, providerID))
+}
+
+func (s *Store) ListCreativeUserCredentials(ctx context.Context, userID int64) ([]CreativeUserCredential, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT user_id,provider_id,api_key_cipher,key_hint,created_at,updated_at FROM creative_user_credentials WHERE user_id=? ORDER BY provider_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CreativeUserCredential{}
+	for rows.Next() {
+		value, scanErr := scanCreativeUserCredential(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *value)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) DeleteCreativeUserCredential(ctx context.Context, userID, providerID int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM creative_user_credentials WHERE user_id=? AND provider_id=?`, userID, providerID)
+	return err
+}
+
+func (s *Store) HasActiveCreativeVideo(ctx context.Context, userID, providerID int64) (bool, error) {
+	var exists int
+	query := `SELECT EXISTS(SELECT 1 FROM creative_jobs WHERE provider_id=? AND media_type='video' AND status IN ('created','processing')`
+	args := []any{providerID}
+	if userID > 0 {
+		query += ` AND user_id=?`
+		args = append(args, userID)
+	}
+	query += `)`
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&exists)
+	return exists != 0, err
+}
+
+func (s *Store) HasCreativeJobsForProvider(ctx context.Context, providerID int64) (bool, error) {
+	var exists int
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM creative_jobs WHERE provider_id=?)`, providerID).Scan(&exists)
+	return exists != 0, err
+}
+
+func scanCreativeUserCredential(row interface{ Scan(...any) error }) (*CreativeUserCredential, error) {
+	var value CreativeUserCredential
+	var createdAt, updatedAt string
+	if err := row.Scan(&value.UserID, &value.ProviderID, &value.APIKeyCipher, &value.KeyHint, &createdAt, &updatedAt); err != nil {
+		return nil, err
+	}
+	value.CreatedAt = parseStoreTime(createdAt)
+	value.UpdatedAt = parseStoreTime(updatedAt)
+	return &value, nil
 }
 
 const creativeModelSelect = `SELECT id,provider_id,model_id,display_name,capability,protocol,price_json,constraints_json,source_group,enabled,created_at,updated_at FROM creative_models`

@@ -20,6 +20,7 @@ services:
       SUB2API_PUBLIC_HOST: "${SUB2API_PUBLIC_HOST:-}"
       SUB2API_ADMIN_API_KEY: "${SUB2API_ADMIN_API_KEY:-}"
       SUB2API_ADMIN_TOKEN: "${SUB2API_ADMIN_TOKEN:-}"
+      CREATIVE_CREDENTIAL_SECRET: "${CREATIVE_CREDENTIAL_SECRET:-}"
       SQLITE_PATH: "/data/checkin.db"
       TZ: Asia/Shanghai
     volumes:

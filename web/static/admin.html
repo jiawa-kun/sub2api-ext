@@ -1162,7 +1162,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <div class="creative-admin-head">
         <div>
           <h2>AI 创作</h2>
-          <p>统一管理账号池渠道、模型售价和创作订单。</p>
+          <p>管理账号池、外部渠道、模型定价和创作订单。</p>
         </div>
         <div class="row">
           <button type="button" class="secondary sm" id="btnCreativeRefresh">刷新</button>
@@ -1179,7 +1179,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
       <div class="card creative-channel-card">
         <div class="card-head">
-          <div><h2>调用渠道</h2><p class="desc">账号池渠道直接同步账号管理中的媒体模型；自定义渠道用于后续接入其他兼容服务。</p></div>
+          <div><h2>调用渠道</h2><p class="desc">账号池使用用户自己的 API Key；外部渠道使用管理员配置的全局 Key。</p></div>
           <span class="badge" id="creativeProviderBadge">0 个渠道</span>
         </div>
         <div class="creative-source-tabs" role="tablist">
@@ -1188,24 +1188,24 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
         <div class="grid2 creative-channel-form">
           <div class="field creative-custom-field"><label for="creativeProviderName">渠道名称</label><input id="creativeProviderName" placeholder="例如外部媒体服务" /></div>
-          <div class="field creative-custom-field"><label for="creativeProviderURL">接口地址</label><input id="creativeProviderURL" placeholder="https://provider.example.com" /></div>
-          <div class="field"><label for="creativeProviderGroup">账号分组</label><select id="creativeProviderGroup"><option value="">全部账号</option></select></div>
-          <div class="field"><label for="creativeProviderKey">媒体调用 API Key</label><input id="creativeProviderKey" type="password" autocomplete="new-password" placeholder="更新时留空保留现有 Key" /></div>
-          <div class="field creative-custom-field"><label for="creativeProviderKind">协议类型</label><select id="creativeProviderKind"><option value="sub2api_pool">Sub2API 账号池</option><option value="openai_compatible">OpenAI Compatible</option></select></div>
+          <div class="field creative-custom-field"><label for="creativeProviderURL">Base URL</label><input id="creativeProviderURL" placeholder="https://provider.example.com" /></div>
+          <div class="field creative-pool-field"><label for="creativeProviderGroup">账号分组</label><select id="creativeProviderGroup"><option value="">全部账号</option></select></div>
+          <div class="field creative-custom-field"><label for="creativeProviderKey">全局 API Key</label><input id="creativeProviderKey" type="password" autocomplete="new-password" placeholder="更新时留空保留现有 Key" /></div>
           <div class="field"><label>渠道状态</label><label class="switch"><input id="creativeProviderEnabled" type="checkbox" /><span>允许用户调用该渠道</span></label></div>
         </div>
+        <input id="creativeProviderKind" type="hidden" value="sub2api_pool" />
         <input id="creativeProviderID" type="hidden" value="0" />
         <div class="msg" id="creativeMsg"></div>
         <div class="toolbar creative-actions">
           <button type="button" id="btnCreativeProviderSave">保存渠道</button>
           <button type="button" class="secondary" id="btnCreativeProviderSync">同步账号模型</button>
-          <button type="button" class="secondary" id="btnCreativeProviderTest">测试调用凭据</button>
-          <button type="button" class="secondary" id="btnCreativeProviderNew">新建渠道</button>
+          <button type="button" class="secondary" id="btnCreativeProviderTest">检查账号池</button>
+          <button type="button" class="secondary" id="btnCreativeProviderNew">新建外部渠道</button>
           <button type="button" class="danger" id="btnCreativeProviderDelete">删除</button>
         </div>
         <div class="tbl-wrap creative-channel-list">
           <table class="tbl creative-responsive-table">
-            <thead><tr><th>渠道</th><th>来源</th><th>账号分组</th><th>调用凭据</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>渠道</th><th>类型</th><th>路由配置</th><th>凭据与结算</th><th>状态</th><th>操作</th></tr></thead>
             <tbody id="creativeProviderBody"><tr><td colspan="6" class="sub">加载中…</td></tr></tbody>
           </table>
         </div>
@@ -1213,12 +1213,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
       <div class="card creative-model-card">
         <div class="card-head">
-          <div><h2>模型与售价</h2><p class="desc">售价用于用户扣费。账号池无可用账号时，模型不会出现在创作页。</p></div>
+          <div><h2 id="creativeModelTitle">模型与参考价格</h2><p class="desc" id="creativeModelDesc">参考价格仅用于费用预估，实际由用户的 Sub2API API Key 结算。</p></div>
           <span class="badge" id="creativeModelBadge">0 个模型</span>
         </div>
         <div class="tbl-wrap">
           <table class="tbl creative-model-table creative-responsive-table">
-            <thead><tr><th>模型</th><th>能力</th><th>可用账号</th><th>用户售价</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>模型</th><th>能力</th><th>可用性</th><th id="creativePriceHeading">参考价格</th><th>状态</th><th>操作</th></tr></thead>
             <tbody id="creativeModelBody"><tr><td colspan="6" class="sub">请先选择渠道</td></tr></tbody>
           </table>
         </div>
@@ -3083,14 +3083,27 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       setTimeout(()=>{node.className='msg';},5000);
     }
     function parseCreativeJSON(raw,fallback={}){try{return JSON.parse(raw||'{}')}catch{return fallback}}
-    function creativeKindLabel(kind){return kind==='sub2api_pool'?'账号池':'自定义兼容'}
-    function creativeStatusLabel(value){return ({created:'已创建',processing:'生成中',completed:'已完成',failed:'失败',refunded:'已退款',charged:'已扣费',refund_pending:'退款中',pending:'待处理'})[value]||value||'—'}
+    function creativeKindLabel(kind){return kind==='sub2api_pool'?'Sub2API 账号池':'外部兼容渠道'}
+    function creativeStatusLabel(value){return ({created:'已创建',processing:'生成中',completed:'已完成',failed:'失败',refunded:'已退款',charged:'已扣费',refund_pending:'退款中',pending:'待处理',upstream:'Sub2API 结算'})[value]||value||'—'}
+    function updateCreativeModelCopy(){
+      const pool=creativeState.kind==='sub2api_pool';
+      el('creativeModelTitle').textContent=pool?'模型与参考价格':'模型与用户售价';
+      el('creativeModelDesc').textContent=pool?'参考价格仅用于费用预估，实际由用户的 Sub2API API Key 结算。':'用户调用时由扩展按售价扣费，生成失败自动退款。';
+      el('creativePriceHeading').textContent=pool?'参考价格':'用户售价';
+    }
     function setCreativeKind(kind){
       creativeState.kind=kind==='openai_compatible'?'openai_compatible':'sub2api_pool';
       el('creativeProviderKind').value=creativeState.kind;
       document.querySelectorAll('[data-creative-kind]').forEach(btn=>btn.classList.toggle('active',btn.dataset.creativeKind===creativeState.kind));
       document.querySelectorAll('.creative-custom-field').forEach(node=>node.classList.toggle('hidden',creativeState.kind==='sub2api_pool'));
-      el('btnCreativeProviderSync').textContent=creativeState.kind==='sub2api_pool'?'同步账号模型':'同步交集模型';
+      document.querySelectorAll('.creative-pool-field').forEach(node=>node.classList.toggle('hidden',creativeState.kind!=='sub2api_pool'));
+      const pool=creativeState.kind==='sub2api_pool';
+      el('btnCreativeProviderSave').textContent=pool?'保存账号池':'保存外部渠道';
+      el('btnCreativeProviderSync').textContent=pool?'同步账号模型':'同步外部模型';
+      el('btnCreativeProviderTest').textContent=pool?'检查账号池':'测试全局 Key';
+      el('btnCreativeProviderNew').classList.toggle('hidden',pool);
+      el('btnCreativeProviderDelete').classList.toggle('hidden',pool);
+      updateCreativeModelCopy();
     }
     function resetCreativeProvider(kind='sub2api_pool'){
       creativeState.selectedProviderID=0;
@@ -3098,9 +3111,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('creativeProviderName').value=kind==='sub2api_pool'?'Sub2API 账号池':'';
       el('creativeProviderURL').value='';
       el('creativeProviderKey').value='';
-      el('creativeProviderKey').placeholder='新渠道必填';
+      el('creativeProviderKey').placeholder='新外部渠道必填';
       el('creativeProviderGroup').value='';
-      el('creativeProviderEnabled').checked=false;
+      el('creativeProviderEnabled').checked=kind==='sub2api_pool';
       setCreativeKind(kind);
       creativeState.models=[];
       renderCreativeProviders();
@@ -3125,10 +3138,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function renderCreativeProviders(){
       const body=el('creativeProviderBody'); if(!body)return;
       el('creativeProviderBadge').textContent=creativeState.providers.length+' 个渠道';
-      if(!creativeState.providers.length){body.innerHTML='<tr><td colspan="6" class="sub">暂无渠道。选择账号池并配置媒体调用 Key 后保存。</td></tr>';return;}
+      if(!creativeState.providers.length){body.innerHTML='<tr><td colspan="6" class="sub">暂无渠道，刷新后将自动创建 Sub2API 账号池。</td></tr>';return;}
       body.innerHTML=creativeState.providers.map(p=>`<tr class="${Number(p.id)===Number(creativeState.selectedProviderID)?'selected':''}">
-        <td data-label="渠道"><strong>${escapeHtml(p.name||'—')}</strong><div class="sub">${p.kind==='sub2api_pool'?'内部统一网关':escapeHtml(p.base_url||'—')}</div></td>
-        <td data-label="来源">${creativeKindLabel(p.kind)}</td><td data-label="账号分组">${escapeHtml(p.source_group||'全部账号')}</td><td data-label="调用凭据">${escapeHtml(p.api_key_masked||'未配置')}</td>
+        <td data-label="渠道"><strong>${escapeHtml(p.name||'—')}</strong><div class="sub">${p.kind==='sub2api_pool'?'内置渠道':escapeHtml(p.base_url||'—')}</div></td>
+        <td data-label="类型">${creativeKindLabel(p.kind)}</td><td data-label="路由配置">${p.kind==='sub2api_pool'?escapeHtml(p.source_group||'全部账号'):'OpenAI Compatible'}</td><td data-label="凭据与结算">${p.kind==='sub2api_pool'?'<strong>用户自有 Key</strong><div class="sub">Sub2API 结算</div>':`<strong>${escapeHtml(p.api_key_masked||'未配置')}</strong><div class="sub">扩展扣费</div>`}</td>
         <td data-label="状态"><span class="creative-status ${p.enabled?'ok':'warn'}">${p.enabled?'启用':'停用'}</span></td><td data-label="操作"><button type="button" class="secondary sm" data-creative-provider="${Number(p.id)}">管理</button></td></tr>`).join('');
       body.querySelectorAll('[data-creative-provider]').forEach(btn=>btn.onclick=()=>selectCreativeProvider(Number(btn.dataset.creativeProvider)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
     }
@@ -3139,7 +3152,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('creativeProviderName').value=p.name||'';
       el('creativeProviderURL').value=p.base_url||'';
       el('creativeProviderKey').value='';
-      el('creativeProviderKey').placeholder=p.api_key_configured?'已配置，留空保留原 Key':'尚未配置';
+      el('creativeProviderKey').placeholder=p.api_key_configured?'全局 Key 已配置，留空保留':'请输入全局 API Key';
       renderCreativeGroups(p.source_group||'');
       el('creativeProviderGroup').value=p.source_group||'';
       el('creativeProviderEnabled').checked=!!p.enabled;
@@ -3150,7 +3163,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     }
     function creativeProviderPayload(){
       const pool=creativeState.kind==='sub2api_pool';
-      return {id:Number(el('creativeProviderID').value||0),name:pool?'Sub2API 账号池':el('creativeProviderName').value.trim(),kind:creativeState.kind,base_url:pool?'':el('creativeProviderURL').value.trim(),api_key:el('creativeProviderKey').value.trim(),source_group:el('creativeProviderGroup').value.trim(),enabled:!!el('creativeProviderEnabled').checked};
+      return {id:Number(el('creativeProviderID').value||0),name:pool?'Sub2API 账号池':el('creativeProviderName').value.trim(),kind:creativeState.kind,base_url:pool?'':el('creativeProviderURL').value.trim(),api_key:pool?'':el('creativeProviderKey').value.trim(),source_group:pool?el('creativeProviderGroup').value.trim():'',enabled:!!el('creativeProviderEnabled').checked};
     }
     async function saveCreativeProvider(){
       const saved=await api('./api/admin/creative/providers',{method:'POST',body:JSON.stringify(creativeProviderPayload())});
@@ -3165,7 +3178,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(target) await selectCreativeProvider(target);
       else resetCreativeProvider();
     }
-    function creativePriceEditor(m){
+    function creativePriceEditor(m,isPool){
       const p=parseCreativeJSON(m.price_json), c=parseCreativeJSON(m.constraints_json), fields=[];
       if(p.resolutions&&Object.keys(p.resolutions).length){
         Object.keys(p.resolutions).forEach(key=>fields.push(`<label class="creative-price-field"><span>${escapeHtml(key)}</span><input type="number" min="0" step="0.001" data-price="resolution:${escAttr(key)}" value="${Number(p.resolutions[key]||0)}"></label>`));
@@ -3173,19 +3186,21 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         fields.push(`<label class="creative-price-field"><span>${m.capability==='video_generation'?'每秒':'每张'}</span><input type="number" min="0" step="0.001" data-price="fixed" value="${Number(p.fixed||0)}"></label>`);
       }
       if(c.supports_edit) fields.push(`<label class="creative-price-field"><span>输入图</span><input type="number" min="0" step="0.001" data-price="input_image" value="${Number(p.input_image||0)}"></label>`);
-      return `<div class="creative-price-editor">${fields.join('')}</div><details class="creative-model-advanced"><summary>高级约束</summary><textarea data-f="constraints_json" spellcheck="false">${escapeHtml(m.constraints_json||'{}')}</textarea></details>`;
+      const source=p.source?` · ${escapeHtml(p.source)}`:'';
+      return `<div class="creative-price-editor">${fields.join('')}</div><div class="creative-price-note">${isPool?'费用预估':'扩展扣费'}${source}</div><details class="creative-model-advanced"><summary>高级约束</summary><textarea data-f="constraints_json" spellcheck="false">${escapeHtml(m.constraints_json||'{}')}</textarea></details>`;
     }
     function renderCreativeModels(){
       const body=el('creativeModelBody'); if(!body)return;
       el('creativeModelBadge').textContent=creativeState.models.length+' 个模型';
       if(!creativeState.selectedProviderID){body.innerHTML='<tr><td colspan="6" class="sub">请先保存并选择渠道。</td></tr>';return;}
-      if(!creativeState.models.length){body.innerHTML='<tr><td colspan="6" class="sub">暂无模型，请先同步账号模型。</td></tr>';return;}
+      if(!creativeState.models.length){body.innerHTML=`<tr><td colspan="6" class="sub">暂无模型，请先${creativeState.kind==='sub2api_pool'?'同步账号模型':'同步外部模型'}。</td></tr>`;return;}
       const selected=creativeState.providers.find(p=>Number(p.id)===Number(creativeState.selectedProviderID));
+      const isPool=selected?.kind==='sub2api_pool';
       body.innerHTML=creativeState.models.map(m=>`<tr data-creative-model-row="${Number(m.id)}">
         <td data-label="模型" class="creative-model-name"><strong>${escapeHtml(m.display_name||m.model_id)}</strong><span>${escapeHtml(m.model_id)}</span></td>
         <td data-label="能力"><select data-f="capability"><option value="unknown" ${m.capability==='unknown'?'selected':''}>未知</option><option value="image_generation" ${m.capability==='image_generation'?'selected':''}>图片 / 编辑</option><option value="video_generation" ${m.capability==='video_generation'?'selected':''}>视频生成</option></select></td>
-        <td data-label="可用账号">${selected?.kind==='sub2api_pool'?`<span class="creative-status ${Number(m.available_accounts)>0?'ok':'bad'}">${Number(m.available_accounts)||0} 个</span>`:'<span class="creative-capability">外部渠道</span>'}</td>
-        <td data-label="用户售价">${creativePriceEditor(m)}</td>
+        <td data-label="可用性">${isPool?`<span class="creative-status ${Number(m.available_accounts)>0?'ok':'bad'}">${Number(m.available_accounts)||0} 个账号</span>`:'<span class="creative-capability">外部模型</span>'}</td>
+        <td data-label="${isPool?'参考价格':'用户售价'}">${creativePriceEditor(m,isPool)}</td>
         <td data-label="状态"><label class="switch"><input data-f="enabled" type="checkbox" ${m.enabled?'checked':''} /><span>${m.enabled?'已启用':'已停用'}</span></label></td>
         <td data-label="操作"><button type="button" class="secondary sm" data-creative-model-save="${Number(m.id)}">保存</button></td></tr>`).join('');
       body.querySelectorAll('[data-creative-model-save]').forEach(btn=>btn.onclick=()=>saveCreativeModel(Number(btn.dataset.creativeModelSave)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
@@ -3213,7 +3228,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const body=el('creativeJobBody'); if(!body)return;
       el('creativeJobBadge').textContent=creativeState.jobs.length+' / '+Number(creativeState.jobTotal||0)+' 条';
       if(!creativeState.jobs.length){body.innerHTML='<tr><td colspan="9" class="sub">暂无创作订单。</td></tr>';return;}
-      body.innerHTML=creativeState.jobs.map(j=>`<tr><td data-label="订单">${escapeHtml(j.order_no||String(j.id))}</td><td data-label="用户">${Number(j.user_id)||'—'}</td><td data-label="类型">${j.media_type==='image'?'图片':'视频'}</td><td data-label="模型">${escapeHtml(j.model_id||'—')}</td><td data-label="金额">$${Number(j.charge_amount||0).toFixed(4)}</td><td data-label="扣费">${escapeHtml(creativeStatusLabel(j.charge_status))}</td><td data-label="任务状态"><span class="creative-status ${j.status==='completed'?'ok':j.status==='failed'||j.status==='refunded'?'bad':'warn'}">${escapeHtml(creativeStatusLabel(j.status))}</span></td><td data-label="进度">${Number(j.progress||0)}%</td><td data-label="时间">${escapeHtml(fmtPatrolTime(j.created_at))}</td></tr>`).join('');
+      body.innerHTML=creativeState.jobs.map(j=>`<tr><td data-label="订单">${escapeHtml(j.order_no||String(j.id))}</td><td data-label="用户">${Number(j.user_id)||'—'}</td><td data-label="类型">${j.media_type==='image'?'图片':'视频'}</td><td data-label="模型">${escapeHtml(j.model_id||'—')}</td><td data-label="金额">${j.charge_status==='upstream'?'预计 ':''}$${Number(j.charge_amount||0).toFixed(4)}</td><td data-label="扣费">${escapeHtml(creativeStatusLabel(j.charge_status))}</td><td data-label="任务状态"><span class="creative-status ${j.status==='completed'?'ok':j.status==='failed'||j.status==='refunded'?'bad':'warn'}">${escapeHtml(creativeStatusLabel(j.status))}</span></td><td data-label="进度">${Number(j.progress||0)}%</td><td data-label="时间">${escapeHtml(fmtPatrolTime(j.created_at))}</td></tr>`).join('');
     }
     async function loadCreativeJobs(){
       const data=await api('./api/admin/creative/jobs?page=1&page_size=10');
@@ -3227,7 +3242,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     async function testCreativeProvider(){
       const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先保存并选择渠道');
       await api('./api/admin/creative/providers/'+id+'/test',{method:'POST',body:'{}'});
-      showCreativeMsg('连接测试通过','ok');
+      showCreativeMsg(creativeState.kind==='sub2api_pool'?'账号池检查通过':'全局 Key 测试通过','ok');
     }
     async function syncCreativeProvider(){
       const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先保存并选择渠道');
@@ -3243,7 +3258,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await loadCreativeProviders();
       showCreativeMsg('渠道已删除','ok');
     }
-    document.querySelectorAll('[data-creative-kind]').forEach(btn=>btn.onclick=()=>resetCreativeProvider(btn.dataset.creativeKind));
+    async function selectCreativeKind(kind){const pool=kind==='sub2api_pool',existing=pool?creativeState.providers.find(p=>p.kind==='sub2api_pool'):null;if(existing)await selectCreativeProvider(Number(existing.id));else resetCreativeProvider(pool?'sub2api_pool':'openai_compatible')}
+    document.querySelectorAll('[data-creative-kind]').forEach(btn=>btn.onclick=()=>selectCreativeKind(btn.dataset.creativeKind).catch(e=>showCreativeMsg(e.message||String(e),'err')));
     el('creativeProviderKind').onchange=()=>setCreativeKind(el('creativeProviderKind').value);
     el('creativeProviderGroup').onchange=()=>loadCreativePool(el('creativeProviderGroup').value).catch(e=>showCreativeMsg(e.message||String(e),'err'));
     campRewardState=defaultCampRewards(); renderCampRewards();
@@ -3331,7 +3347,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navCreative=el('nav-creative'); if(navCreative) navCreative.onclick=(e)=>{ e.preventDefault(); setAdminSection('creative'); refreshCreative().catch(e2=>showCreativeMsg(e2.message||String(e2),'err')); };
     const navTutorial=el('nav-tutorial'); if(navTutorial) navTutorial.onclick=(e)=>{ e.preventDefault(); setAdminSection('tutorial'); refreshTutorial().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnCreativeProviderSave=el('btnCreativeProviderSave'); if(btnCreativeProviderSave) btnCreativeProviderSave.onclick=()=>saveCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
-    const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider();
+    const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider('openai_compatible');
     const btnCreativeProviderTest=el('btnCreativeProviderTest'); if(btnCreativeProviderTest) btnCreativeProviderTest.onclick=()=>testCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderSync=el('btnCreativeProviderSync'); if(btnCreativeProviderSync) btnCreativeProviderSync.onclick=()=>syncCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderDelete=el('btnCreativeProviderDelete'); if(btnCreativeProviderDelete) btnCreativeProviderDelete.onclick=()=>deleteCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));

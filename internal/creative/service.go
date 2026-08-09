@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/store"
@@ -44,13 +45,14 @@ type Pricing struct {
 	AsOf        string             `json:"as_of,omitempty"`
 }
 type Constraints struct {
-	Resolutions  []string `json:"resolutions,omitempty"`
-	AspectRatios []string `json:"aspect_ratios,omitempty"`
-	MaxImages    int      `json:"max_images,omitempty"`
-	DurationMin  int      `json:"duration_min,omitempty"`
-	DurationMax  int      `json:"duration_max,omitempty"`
-	MaxUploadMB  int      `json:"max_upload_mb,omitempty"`
-	SupportsEdit bool     `json:"supports_edit,omitempty"`
+	Resolutions   []string `json:"resolutions,omitempty"`
+	AspectRatios  []string `json:"aspect_ratios,omitempty"`
+	MaxImages     int      `json:"max_images,omitempty"`
+	DurationMin   int      `json:"duration_min,omitempty"`
+	DurationMax   int      `json:"duration_max,omitempty"`
+	MaxUploadMB   int      `json:"max_upload_mb,omitempty"`
+	SupportsEdit  bool     `json:"supports_edit,omitempty"`
+	RequiresImage bool     `json:"requires_image,omitempty"`
 }
 type ImageInput struct {
 	ModelDBID    int64  `json:"model_id"`
@@ -75,20 +77,33 @@ type ModelOption struct {
 	Pricing      Pricing     `json:"pricing"`
 	Constraints  Constraints `json:"constraints"`
 	ProviderName string      `json:"provider_name"`
+	ProviderKind string      `json:"provider_kind"`
+	BillingMode  string      `json:"billing_mode"`
 }
 
 type Service struct {
-	store    *store.Store
-	accounts *sub2api.Client
-	credit   *credit.Service
-	client   *http.Client
-	stop     chan struct{}
-	wg       sync.WaitGroup
-	pollMu   sync.Mutex
+	store         *store.Store
+	accounts      *sub2api.Client
+	credit        creditService
+	client        *http.Client
+	credentialKey []byte
+	stop          chan struct{}
+	wg            sync.WaitGroup
+	pollMu        sync.Mutex
+	routeMu       sync.Mutex
 }
 
-func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service) *Service {
-	return &Service{store: st, accounts: accounts, credit: creditSvc, client: &http.Client{Timeout: 5 * time.Minute}, stop: make(chan struct{})}
+type creditService interface {
+	Grant(context.Context, credit.Request) (*credit.Result, error)
+	Reclaim(context.Context, credit.Request) (*credit.Result, error)
+}
+
+func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service, credentialSecret ...string) *Service {
+	secret := ""
+	if len(credentialSecret) > 0 {
+		secret = credentialSecret[0]
+	}
+	return &Service{store: st, accounts: accounts, credit: creditSvc, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), stop: make(chan struct{})}
 }
 func (s *Service) Start() {
 	s.wg.Add(1)
@@ -120,28 +135,124 @@ func (s *Service) ListProviders(ctx context.Context) ([]store.CreativeProvider, 
 	return s.store.ListCreativeProviders(ctx)
 }
 func (s *Service) SaveProvider(ctx context.Context, p store.CreativeProvider) (*store.CreativeProvider, error) {
+	s.routeMu.Lock()
+	defer s.routeMu.Unlock()
+
 	p.Kind = defaultString(strings.TrimSpace(p.Kind), ProviderOpenAI)
+	p.APIKey = strings.TrimSpace(p.APIKey)
 	if p.Kind != ProviderOpenAI && p.Kind != ProviderPool {
 		return nil, fmt.Errorf("暂不支持 Provider 类型 %s", p.Kind)
+	}
+	var current *store.CreativeProvider
+	if p.ID > 0 {
+		var err error
+		current, err = s.store.GetCreativeProvider(ctx, p.ID)
+		if err != nil {
+			return nil, err
+		}
+		if current.Kind != p.Kind {
+			return nil, fmt.Errorf("渠道类型创建后不能修改")
+		}
 	}
 	if p.Kind == ProviderPool {
 		if s.accounts == nil {
 			return nil, fmt.Errorf("Sub2API 客户端未配置")
 		}
+		providers, err := s.store.ListCreativeProviders(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, current := range providers {
+			if current.Kind == ProviderPool && current.ID != p.ID {
+				return nil, fmt.Errorf("Sub2API 账号池渠道已存在")
+			}
+		}
 		p.Name = defaultString(strings.TrimSpace(p.Name), "Sub2API 账号池")
 		p.BaseURL = s.accounts.BaseURL()
-	}
-	if p.ID > 0 && strings.TrimSpace(p.APIKey) == "" {
-		if current, err := s.store.GetCreativeProvider(ctx, p.ID); err == nil {
+		p.APIKey = ""
+	} else {
+		if err := validateProviderBaseURL(p.BaseURL); err != nil {
+			return nil, err
+		}
+		providedKey := p.APIKey
+		if current != nil && providedKey == "" {
 			p.APIKey = current.APIKey
 		}
+		if current != nil {
+			baseURL := strings.TrimRight(strings.TrimSpace(p.BaseURL), "/")
+			routeChanged := baseURL != current.BaseURL || (providedKey != "" && providedKey != current.APIKey)
+			if routeChanged {
+				active, err := s.store.HasActiveCreativeVideo(ctx, 0, p.ID)
+				if err != nil {
+					return nil, err
+				}
+				if active {
+					return nil, fmt.Errorf("该渠道有视频任务生成中，完成后才能更换 Base URL 或全局 Key")
+				}
+			}
+		}
 	}
-	if p.Enabled && strings.TrimSpace(p.APIKey) == "" {
+	if p.Kind == ProviderOpenAI && p.Enabled && strings.TrimSpace(p.APIKey) == "" {
 		return nil, fmt.Errorf("启用渠道前必须配置媒体调用 API Key")
 	}
-	return s.store.SaveCreativeProvider(ctx, p)
+	saved, err := s.store.SaveCreativeProvider(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	if p.Kind == ProviderPool && saved.APIKey != "" {
+		if err := s.store.ClearCreativeProviderAPIKey(ctx, saved.ID); err != nil {
+			return nil, err
+		}
+		return s.store.GetCreativeProvider(ctx, saved.ID)
+	}
+	return saved, nil
+}
+
+func validateProviderBaseURL(value string) error {
+	u, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return fmt.Errorf("外部渠道 Base URL 必须是有效的 HTTP(S) 地址")
+	}
+	return nil
+}
+
+func (s *Service) EnsureAccountPoolProvider(ctx context.Context) (*store.CreativeProvider, error) {
+	providers, err := s.store.ListCreativeProviders(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range providers {
+		if providers[i].Kind == ProviderPool {
+			return s.SaveProvider(ctx, providers[i])
+		}
+	}
+	provider, err := s.SaveProvider(ctx, store.CreativeProvider{Name: "Sub2API 账号池", Kind: ProviderPool, Enabled: true})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.SyncProviderModels(ctx, provider.ID); err != nil {
+		return provider, err
+	}
+	return provider, nil
 }
 func (s *Service) DeleteProvider(ctx context.Context, id int64) error {
+	s.routeMu.Lock()
+	defer s.routeMu.Unlock()
+
+	provider, err := s.store.GetCreativeProvider(ctx, id)
+	if err != nil {
+		return err
+	}
+	if provider.Kind == ProviderPool {
+		return fmt.Errorf("内置 Sub2API 账号池不能删除，可将其停用")
+	}
+	hasJobs, err := s.store.HasCreativeJobsForProvider(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasJobs {
+		return fmt.Errorf("该渠道已有创作订单，不能删除，可将其停用")
+	}
 	return s.store.DeleteCreativeProvider(ctx, id)
 }
 func (s *Service) ListModels(ctx context.Context, pid int64, enabled bool) ([]store.CreativeModel, error) {
@@ -178,7 +289,7 @@ func (s *Service) GetJob(ctx context.Context, id, userID int64) (*store.Creative
 	return s.store.GetCreativeJob(ctx, id, userID)
 }
 
-func (s *Service) ModelOptions(ctx context.Context) ([]ModelOption, error) {
+func (s *Service) ModelOptions(ctx context.Context, userID int64) ([]ModelOption, error) {
 	models, err := s.store.ListCreativeModels(ctx, 0, true)
 	if err != nil {
 		return nil, err
@@ -187,23 +298,31 @@ func (s *Service) ModelOptions(ctx context.Context) ([]ModelOption, error) {
 	if err != nil {
 		return nil, err
 	}
-	pm := map[int64]string{}
+	pm := map[int64]store.CreativeProvider{}
 	availability := map[int64]map[string]int{}
 	for _, p := range providers {
 		if p.Enabled {
-			pm[p.ID] = p.Name
+			pm[p.ID] = p
 			if p.Kind == ProviderPool {
-				if counts, e := s.discoverAccountModels(ctx, p); e == nil {
-					availability[p.ID] = counts
-				} else {
-					availability[p.ID] = map[string]int{}
+				counts, accountErr := s.discoverAccountModels(ctx, p)
+				callProvider, credentialErr := s.providerForUser(ctx, userID, p)
+				allowed := map[string]int{}
+				if accountErr == nil && credentialErr == nil {
+					if remote, remoteErr := s.listRemoteModels(ctx, callProvider); remoteErr == nil {
+						for _, modelID := range remote {
+							if counts[modelID] > 0 {
+								allowed[modelID] = counts[modelID]
+							}
+						}
+					}
 				}
+				availability[p.ID] = allowed
 			}
 		}
 	}
 	out := []ModelOption{}
 	for _, m := range models {
-		pn, ok := pm[m.ProviderID]
+		provider, ok := pm[m.ProviderID]
 		if !ok {
 			continue
 		}
@@ -219,7 +338,11 @@ func (s *Service) ModelOptions(ctx context.Context) ([]ModelOption, error) {
 		}
 		var c Constraints
 		_ = json.Unmarshal([]byte(m.ConstraintsJSON), &c)
-		out = append(out, ModelOption{CreativeModel: m, Pricing: p, Constraints: c, ProviderName: pn})
+		billingMode := "platform"
+		if provider.Kind == ProviderPool {
+			billingMode = "upstream"
+		}
+		out = append(out, ModelOption{CreativeModel: m, Pricing: p, Constraints: c, ProviderName: provider.Name, ProviderKind: provider.Kind, BillingMode: billingMode})
 	}
 	return out, nil
 }
@@ -243,23 +366,8 @@ func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int
 		if remoteErr != nil {
 			return 0, fmt.Errorf("provider models: %w", remoteErr)
 		}
-		remoteSet := map[string]bool{}
-		for _, m := range remote {
-			remoteSet[m] = true
-		}
-		accounts, accountsErr := s.accounts.ListAllAccounts(ctx, p.SourceGroup, 100, "Asia/Shanghai")
-		if accountsErr != nil {
-			return 0, fmt.Errorf("account models: %w", accountsErr)
-		}
-		for _, account := range accounts {
-			if !account.Schedulable || badAccountStatus(account.Status) {
-				continue
-			}
-			for _, modelID := range account.ModelMappingKeys() {
-				if remoteSet[modelID] {
-					set[modelID] = true
-				}
-			}
+		for _, modelID := range remote {
+			set[modelID] = true
 		}
 	}
 	count := 0
@@ -344,6 +452,10 @@ func inferModel(id string) (string, string, Pricing, Constraints, bool) {
 		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}, InputImage: .01, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
 	case "grok-imagine-image-quality-lite":
 		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
+	case "grok-imagine-image-edit":
+		imageC.SupportsEdit = true
+		imageC.RequiresImage = true
+		return CapabilityImage, ProtocolImages, Pricing{Currency: "USD", Unit: "image", Resolutions: map[string]float64{"1k": .05, "2k": .07}, InputImage: .01, Source: "xAI official", AsOf: "2026-07-14"}, imageC, true
 	case "grok-imagine-video", "grok-imagine-video-1.5":
 		return CapabilityVideo, ProtocolVideo, Pricing{Currency: "USD", Unit: "second", Resolutions: map[string]float64{"480p": .08, "720p": .14}, Source: "xAI official", AsOf: "2026-07-14"}, videoC, true
 	}
@@ -376,6 +488,7 @@ func (s *Service) TestProvider(ctx context.Context, id int64) error {
 		if len(models) == 0 {
 			return fmt.Errorf("所选账号分组没有可用媒体模型")
 		}
+		return nil
 	}
 	_, err = s.listRemoteModels(ctx, *p)
 	return err
@@ -421,6 +534,9 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 	if in.Prompt == "" {
 		return nil, fmt.Errorf("prompt is required")
 	}
+	if utf8.RuneCountInString(in.Prompt) > 4000 {
+		return nil, fmt.Errorf("提示词不能超过 4000 个字符")
+	}
 	if in.Count <= 0 {
 		in.Count = 1
 	}
@@ -446,13 +562,19 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 			return nil, fmt.Errorf("模型没有有效的图片编辑价格")
 		}
 		price = roundMoney(price + pricing.InputImage)
+	} else if constraints, _ := decodeConstraints(m.ConstraintsJSON); constraints.RequiresImage {
+		return nil, fmt.Errorf("该模型仅支持图片编辑，请先上传参考图")
+	}
+	callProvider, err := s.providerForUser(ctx, userID, p)
+	if err != nil {
+		return nil, err
 	}
 	params, _ := json.Marshal(map[string]any{
 		"model_id": in.ModelDBID, "prompt": in.Prompt, "n": in.Count,
 		"aspect_ratio": in.AspectRatio, "resolution": in.Resolution,
 		"has_reference_image": in.ImageDataURL != "",
 	})
-	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "image", in.Prompt, string(params), in.RequestKey, price)
+	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "image", in.Prompt, string(params), in.RequestKey, price, p.Kind != ProviderPool)
 	if err != nil || existing {
 		return job, err
 	}
@@ -462,7 +584,7 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 		path = "/v1/images/edits"
 		payload["image"] = map[string]any{"url": in.ImageDataURL}
 	}
-	body, status, err := s.providerJSON(ctx, p, http.MethodPost, path, payload)
+	body, status, err := s.providerJSON(ctx, callProvider, http.MethodPost, path, payload)
 	if err != nil || status >= 300 {
 		return s.failAndRefund(ctx, job, "upstream_error", providerError(status, body, err))
 	}
@@ -478,10 +600,12 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 	job.Status = store.CreativeJobCompleted
 	job.Progress = 100
 	job.CompletedAt = &now
-	if err := s.store.UpdateCreativeJob(ctx, *job); err != nil {
-		return job, err
+	durableCtx, cancel := durableContext(ctx)
+	defer cancel()
+	if err := s.store.UpdateCreativeJob(durableCtx, *job); err != nil {
+		return s.failAndRefund(durableCtx, job, "result_state_failed", fmt.Errorf("保存图片结果失败: %w", err))
 	}
-	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: job.ID, EventType: "completed", Message: "图片生成完成"})
+	_ = s.store.AddCreativeJobEvent(durableCtx, store.CreativeJobEvent{JobID: job.ID, EventType: "completed", Message: "图片生成完成"})
 	return job, nil
 }
 
@@ -489,6 +613,9 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 	in.Prompt = strings.TrimSpace(in.Prompt)
 	if in.Prompt == "" && in.ImageDataURL == "" {
 		return nil, fmt.Errorf("prompt or image is required")
+	}
+	if utf8.RuneCountInString(in.Prompt) > 4000 {
+		return nil, fmt.Errorf("提示词不能超过 4000 个字符")
 	}
 	if in.Duration <= 0 {
 		in.Duration = 8
@@ -498,11 +625,19 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 	}
 	in.AspectRatio = defaultString(strings.TrimSpace(in.AspectRatio), "16:9")
 	in.Resolution = strings.ToLower(defaultString(strings.TrimSpace(in.Resolution), "720p"))
+	s.routeMu.Lock()
 	m, p, price, err := s.resolveModel(ctx, in.ModelDBID, CapabilityVideo, in.Resolution, in.Duration)
 	if err != nil {
+		s.routeMu.Unlock()
 		return nil, err
 	}
 	if err := validateModelConstraints(m, in.AspectRatio, in.Resolution, in.Duration); err != nil {
+		s.routeMu.Unlock()
+		return nil, err
+	}
+	callProvider, err := s.providerForUser(ctx, userID, p)
+	if err != nil {
+		s.routeMu.Unlock()
 		return nil, err
 	}
 	params, _ := json.Marshal(map[string]any{
@@ -510,7 +645,8 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 		"aspect_ratio": in.AspectRatio, "resolution": in.Resolution,
 		"has_reference_image": in.ImageDataURL != "",
 	})
-	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "video", in.Prompt, string(params), in.RequestKey, price)
+	job, existing, err := s.prepareJob(ctx, userID, p.ID, m.ModelID, "video", in.Prompt, string(params), in.RequestKey, price, p.Kind != ProviderPool)
+	s.routeMu.Unlock()
 	if err != nil || existing {
 		return job, err
 	}
@@ -518,7 +654,7 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 	if in.ImageDataURL != "" {
 		payload["image"] = map[string]any{"url": in.ImageDataURL}
 	}
-	body, status, err := s.providerJSON(ctx, p, http.MethodPost, "/v1/videos/generations", payload)
+	body, status, err := s.providerJSON(ctx, callProvider, http.MethodPost, "/v1/videos/generations", payload)
 	if err != nil || status >= 300 {
 		return s.failAndRefund(ctx, job, "upstream_error", providerError(status, body, err))
 	}
@@ -533,10 +669,12 @@ func (s *Service) CreateVideo(ctx context.Context, userID int64, in VideoInput) 
 	job.ResultJSON = string(body)
 	job.Status = store.CreativeJobProcessing
 	job.Progress = 0
-	if err := s.store.UpdateCreativeJob(ctx, *job); err != nil {
-		return job, err
+	durableCtx, cancel := durableContext(ctx)
+	defer cancel()
+	if err := s.store.UpdateCreativeJob(durableCtx, *job); err != nil {
+		return s.failAndRefund(durableCtx, job, "result_state_failed", fmt.Errorf("保存视频任务失败: %w", err))
 	}
-	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: job.ID, EventType: "submitted", Message: "视频任务已提交"})
+	_ = s.store.AddCreativeJobEvent(durableCtx, store.CreativeJobEvent{JobID: job.ID, EventType: "submitted", Message: "视频任务已提交"})
 	return job, nil
 }
 
@@ -575,7 +713,7 @@ func (s *Service) resolveModel(ctx context.Context, id int64, capability, resolu
 	}
 	return *m, *p, roundMoney(unit * float64(quantity)), nil
 }
-func (s *Service) prepareJob(ctx context.Context, userID, providerID int64, modelID, mediaType, prompt, params, requestKey string, amount float64) (*store.CreativeJob, bool, error) {
+func (s *Service) prepareJob(ctx context.Context, userID, providerID int64, modelID, mediaType, prompt, params, requestKey string, amount float64, billByExtension bool) (*store.CreativeJob, bool, error) {
 	requestKey = strings.TrimSpace(requestKey)
 	if requestKey == "" {
 		requestKey = newToken(12)
@@ -586,16 +724,32 @@ func (s *Service) prepareJob(ctx context.Context, userID, providerID int64, mode
 		return nil, false, err
 	}
 	order := "cr_" + newToken(12)
-	job, err := s.store.CreateCreativeJob(ctx, store.CreativeJob{OrderNo: order, RequestKey: requestKey, UserID: userID, ProviderID: providerID, ModelID: modelID, MediaType: mediaType, Prompt: prompt, ParamsJSON: params, ChargeAmount: amount, ChargeStatus: "pending", Status: store.CreativeJobCreated})
+	chargeStatus := "pending"
+	status := store.CreativeJobCreated
+	if !billByExtension {
+		chargeStatus = "upstream"
+		status = store.CreativeJobProcessing
+	}
+	job, err := s.store.CreateCreativeJob(ctx, store.CreativeJob{OrderNo: order, RequestKey: requestKey, UserID: userID, ProviderID: providerID, ModelID: modelID, MediaType: mediaType, Prompt: prompt, ParamsJSON: params, ChargeAmount: amount, ChargeStatus: chargeStatus, Status: status})
 	if err != nil {
 		return nil, false, err
 	}
 	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: job.ID, EventType: "created", Message: "订单已创建"})
+	if !billByExtension {
+		_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: job.ID, EventType: "upstream_billing", Message: "费用由用户 Sub2API API Key 结算"})
+		return job, false, nil
+	}
 	if s.credit == nil {
 		return s.failNoRefund(ctx, job, "billing_unavailable", fmt.Errorf("余额服务不可用"))
 	}
 	res, err := s.credit.Reclaim(ctx, credit.Request{UserID: userID, Amount: amount, Source: SourceCharge, SourceRef: order, Scope: SourceCharge, Slot: order, Notes: fmt.Sprintf("AI创作扣费 %s -%.4f", order, amount)})
 	if err != nil {
+		if res != nil {
+			job.ChargeStatus = "refund_pending"
+			job.ChargeLedgerID = res.LedgerID
+			failed, cause := s.failAndRefund(ctx, job, "charge_state_failed", err)
+			return failed, false, cause
+		}
 		return s.failNoRefund(ctx, job, "charge_failed", err)
 	}
 	job.ChargeStatus = "charged"
@@ -606,7 +760,8 @@ func (s *Service) prepareJob(ctx context.Context, userID, providerID int64, mode
 	durableCtx, cancel := durableContext(ctx)
 	defer cancel()
 	if err := s.store.UpdateCreativeJob(durableCtx, *job); err != nil {
-		return job, false, err
+		failed, cause := s.failAndRefund(durableCtx, job, "charge_state_failed", err)
+		return failed, false, cause
 	}
 	_ = s.store.AddCreativeJobEvent(durableCtx, store.CreativeJobEvent{JobID: job.ID, EventType: "charged", Message: fmt.Sprintf("已扣除 %.4f", amount)})
 	return job, false, nil
@@ -676,7 +831,11 @@ func (s *Service) pollPending(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		body, status, err := s.providerJSON(ctx, *p, http.MethodGet, "/v1/videos/"+url.PathEscape(job.UpstreamRequestID), nil)
+		callProvider, err := s.providerForUser(ctx, job.UserID, *p)
+		if err != nil {
+			continue
+		}
+		body, status, err := s.providerJSON(ctx, callProvider, http.MethodGet, "/v1/videos/"+url.PathEscape(job.UpstreamRequestID), nil)
 		if err != nil || status >= 300 {
 			continue
 		}
@@ -767,8 +926,12 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	}
 	providerURL, _ := url.Parse(s.providerBaseURL(*p))
 	if sameURLOrigin(u, providerURL) {
-		applyProviderAuth(req, *p)
-		s.prepareProviderRequest(req, *p)
+		callProvider, credentialErr := s.providerForUser(ctx, job.UserID, *p)
+		if credentialErr != nil {
+			return nil, "", 0, credentialErr
+		}
+		applyProviderAuth(req, callProvider)
+		s.prepareProviderRequest(req, callProvider)
 	}
 	mediaClient := *s.client
 	mediaClient.CheckRedirect = func(next *http.Request, via []*http.Request) error {
@@ -928,7 +1091,21 @@ func ValidateImageDataURL(v string) error {
 		return nil
 	}
 	parts := strings.SplitN(v, ",", 2)
-	if len(parts) != 2 || !strings.HasPrefix(strings.ToLower(parts[0]), "data:image/") || !strings.Contains(strings.ToLower(parts[0]), ";base64") {
+	if len(parts) != 2 {
+		return fmt.Errorf("参考图片必须是 Base64 图片")
+	}
+	metadata := strings.Split(strings.ToLower(parts[0]), ";")
+	if len(metadata) < 2 || (metadata[0] != "data:image/png" && metadata[0] != "data:image/jpeg" && metadata[0] != "data:image/webp") {
+		return fmt.Errorf("参考图片格式必须是 PNG、JPEG 或 WebP")
+	}
+	hasBase64 := false
+	for _, value := range metadata[1:] {
+		if strings.TrimSpace(value) == "base64" {
+			hasBase64 = true
+			break
+		}
+	}
+	if !hasBase64 {
 		return fmt.Errorf("参考图片必须是 Base64 图片")
 	}
 	raw, err := base64.StdEncoding.DecodeString(parts[1])
@@ -937,6 +1114,18 @@ func ValidateImageDataURL(v string) error {
 	}
 	if len(raw) > 5<<20 {
 		return fmt.Errorf("参考图片不能超过 5MB")
+	}
+	validContent := false
+	switch metadata[0] {
+	case "data:image/png":
+		validContent = len(raw) >= 8 && bytes.Equal(raw[:8], []byte{'\x89', 'P', 'N', 'G', '\r', '\n', '\x1a', '\n'})
+	case "data:image/jpeg":
+		validContent = len(raw) >= 3 && raw[0] == 0xff && raw[1] == 0xd8 && raw[2] == 0xff
+	case "data:image/webp":
+		validContent = len(raw) >= 12 && string(raw[:4]) == "RIFF" && string(raw[8:12]) == "WEBP"
+	}
+	if !validContent {
+		return fmt.Errorf("参考图片内容与格式不匹配")
 	}
 	return nil
 }

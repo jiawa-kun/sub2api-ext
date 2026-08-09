@@ -394,6 +394,35 @@ body.app-page .bar > i {
   margin-top: 4px;
 }
 
+.creative-channel-form .field {
+  min-width: 0;
+}
+
+.creative-channel-form input,
+.creative-channel-form select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.creative-admin .switch input {
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+}
+
+.creative-channel-form .switch {
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+}
+
+.creative-model-table .switch {
+  width: auto;
+  min-width: 104px;
+  padding: 7px 9px;
+}
+
 .creative-actions {
   padding: 0;
   border: 0;
@@ -456,6 +485,13 @@ body.app-page .bar > i {
   flex-wrap: wrap;
   gap: 6px;
   min-width: 260px;
+}
+
+.creative-price-note {
+  margin-top: 6px;
+  color: var(--app-muted);
+  font-size: .66rem;
+  line-height: 1.35;
 }
 
 .creative-price-field {

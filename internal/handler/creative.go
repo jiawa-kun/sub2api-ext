@@ -44,12 +44,66 @@ func (h *Handler) CreativeOptions(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusServiceUnavailable, "creative module unavailable")
 		return
 	}
-	models, err := h.creative.ModelOptions(r.Context())
+	models, err := h.creative.ModelOptions(r.Context(), u.ID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"models": models, "balance": u.Balance, "user_id": u.ID, "is_admin": strings.EqualFold(u.Role, "admin")})
+	credentials, err := h.creative.CredentialOptions(r.Context(), u.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": models, "credentials": credentials, "balance": u.Balance, "user_id": u.ID, "is_admin": strings.EqualFold(u.Role, "admin")})
+}
+
+func (h *Handler) CreativeCredentials(w http.ResponseWriter, r *http.Request) {
+	u, err := h.requireUser(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if h.creative == nil {
+		writeErr(w, http.StatusServiceUnavailable, "creative module unavailable")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		items, listErr := h.creative.CredentialOptions(r.Context(), u.ID)
+		if listErr != nil {
+			writeErr(w, http.StatusInternalServerError, listErr.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost, http.MethodPut:
+		var input struct {
+			ProviderID int64  `json:"provider_id"`
+			APIKey     string `json:"api_key"`
+		}
+		if decodeErr := decodeCreativeJSON(r, &input, 8<<10); decodeErr != nil {
+			writeErr(w, http.StatusBadRequest, decodeErr.Error())
+			return
+		}
+		item, saveErr := h.creative.SaveUserCredential(r.Context(), u.ID, input.ProviderID, input.APIKey)
+		if saveErr != nil {
+			writeErr(w, http.StatusBadRequest, saveErr.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+	case http.MethodDelete:
+		providerID, parseErr := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("provider_id")), 10, 64)
+		if parseErr != nil || providerID <= 0 {
+			writeErr(w, http.StatusBadRequest, "provider_id is required")
+			return
+		}
+		if deleteErr := h.creative.DeleteUserCredential(r.Context(), u.ID, providerID); deleteErr != nil {
+			writeErr(w, http.StatusInternalServerError, deleteErr.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 
 func (h *Handler) CreativeImages(w http.ResponseWriter, r *http.Request) {

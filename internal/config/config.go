@@ -35,13 +35,12 @@ type CheckinConfig struct {
 }
 
 type Sub2APIConfig struct {
-	BaseURL        string `yaml:"base_url"`
-	AdminToken     string `yaml:"admin_token"`
+	BaseURL    string `yaml:"base_url"`
+	AdminToken string `yaml:"admin_token"`
 	// PublicHost optional external host when BaseURL is an internal docker name.
 	PublicHost     string `yaml:"public_host"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 }
-
 
 type PatrolConfig struct {
 	// Enabled controls whether the cron scheduler is active. Default false.
@@ -148,6 +147,8 @@ type SecurityConfig struct {
 	RateAdminReadPerMin  int `yaml:"rate_admin_read_per_min"`
 	// SensitiveWriteRequireAPIKey requires server admin credential for high-risk writes.
 	SensitiveWriteRequireAPIKey bool `yaml:"sensitive_write_require_api_key"`
+	// CreativeCredentialSecret encrypts user-owned media API keys at rest.
+	CreativeCredentialSecret string `yaml:"creative_credential_secret"`
 }
 
 func Default() Config {
@@ -171,7 +172,7 @@ func Default() Config {
 			Cron:                    "0 */6 * * *",
 			Groups:                  []string{},
 			TestModel:               "gpt-5.4",
-			Concurrency:            8,
+			Concurrency:             8,
 			TimeoutMs:               45000,
 			ActionOnFail:            "disable",
 			OnlySchedulable:         false,
@@ -200,8 +201,8 @@ func Default() Config {
 			SQLitePath: "./data/checkin.db",
 		},
 		Security: SecurityConfig{
-			CORSOrigins:    []string{},
-			FrameAncestors: []string{},
+			CORSOrigins:                 []string{},
+			FrameAncestors:              []string{},
 			RateCheckinPerMin:           10,
 			RateStatusPerMin:            60,
 			RateAdminWritePerMin:        30,
@@ -410,6 +411,9 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv("SENSITIVE_WRITE_REQUIRE_API_KEY"); v != "" {
 		cfg.Security.SensitiveWriteRequireAPIKey = parseBool(v, cfg.Security.SensitiveWriteRequireAPIKey)
 	}
+	if v := os.Getenv("CREATIVE_CREDENTIAL_SECRET"); v != "" {
+		cfg.Security.CreativeCredentialSecret = strings.TrimSpace(v)
+	}
 
 	cfg.Sub2API.BaseURL = strings.TrimRight(cfg.Sub2API.BaseURL, "/")
 	cfg.Server.BasePath = normalizeBasePath(cfg.Server.BasePath)
@@ -482,7 +486,6 @@ func applyEnv(cfg *Config) {
 		cfg.Patrol.FailThreshold = 10
 	}
 }
-
 
 func (c Config) Validate() error {
 	if c.Server.Addr == "" {
