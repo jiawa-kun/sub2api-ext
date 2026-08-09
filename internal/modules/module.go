@@ -80,6 +80,18 @@ func Builtin() []Module {
 			Tags:        []string{"运营", "对账", "财务"},
 		},
 		{
+			ID:          "creative",
+			Name:        "AI 创作中心",
+			Description: "从 Sub2API 账号分组发现媒体模型，支持文本生图、文本生视频、单图生视频、按模型扣费和失败退款。",
+			UserPath:    "./create.html",
+			AdminPath:   "./admin.html#creative",
+			APIBase:     "./api/creative",
+			Enabled:     true,
+			Version:     "1.0",
+			Status:      "active",
+			Tags:        []string{"生图", "视频", "余额"},
+		},
+		{
 			ID:          "account-patrol",
 			Name:        "账号模型巡检",
 			Description: "按分组定时测活账号模型，失败自动下线/删除，支持管理页配置与手动触发。",

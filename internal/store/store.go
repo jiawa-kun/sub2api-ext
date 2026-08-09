@@ -187,6 +187,9 @@ CREATE INDEX IF NOT EXISTS idx_lottery_created
 	if err := s.ensureRedistributionSchema(); err != nil {
 		return err
 	}
+	if err := s.ensureCreativeSchema(); err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -30,3 +30,16 @@ func TestBuiltinCheckin(t *testing.T) {
 		t.Fatalf("product identity mismatch: %s / %s / %s", ProductID, ProjectName, CompatName)
 	}
 }
+
+func TestBuiltinCreative(t *testing.T) {
+	for _, m := range Builtin() {
+		if m.ID != "creative" {
+			continue
+		}
+		if !m.Enabled || m.Status != "active" || m.UserPath != "./create.html" || m.AdminPath != "./admin.html#creative" || m.APIBase != "./api/creative" {
+			t.Fatalf("creative module contract mismatch: %+v", m)
+		}
+		return
+	}
+	t.Fatal("creative module not registered")
+}

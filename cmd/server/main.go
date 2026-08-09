@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/creative"
 	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/handler"
 	"sub2api-ext/internal/lottery"
@@ -91,6 +92,10 @@ func main() {
 	h.SetRedistribution(redistributionSvc)
 	taskSettings := tasks.NewSettings(st)
 	h.SetTasks(taskSettings)
+	creativeSvc := creative.New(st, client, creditSvc)
+	creativeSvc.Start()
+	defer creativeSvc.Stop()
+	h.SetCreative(creativeSvc)
 
 	mux := http.NewServeMux()
 	base := cfg.Server.BasePath
@@ -156,6 +161,15 @@ func main() {
 	mux.HandleFunc(base+"/api/tasks", h.TasksList)
 	mux.HandleFunc(base+"/api/tasks/claim", h.TasksClaim)
 	mux.HandleFunc(base+"/api/admin/tasks/settings", h.AdminTasksSettings)
+	mux.HandleFunc(base+"/api/creative/options", h.CreativeOptions)
+	mux.HandleFunc(base+"/api/creative/images", h.CreativeImages)
+	mux.HandleFunc(base+"/api/creative/videos", h.CreativeVideos)
+	mux.HandleFunc(base+"/api/creative/jobs", h.CreativeJobs)
+	mux.HandleFunc(base+"/api/creative/jobs/", h.CreativeJobByID)
+	mux.HandleFunc(base+"/api/admin/creative/providers", h.AdminCreativeProviders)
+	mux.HandleFunc(base+"/api/admin/creative/providers/", h.AdminCreativeProviderByID)
+	mux.HandleFunc(base+"/api/admin/creative/models", h.AdminCreativeModels)
+	mux.HandleFunc(base+"/api/admin/creative/jobs", h.AdminCreativeJobs)
 	mux.HandleFunc(base+"/api/ranking/consumption", h.RankingConsumption)
 	mux.HandleFunc(base+"/api/lottery/draw", h.LotteryDraw)
 	mux.HandleFunc(base+"/api/admin/lottery/settings", func(w http.ResponseWriter, r *http.Request) {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"sub2api-ext/internal/config"
+	"sub2api-ext/internal/creative"
 	"sub2api-ext/internal/credit"
 	"sub2api-ext/internal/lottery"
 	"sub2api-ext/internal/metrics"
@@ -44,6 +45,7 @@ type Handler struct {
 	redistribution *redistribution.Service
 	credit         *credit.Service
 	tasks          *tasks.Settings
+	creative       *creative.Service
 
 	limitCheckin    *ratelimit.Limiter
 	limitStatus     *ratelimit.Limiter
@@ -1333,7 +1335,6 @@ func (h *Handler) Calendar(w http.ResponseWriter, r *http.Request) {
 		"count":    len(recs),
 	})
 }
-
 
 // PublicGetTutorial returns the public tutorial page content.
 func (h *Handler) PublicGetTutorial(w http.ResponseWriter, r *http.Request) {

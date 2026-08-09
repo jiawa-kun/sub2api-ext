@@ -274,6 +274,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="topnav">
           <a href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>扩展中心</a>
           <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
+          <a href="./create.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AI 创作</a>
           <a href="./tutorial.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</a>
           <a class="active" href="./admin.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
         </div>
@@ -326,6 +327,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <div class="modnav-group" data-group="content">
         <div class="modnav-group-title">内容管理</div>
         <div class="modnav-group-btns">
+          <button type="button" id="nav-creative"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AI 创作</button>
           <button type="button" id="nav-tutorial"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</button>
         </div>
       </div>
@@ -1156,6 +1158,68 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       </div>
     </div>
 
+    <div class="hidden admin-module" id="sec-creative">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>AI 创作 Provider</h2>
+            <p class="desc">配置兼容接口与账号来源分组。保存后先测试连接，再同步账号池可用模型。</p>
+          </div>
+          <a class="secondary sm" href="./create.html" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:var(--app-radius-sm);border:1px solid var(--border);text-decoration:none;color:var(--text)">打开用户创作页</a>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="creativeProviderName">名称</label><input id="creativeProviderName" placeholder="例如 Grok 媒体服务" /></div>
+          <div class="field"><label for="creativeProviderKind">类型</label><select id="creativeProviderKind"><option value="openai_compatible">OpenAI Compatible</option></select></div>
+          <div class="field"><label for="creativeProviderURL">Base URL</label><input id="creativeProviderURL" placeholder="https://provider.example.com" /></div>
+          <div class="field"><label for="creativeProviderKey">API Key</label><input id="creativeProviderKey" type="password" autocomplete="new-password" placeholder="更新时留空保留原 Key" /></div>
+          <div class="field"><label for="creativeProviderGroup">来源分组</label><input id="creativeProviderGroup" placeholder="Sub2API 账号分组名称" /></div>
+          <div class="field"><label>状态</label><label class="switch"><input id="creativeProviderEnabled" type="checkbox" checked /><span>启用 Provider</span></label></div>
+        </div>
+        <input id="creativeProviderID" type="hidden" value="0" />
+        <div class="msg" id="creativeMsg"></div>
+        <div class="toolbar">
+          <button type="button" id="btnCreativeProviderSave">保存 Provider</button>
+          <button type="button" class="secondary" id="btnCreativeProviderNew">新建</button>
+          <button type="button" class="secondary" id="btnCreativeProviderTest">连接测试</button>
+          <button type="button" class="secondary" id="btnCreativeProviderSync">同步模型</button>
+          <button type="button" class="danger" id="btnCreativeProviderDelete">删除</button>
+          <button type="button" class="secondary" id="btnCreativeRefresh">刷新</button>
+        </div>
+        <div class="tbl-wrap" style="margin-top:12px">
+          <table class="tbl">
+            <thead><tr><th>名称</th><th>类型</th><th>Base URL</th><th>来源分组</th><th>Key</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="creativeProviderBody"><tr><td colspan="7" class="sub">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h2>模型与价格</h2><p class="desc">同步仅发现账号池与 Provider 共同存在的模型。未知模型默认停用，配置价格后再启用。</p></div>
+          <span class="badge" id="creativeModelBadge">0 个模型</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>模型</th><th>能力</th><th>协议</th><th>价格 JSON</th><th>约束 JSON</th><th>启用</th><th>操作</th></tr></thead>
+            <tbody id="creativeModelBody"><tr><td colspan="7" class="sub">请先选择 Provider</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h2>最近创作订单</h2><p class="desc">展示最近 10 条订单、扣费和退款状态。</p></div>
+          <span class="badge" id="creativeJobBadge">0 条</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>订单</th><th>用户</th><th>类型</th><th>模型</th><th>金额</th><th>扣费</th><th>状态</th><th>进度</th><th>时间</th></tr></thead>
+            <tbody id="creativeJobBody"><tr><td colspan="9" class="sub">加载中…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="hidden admin-module" id="sec-tutorial">
       <div class="card">
         <div class="card-head">
@@ -1216,7 +1280,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const el=id=>document.getElementById(id);
     if(window.self!==window.top) document.body.classList.add('is-embedded');
     function setAdminSection(name){
-      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks','tutorial'];
+      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks','creative','tutorial'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -2993,6 +3057,128 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       show('任务配置已保存','ok');
       await refreshTasksAdmin();
     }
+
+    const creativeState={providers:[],models:[],jobs:[],selectedProviderID:0};
+    function showCreativeMsg(msg,type){
+      const node=el('creativeMsg'); if(!node)return;
+      node.textContent=msg; node.className='msg show '+(type||'ok');
+      setTimeout(()=>{node.className='msg';},5000);
+    }
+    function resetCreativeProvider(){
+      creativeState.selectedProviderID=0;
+      el('creativeProviderID').value='0';
+      el('creativeProviderName').value='';
+      el('creativeProviderKind').value='openai_compatible';
+      el('creativeProviderURL').value='';
+      el('creativeProviderKey').value='';
+      el('creativeProviderKey').placeholder='新 Provider 必填';
+      el('creativeProviderGroup').value='';
+      el('creativeProviderEnabled').checked=true;
+      creativeState.models=[];
+      renderCreativeProviders();
+      renderCreativeModels();
+    }
+    function renderCreativeProviders(){
+      const body=el('creativeProviderBody'); if(!body)return;
+      if(!creativeState.providers.length){body.innerHTML='<tr><td colspan="7" class="sub">暂无 Provider，请先新建。</td></tr>';return;}
+      body.innerHTML=creativeState.providers.map(p=>`<tr ${Number(p.id)===Number(creativeState.selectedProviderID)?'style="background:var(--surface-2)"':''}>
+        <td>${escapeHtml(p.name||'—')}</td><td>${escapeHtml(p.kind||'—')}</td><td>${escapeHtml(p.base_url||'—')}</td><td>${escapeHtml(p.source_group||'—')}</td>
+        <td>${escapeHtml(p.api_key_masked||'未配置')}</td><td>${p.enabled?'启用':'停用'}</td><td><button type="button" class="secondary sm" data-creative-provider="${Number(p.id)}">编辑</button></td></tr>`).join('');
+      body.querySelectorAll('[data-creative-provider]').forEach(btn=>btn.onclick=()=>selectCreativeProvider(Number(btn.dataset.creativeProvider)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
+    }
+    async function selectCreativeProvider(id,loadModels=true){
+      const p=creativeState.providers.find(item=>Number(item.id)===Number(id)); if(!p)return;
+      creativeState.selectedProviderID=Number(p.id);
+      el('creativeProviderID').value=String(p.id);
+      el('creativeProviderName').value=p.name||'';
+      el('creativeProviderKind').value=p.kind||'openai_compatible';
+      el('creativeProviderURL').value=p.base_url||'';
+      el('creativeProviderKey').value='';
+      el('creativeProviderKey').placeholder=p.api_key_configured?'已配置，留空保留原 Key':'尚未配置';
+      el('creativeProviderGroup').value=p.source_group||'';
+      el('creativeProviderEnabled').checked=!!p.enabled;
+      renderCreativeProviders();
+      if(loadModels) await loadCreativeModels(p.id);
+    }
+    function creativeProviderPayload(){
+      return {id:Number(el('creativeProviderID').value||0),name:el('creativeProviderName').value.trim(),kind:el('creativeProviderKind').value,base_url:el('creativeProviderURL').value.trim(),api_key:el('creativeProviderKey').value.trim(),source_group:el('creativeProviderGroup').value.trim(),enabled:!!el('creativeProviderEnabled').checked};
+    }
+    async function saveCreativeProvider(){
+      const saved=await api('./api/admin/creative/providers',{method:'POST',body:JSON.stringify(creativeProviderPayload())});
+      showCreativeMsg('Provider 已保存','ok');
+      await loadCreativeProviders(Number(saved.id));
+    }
+    async function loadCreativeProviders(preferredID){
+      const data=await api('./api/admin/creative/providers');
+      creativeState.providers=Array.isArray(data.items)?data.items:[];
+      const target=Number(preferredID||creativeState.selectedProviderID||creativeState.providers[0]?.id||0);
+      if(target) await selectCreativeProvider(target);
+      else resetCreativeProvider();
+    }
+    function renderCreativeModels(){
+      const body=el('creativeModelBody'); if(!body)return;
+      el('creativeModelBadge').textContent=creativeState.models.length+' 个模型';
+      if(!creativeState.selectedProviderID){body.innerHTML='<tr><td colspan="7" class="sub">请先选择 Provider</td></tr>';return;}
+      if(!creativeState.models.length){body.innerHTML='<tr><td colspan="7" class="sub">暂无模型，请先测试连接并同步模型。</td></tr>';return;}
+      body.innerHTML=creativeState.models.map(m=>`<tr data-creative-model-row="${Number(m.id)}">
+        <td><strong>${escapeHtml(m.display_name||m.model_id)}</strong><div class="sub">${escapeHtml(m.model_id)}</div></td>
+        <td><select data-f="capability"><option value="unknown" ${m.capability==='unknown'?'selected':''}>未知</option><option value="image_generation" ${m.capability==='image_generation'?'selected':''}>图片生成</option><option value="video_generation" ${m.capability==='video_generation'?'selected':''}>视频生成</option></select></td>
+        <td><input data-f="protocol" value="${escAttr(m.protocol||'')}" style="min-width:150px" /></td>
+        <td><textarea data-f="price_json" rows="3" spellcheck="false" style="min-width:220px;min-height:72px">${escapeHtml(m.price_json||'{}')}</textarea></td>
+        <td><textarea data-f="constraints_json" rows="3" spellcheck="false" style="min-width:260px;min-height:72px">${escapeHtml(m.constraints_json||'{}')}</textarea></td>
+        <td><input data-f="enabled" type="checkbox" ${m.enabled?'checked':''} /></td>
+        <td><button type="button" class="secondary sm" data-creative-model-save="${Number(m.id)}">保存</button></td></tr>`).join('');
+      body.querySelectorAll('[data-creative-model-save]').forEach(btn=>btn.onclick=()=>saveCreativeModel(Number(btn.dataset.creativeModelSave)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
+    }
+    async function loadCreativeModels(providerID){
+      const data=await api('./api/admin/creative/models?provider_id='+encodeURIComponent(providerID));
+      creativeState.models=Array.isArray(data.items)?data.items:[];
+      renderCreativeModels();
+    }
+    async function saveCreativeModel(id){
+      const m=creativeState.models.find(item=>Number(item.id)===Number(id));
+      const row=document.querySelector(`[data-creative-model-row="${Number(id)}"]`); if(!m||!row)return;
+      const get=f=>row.querySelector(`[data-f="${f}"]`);
+      const price=(get('price_json').value||'{}').trim(), constraints=(get('constraints_json').value||'{}').trim();
+      try{JSON.parse(price);JSON.parse(constraints);}catch{throw new Error('价格 JSON 或约束 JSON 格式不正确');}
+      const payload={...m,capability:get('capability').value,protocol:get('protocol').value.trim(),price_json:price,constraints_json:constraints,enabled:!!get('enabled').checked};
+      await api('./api/admin/creative/models',{method:'POST',body:JSON.stringify(payload)});
+      showCreativeMsg('模型配置已保存','ok');
+      await loadCreativeModels(creativeState.selectedProviderID);
+    }
+    function renderCreativeJobs(){
+      const body=el('creativeJobBody'); if(!body)return;
+      el('creativeJobBadge').textContent=creativeState.jobs.length+' / '+Number(creativeState.jobTotal||0)+' 条';
+      if(!creativeState.jobs.length){body.innerHTML='<tr><td colspan="9" class="sub">暂无创作订单。</td></tr>';return;}
+      body.innerHTML=creativeState.jobs.map(j=>`<tr><td>${escapeHtml(j.order_no||String(j.id))}</td><td>${Number(j.user_id)||'—'}</td><td>${j.media_type==='image'?'图片':'视频'}</td><td>${escapeHtml(j.model_id||'—')}</td><td>${Number(j.charge_amount||0).toFixed(4)}</td><td>${escapeHtml(j.charge_status||'—')}</td><td>${escapeHtml(j.status||'—')}</td><td>${Number(j.progress||0)}%</td><td>${escapeHtml(fmtPatrolTime(j.created_at))}</td></tr>`).join('');
+    }
+    async function loadCreativeJobs(){
+      const data=await api('./api/admin/creative/jobs?page=1&page_size=10');
+      creativeState.jobs=Array.isArray(data.items)?data.items:[]; creativeState.jobTotal=Number(data.total||0);
+      renderCreativeJobs();
+    }
+    async function refreshCreative(){
+      await Promise.all([loadCreativeProviders(),loadCreativeJobs()]);
+    }
+    async function testCreativeProvider(){
+      const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先保存并选择 Provider');
+      await api('./api/admin/creative/providers/'+id+'/test',{method:'POST',body:'{}'});
+      showCreativeMsg('连接测试通过','ok');
+    }
+    async function syncCreativeProvider(){
+      const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先保存并选择 Provider');
+      const data=await api('./api/admin/creative/providers/'+id+'/sync',{method:'POST',body:'{}'});
+      await loadCreativeModels(id);
+      showCreativeMsg('模型同步完成，共 '+Number(data.synced||0)+' 个','ok');
+    }
+    async function deleteCreativeProvider(){
+      const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先选择 Provider');
+      if(!confirm('确定删除当前 Provider 及其模型配置吗？'))return;
+      await api('./api/admin/creative/providers/'+id,{method:'DELETE'});
+      creativeState.selectedProviderID=0;
+      await loadCreativeProviders();
+      showCreativeMsg('Provider 已删除','ok');
+    }
     campRewardState=defaultCampRewards(); renderCampRewards();
     const btnCampAddReward=el('btnCampAddReward'); if(btnCampAddReward) btnCampAddReward.onclick=()=>{campRewardState.push({rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};
     document.querySelectorAll('[data-rule-add]').forEach(b=>b.onclick=()=>addRedisRule(b.dataset.ruleAdd));
@@ -3075,7 +3261,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navRedis=el('nav-redistribution'); if(navRedis) navRedis.onclick=(e)=>{ e.preventDefault(); setAdminSection('redistribution'); refreshRedistribution().catch(e2=>show(e2.message||String(e2),'err')); };
     const navCampaign=el('nav-campaign'); if(navCampaign) navCampaign.onclick=(e)=>{ e.preventDefault(); setAdminSection('campaign'); refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err')); };
     const navTasks=el('nav-tasks'); if(navTasks) navTasks.onclick=(e)=>{ e.preventDefault(); setAdminSection('tasks'); refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err')); };
+    const navCreative=el('nav-creative'); if(navCreative) navCreative.onclick=(e)=>{ e.preventDefault(); setAdminSection('creative'); refreshCreative().catch(e2=>showCreativeMsg(e2.message||String(e2),'err')); };
     const navTutorial=el('nav-tutorial'); if(navTutorial) navTutorial.onclick=(e)=>{ e.preventDefault(); setAdminSection('tutorial'); refreshTutorial().catch(e2=>show(e2.message||String(e2),'err')); };
+    const btnCreativeProviderSave=el('btnCreativeProviderSave'); if(btnCreativeProviderSave) btnCreativeProviderSave.onclick=()=>saveCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider();
+    const btnCreativeProviderTest=el('btnCreativeProviderTest'); if(btnCreativeProviderTest) btnCreativeProviderTest.onclick=()=>testCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeProviderSync=el('btnCreativeProviderSync'); if(btnCreativeProviderSync) btnCreativeProviderSync.onclick=()=>syncCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeProviderDelete=el('btnCreativeProviderDelete'); if(btnCreativeProviderDelete) btnCreativeProviderDelete.onclick=()=>deleteCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeRefresh=el('btnCreativeRefresh'); if(btnCreativeRefresh) btnCreativeRefresh.onclick=()=>refreshCreative().then(()=>showCreativeMsg('AI 创作配置已刷新','ok')).catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnLedgerRefresh=el('btnLedgerRefresh'); if(btnLedgerRefresh) btnLedgerRefresh.onclick=()=>refreshLedger().catch(e2=>show(e2.message||String(e2),'err'));
     const btnLedgerToday=el('btnLedgerToday'); if(btnLedgerToday) btnLedgerToday.onclick=()=>{ ledgerSetRangeDays(1); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnLedger7d=el('btnLedger7d'); if(btnLedger7d) btnLedger7d.onclick=()=>{ ledgerSetRangeDays(7); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
@@ -3160,6 +3353,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     else if(initHash==='#redistribution'){ setAdminSection('redistribution'); refreshRedistribution().catch(()=>{}); }
     else if(initHash==='#campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
     else if(initHash==='#tasks'){ setAdminSection('tasks'); refreshTasksAdmin().catch(()=>{}); }
+    else if(initHash==='#creative'){ setAdminSection('creative'); refreshCreative().catch(()=>{}); }
     else if(initHash==='#tutorial'){ setAdminSection('tutorial'); refreshTutorial().catch(()=>{}); }
     else if(initHash==='#checkin') setAdminSection('checkin');
     else if(initHash==='#overview'){ setAdminSection('overview'); refreshOverview().catch(()=>{}); }
