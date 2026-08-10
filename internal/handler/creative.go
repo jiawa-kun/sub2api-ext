@@ -245,6 +245,10 @@ func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", content.ContentType)
 		w.Header().Set("Content-Disposition", "inline")
 		w.Header().Set("Cache-Control", "private, no-store")
+		if content.ReadSeeker != nil {
+			http.ServeContent(w, r, content.Name, content.ModTime, content.ReadSeeker)
+			return
+		}
 		if content.ContentRange != "" {
 			w.Header().Set("Content-Range", content.ContentRange)
 		}

@@ -84,6 +84,9 @@ type ModelOption struct {
 
 type MediaContent struct {
 	Body          io.ReadCloser
+	ReadSeeker    io.ReadSeeker
+	Name          string
+	ModTime       time.Time
 	ContentType   string
 	ContentLength int64
 	ContentRange  string
@@ -97,6 +100,7 @@ type Service struct {
 	credit        creditService
 	client        *http.Client
 	credentialKey []byte
+	mediaRoot     string
 	stop          chan struct{}
 	wg            sync.WaitGroup
 	pollMu        sync.Mutex
@@ -108,12 +112,16 @@ type creditService interface {
 	Reclaim(context.Context, credit.Request) (*credit.Result, error)
 }
 
-func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service, credentialSecret ...string) *Service {
+func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service, options ...string) *Service {
 	secret := ""
-	if len(credentialSecret) > 0 {
-		secret = credentialSecret[0]
+	mediaRoot := ""
+	if len(options) > 0 {
+		secret = options[0]
 	}
-	return &Service{store: st, accounts: accounts, credit: creditSvc, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), stop: make(chan struct{})}
+	if len(options) > 1 {
+		mediaRoot = strings.TrimSpace(options[1])
+	}
+	return &Service{store: st, accounts: accounts, credit: creditSvc, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), mediaRoot: mediaRoot, stop: make(chan struct{})}
 }
 func (s *Service) Start() {
 	s.wg.Add(1)
@@ -323,6 +331,7 @@ func (s *Service) DeleteJob(ctx context.Context, id, userID int64) error {
 	if err := s.store.HideCreativeJob(ctx, id, userID); err != nil {
 		return err
 	}
+	s.removeLocalMedia(job)
 	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: id, EventType: "hidden_by_user", Message: "用户从作品列表删除"})
 	return nil
 }
@@ -921,6 +930,9 @@ func (s *Service) pollPending(ctx context.Context) {
 		job.ResultJSON = string(body)
 		switch v.Status {
 		case "done", "completed":
+			if err := s.archiveVideo(ctx, &job); err != nil {
+				continue
+			}
 			now := time.Now().UTC()
 			job.Status = store.CreativeJobCompleted
 			job.Progress = 100
@@ -952,6 +964,13 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	if job.Status != store.CreativeJobCompleted {
 		return nil, fmt.Errorf("作品尚未完成")
 	}
+	if content, err := s.openLocalMedia(job); content != nil || err != nil {
+		return content, err
+	}
+	return s.openRemoteJobContent(ctx, job, index, rangeHeader)
+}
+
+func (s *Service) openRemoteJobContent(ctx context.Context, job *store.CreativeJob, index int, rangeHeader string) (*MediaContent, error) {
 	p, err := s.store.GetCreativeProvider(ctx, job.ProviderID)
 	if err != nil {
 		return nil, err

@@ -15,7 +15,7 @@ func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 		"static/admin.html":       {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key", "['480p','720p','1080p']", "价格为 0 时不开放该档"},
 		"static/tutorial.html":    {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
 		"static/assets/app.css":   {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "grid-template-columns: repeat(3, minmax(0, 1fr))", "flex-direction: column"},
-		"static/assets/media.css": {"width: min(1440px, 100%)", "body.app-creative .composer", "position: relative", "body.app-works .video-poster", "aspect-ratio: 16 / 10", "grid-template-columns: minmax(0, 1fr)", "overflow: hidden", "@media (max-width: 560px)"},
+		"static/assets/media.css": {"width: min(1440px, 100%)", "body.app-creative .composer", "position: fixed", "body.app-works .video-poster", "aspect-ratio: 16 / 9", "repeat(4, minmax(0, 1fr))", "grid-template-columns: minmax(0, 1fr)", "overflow: hidden", "@media (max-width: 560px)"},
 	}
 	for name, required := range files {
 		raw, err := StaticFS.ReadFile(name)
@@ -59,15 +59,20 @@ func TestCreativePageUsesSharedHeader(t *testing.T) {
 	}
 }
 
-func TestCreativeMediaPagesDoNotOverrideSharedHeaderOrEmbedCardVideos(t *testing.T) {
+func TestCreativeMediaPagesUseCompactHeaderAndDoNotEmbedCardVideos(t *testing.T) {
 	cssRaw, err := StaticFS.ReadFile("static/assets/media.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	css := string(cssRaw)
-	for _, forbidden := range []string{"width: min(1280px, 100%)", "body.app-creative .top,\nbody.app-works .top"} {
+	for _, required := range []string{"position: sticky", "body.app-creative .brand-title,\nbody.app-works .brand-title", "display: none", "repeat(4, minmax(0, 1fr))"} {
+		if !strings.Contains(css, required) {
+			t.Fatalf("media stylesheet missing compact layout marker %q", required)
+		}
+	}
+	for _, forbidden := range []string{"width: min(1280px, 100%)", "repeat(3,minmax(0,1fr))"} {
 		if strings.Contains(css, forbidden) {
-			t.Fatalf("media stylesheet still overrides shared shell marker %q", forbidden)
+			t.Fatalf("media stylesheet still contains legacy layout marker %q", forbidden)
 		}
 	}
 	worksRaw, err := StaticFS.ReadFile("static/works.html")

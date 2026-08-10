@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -92,7 +93,8 @@ func main() {
 	h.SetRedistribution(redistributionSvc)
 	taskSettings := tasks.NewSettings(st)
 	h.SetTasks(taskSettings)
-	creativeSvc := creative.New(st, client, creditSvc, cfg.Security.CreativeCredentialSecret)
+	creativeMediaRoot := filepath.Join(filepath.Dir(cfg.Store.SQLitePath), "creative", "videos")
+	creativeSvc := creative.New(st, client, creditSvc, cfg.Security.CreativeCredentialSecret, creativeMediaRoot)
 	if len(strings.TrimSpace(cfg.Security.CreativeCredentialSecret)) < 32 {
 		log.Printf("creative user API key storage disabled: CREATIVE_CREDENTIAL_SECRET must be at least 32 characters")
 	}

@@ -71,6 +71,9 @@ type CreativeJob struct {
 	Progress          int        `json:"progress"`
 	ErrorCode         string     `json:"error_code"`
 	ErrorMessage      string     `json:"error_message"`
+	LocalMediaFile    string     `json:"-"`
+	LocalMediaType    string     `json:"-"`
+	LocalMediaSize    int64      `json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
@@ -98,7 +101,7 @@ func (s *Store) ensureCreativeSchema() error {
 CREATE TABLE IF NOT EXISTS creative_providers (id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,kind TEXT NOT NULL DEFAULT 'openai_compatible',base_url TEXT NOT NULL,api_key TEXT NOT NULL DEFAULT '',source_group TEXT NOT NULL DEFAULT '',enabled INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS creative_models (id INTEGER PRIMARY KEY AUTOINCREMENT,provider_id INTEGER NOT NULL,model_id TEXT NOT NULL,display_name TEXT NOT NULL DEFAULT '',capability TEXT NOT NULL DEFAULT 'unknown',protocol TEXT NOT NULL DEFAULT '',price_json TEXT NOT NULL DEFAULT '{}',constraints_json TEXT NOT NULL DEFAULT '{}',source_group TEXT NOT NULL DEFAULT '',enabled INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,FOREIGN KEY(provider_id) REFERENCES creative_providers(id) ON DELETE CASCADE,UNIQUE(provider_id,model_id));
 CREATE INDEX IF NOT EXISTS idx_creative_models_provider ON creative_models(provider_id,enabled,capability);
-CREATE TABLE IF NOT EXISTS creative_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,order_no TEXT NOT NULL UNIQUE,request_key TEXT NOT NULL,user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,model_id TEXT NOT NULL,media_type TEXT NOT NULL,prompt TEXT NOT NULL DEFAULT '',params_json TEXT NOT NULL DEFAULT '{}',upstream_request_id TEXT NOT NULL DEFAULT '',upstream_status TEXT NOT NULL DEFAULT '',result_json TEXT NOT NULL DEFAULT '{}',charge_amount REAL NOT NULL DEFAULT 0,charge_status TEXT NOT NULL DEFAULT '',charge_ledger_id INTEGER NOT NULL DEFAULT 0,refund_ledger_id INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL,progress INTEGER NOT NULL DEFAULT 0,error_code TEXT NOT NULL DEFAULT '',error_message TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT NOT NULL DEFAULT '',FOREIGN KEY(provider_id) REFERENCES creative_providers(id),UNIQUE(user_id,request_key));
+CREATE TABLE IF NOT EXISTS creative_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,order_no TEXT NOT NULL UNIQUE,request_key TEXT NOT NULL,user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,model_id TEXT NOT NULL,media_type TEXT NOT NULL,prompt TEXT NOT NULL DEFAULT '',params_json TEXT NOT NULL DEFAULT '{}',upstream_request_id TEXT NOT NULL DEFAULT '',upstream_status TEXT NOT NULL DEFAULT '',result_json TEXT NOT NULL DEFAULT '{}',charge_amount REAL NOT NULL DEFAULT 0,charge_status TEXT NOT NULL DEFAULT '',charge_ledger_id INTEGER NOT NULL DEFAULT 0,refund_ledger_id INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL,progress INTEGER NOT NULL DEFAULT 0,error_code TEXT NOT NULL DEFAULT '',error_message TEXT NOT NULL DEFAULT '',local_media_file TEXT NOT NULL DEFAULT '',local_media_type TEXT NOT NULL DEFAULT '',local_media_size INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT NOT NULL DEFAULT '',FOREIGN KEY(provider_id) REFERENCES creative_providers(id),UNIQUE(user_id,request_key));
 CREATE INDEX IF NOT EXISTS idx_creative_jobs_user ON creative_jobs(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_creative_jobs_status ON creative_jobs(status,updated_at);
 CREATE TABLE IF NOT EXISTS creative_job_events (id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,event_type TEXT NOT NULL,message TEXT NOT NULL DEFAULT '',data_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,FOREIGN KEY(job_id) REFERENCES creative_jobs(id) ON DELETE CASCADE);
@@ -110,6 +113,9 @@ CREATE INDEX IF NOT EXISTS idx_creative_user_credentials_provider ON creative_us
 		return err
 	}
 	_, _ = s.db.Exec(`ALTER TABLE creative_jobs ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE creative_jobs ADD COLUMN local_media_file TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE creative_jobs ADD COLUMN local_media_type TEXT NOT NULL DEFAULT ''`)
+	_, _ = s.db.Exec(`ALTER TABLE creative_jobs ADD COLUMN local_media_size INTEGER NOT NULL DEFAULT 0`)
 	_, err = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_creative_jobs_deleted ON creative_jobs(deleted_at,user_id,created_at DESC)`)
 	return err
 }
@@ -324,7 +330,7 @@ func scanCreativeModel(row interface{ Scan(...any) error }) (*CreativeModel, err
 	return &m, nil
 }
 
-const creativeJobSelect = `SELECT id,order_no,request_key,user_id,provider_id,model_id,media_type,prompt,params_json,upstream_request_id,upstream_status,result_json,charge_amount,charge_status,charge_ledger_id,refund_ledger_id,status,progress,error_code,error_message,created_at,updated_at,completed_at,deleted_at FROM creative_jobs`
+const creativeJobSelect = `SELECT id,order_no,request_key,user_id,provider_id,model_id,media_type,prompt,params_json,upstream_request_id,upstream_status,result_json,charge_amount,charge_status,charge_ledger_id,refund_ledger_id,status,progress,error_code,error_message,local_media_file,local_media_type,local_media_size,created_at,updated_at,completed_at,deleted_at FROM creative_jobs`
 
 func (s *Store) CreateCreativeJob(ctx context.Context, j CreativeJob) (*CreativeJob, error) {
 	now := time.Now().UTC()
@@ -359,7 +365,7 @@ func (s *Store) GetCreativeJob(ctx context.Context, id, uid int64) (*CreativeJob
 func scanCreativeJob(row interface{ Scan(...any) error }) (*CreativeJob, error) {
 	var j CreativeJob
 	var c, u, d, deleted string
-	if err := row.Scan(&j.ID, &j.OrderNo, &j.RequestKey, &j.UserID, &j.ProviderID, &j.ModelID, &j.MediaType, &j.Prompt, &j.ParamsJSON, &j.UpstreamRequestID, &j.UpstreamStatus, &j.ResultJSON, &j.ChargeAmount, &j.ChargeStatus, &j.ChargeLedgerID, &j.RefundLedgerID, &j.Status, &j.Progress, &j.ErrorCode, &j.ErrorMessage, &c, &u, &d, &deleted); err != nil {
+	if err := row.Scan(&j.ID, &j.OrderNo, &j.RequestKey, &j.UserID, &j.ProviderID, &j.ModelID, &j.MediaType, &j.Prompt, &j.ParamsJSON, &j.UpstreamRequestID, &j.UpstreamStatus, &j.ResultJSON, &j.ChargeAmount, &j.ChargeStatus, &j.ChargeLedgerID, &j.RefundLedgerID, &j.Status, &j.Progress, &j.ErrorCode, &j.ErrorMessage, &j.LocalMediaFile, &j.LocalMediaType, &j.LocalMediaSize, &c, &u, &d, &deleted); err != nil {
 		return nil, err
 	}
 	j.CreatedAt = parseStoreTime(c)
@@ -379,7 +385,7 @@ func (s *Store) UpdateCreativeJob(ctx context.Context, j CreativeJob) error {
 	if j.CompletedAt != nil {
 		d = j.CompletedAt.UTC().Format(time.RFC3339Nano)
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE creative_jobs SET upstream_request_id=?,upstream_status=?,result_json=?,charge_amount=?,charge_status=?,charge_ledger_id=?,refund_ledger_id=?,status=?,progress=?,error_code=?,error_message=?,updated_at=?,completed_at=? WHERE id=?`, j.UpstreamRequestID, j.UpstreamStatus, j.ResultJSON, j.ChargeAmount, j.ChargeStatus, j.ChargeLedgerID, j.RefundLedgerID, j.Status, j.Progress, j.ErrorCode, j.ErrorMessage, time.Now().UTC().Format(time.RFC3339Nano), d, j.ID)
+	_, err := s.db.ExecContext(ctx, `UPDATE creative_jobs SET upstream_request_id=?,upstream_status=?,result_json=?,charge_amount=?,charge_status=?,charge_ledger_id=?,refund_ledger_id=?,status=?,progress=?,error_code=?,error_message=?,local_media_file=?,local_media_type=?,local_media_size=?,updated_at=?,completed_at=? WHERE id=?`, j.UpstreamRequestID, j.UpstreamStatus, j.ResultJSON, j.ChargeAmount, j.ChargeStatus, j.ChargeLedgerID, j.RefundLedgerID, j.Status, j.Progress, j.ErrorCode, j.ErrorMessage, j.LocalMediaFile, j.LocalMediaType, j.LocalMediaSize, time.Now().UTC().Format(time.RFC3339Nano), d, j.ID)
 	return err
 }
 func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]CreativeJob, int, error) {
