@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -365,6 +366,45 @@ func TestValidateModelConstraints(t *testing.T) {
 	}
 }
 
+func TestSaveVideoModelUsesOnlyPricedResolutions(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.SaveCreativeProvider(context.Background(), store.CreativeProvider{Name: "external", Kind: ProviderOpenAI, BaseURL: "https://provider.example.com", APIKey: "key", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(st, nil, nil)
+	m, err := svc.SaveModel(context.Background(), store.CreativeModel{
+		ProviderID: p.ID, ModelID: "video-model", Capability: CapabilityVideo, Protocol: ProtocolVideo,
+		PriceJSON:       `{"currency":"USD","unit":"second","resolutions":{"480p":0.08,"720p":0,"1080p":0.22}}`,
+		ConstraintsJSON: `{"resolutions":["480p","720p"],"aspect_ratios":["16:9"],"duration_min":1,"duration_max":15}`,
+		Enabled:         true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var constraints Constraints
+	if err := json.Unmarshal([]byte(m.ConstraintsJSON), &constraints); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(constraints.Resolutions, []string{"480p", "1080p"}) {
+		t.Fatalf("saved resolutions=%v", constraints.Resolutions)
+	}
+	options, err := svc.ModelOptions(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(options) != 1 || !reflect.DeepEqual(options[0].Constraints.Resolutions, []string{"480p", "1080p"}) {
+		t.Fatalf("model options=%+v", options)
+	}
+	if _, _, _, err := svc.resolveModel(context.Background(), m.ID, CapabilityVideo, "720p", 5); err == nil || !strings.Contains(err.Error(), "有效价格") {
+		t.Fatalf("unpriced resolution error=%v", err)
+	}
+}
+
 func TestOpenJobContentDoesNotLeakProviderKeyToExternalURL(t *testing.T) {
 	var gotAuthorization string
 	media := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -390,19 +430,52 @@ func TestOpenJobContentDoesNotLeakProviderKeyToExternalURL(t *testing.T) {
 		ProviderID: p.ID, MediaType: "image", Status: store.CreativeJobCompleted,
 		ResultJSON: `{"data":[{"url":"` + media.URL + `/asset.png"}]}`,
 	}
-	body, contentType, _, err := svc.OpenJobContent(context.Background(), job, 0)
+	content, err := svc.OpenJobContent(context.Background(), job, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer body.Close()
-	if _, err := io.ReadAll(body); err != nil {
+	defer content.Body.Close()
+	if _, err := io.ReadAll(content.Body); err != nil {
 		t.Fatal(err)
 	}
 	if gotAuthorization != "" {
 		t.Fatalf("provider key leaked to external media host: %q", gotAuthorization)
 	}
-	if contentType != "image/png" {
-		t.Fatalf("content type=%q", contentType)
+	if content.ContentType != "image/png" {
+		t.Fatalf("content type=%q", content.ContentType)
+	}
+}
+
+func TestOpenJobContentForwardsVideoRange(t *testing.T) {
+	var gotRange string
+	media := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRange = r.Header.Get("Range")
+		w.Header().Set("Content-Type", "video/mp4")
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Range", "bytes 0-3/10")
+		w.Header().Set("Content-Length", "4")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer media.Close()
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.SaveCreativeProvider(context.Background(), store.CreativeProvider{Name: "provider", BaseURL: media.URL, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{store: st, client: media.Client()}
+	job := &store.CreativeJob{ProviderID: p.ID, MediaType: "video", Status: store.CreativeJobCompleted, ResultJSON: `{"video":{"url":"` + media.URL + `/video.mp4"}}`}
+	content, err := svc.OpenJobContent(context.Background(), job, 0, "bytes=0-3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer content.Body.Close()
+	if gotRange != "bytes=0-3" || content.StatusCode != http.StatusPartialContent || content.ContentRange != "bytes 0-3/10" || content.AcceptRanges != "bytes" || content.ContentLength != 4 {
+		t.Fatalf("range=%q content=%+v", gotRange, content)
 	}
 }
 

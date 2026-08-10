@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -79,6 +80,15 @@ type ModelOption struct {
 	ProviderName string      `json:"provider_name"`
 	ProviderKind string      `json:"provider_kind"`
 	BillingMode  string      `json:"billing_mode"`
+}
+
+type MediaContent struct {
+	Body          io.ReadCloser
+	ContentType   string
+	ContentLength int64
+	ContentRange  string
+	AcceptRanges  string
+	StatusCode    int
 }
 
 type Service struct {
@@ -274,11 +284,21 @@ func (s *Service) ListModels(ctx context.Context, pid int64, enabled bool) ([]st
 	return models, nil
 }
 func (s *Service) SaveModel(ctx context.Context, m store.CreativeModel) (*store.CreativeModel, error) {
-	if _, err := decodePricing(m.PriceJSON); err != nil {
+	pricing, err := decodePricing(m.PriceJSON)
+	if err != nil {
 		return nil, err
 	}
-	if _, err := decodeConstraints(m.ConstraintsJSON); err != nil {
+	constraints, err := decodeConstraints(m.ConstraintsJSON)
+	if err != nil {
 		return nil, err
+	}
+	if m.Capability == CapabilityVideo && pricing.Resolutions != nil {
+		constraints.Resolutions = pricedResolutions(pricing.Resolutions)
+		raw, marshalErr := json.Marshal(constraints)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		m.ConstraintsJSON = string(raw)
 	}
 	return s.store.UpsertCreativeModel(ctx, m)
 }
@@ -356,6 +376,12 @@ func (s *Service) ModelOptions(ctx context.Context, userID int64) ([]ModelOption
 		}
 		var c Constraints
 		_ = json.Unmarshal([]byte(m.ConstraintsJSON), &c)
+		if m.Capability == CapabilityVideo && p.Resolutions != nil {
+			c.Resolutions = pricedResolutions(p.Resolutions)
+			if len(c.Resolutions) == 0 {
+				continue
+			}
+		}
 		billingMode := "platform"
 		if provider.Kind == ProviderPool {
 			billingMode = "upstream"
@@ -363,6 +389,27 @@ func (s *Service) ModelOptions(ctx context.Context, userID int64) ([]ModelOption
 		out = append(out, ModelOption{CreativeModel: m, Pricing: p, Constraints: c, ProviderName: provider.Name, ProviderKind: provider.Kind, BillingMode: billingMode})
 	}
 	return out, nil
+}
+
+func pricedResolutions(prices map[string]float64) []string {
+	seen := make(map[string]bool, len(prices))
+	out := make([]string, 0, len(prices))
+	for _, resolution := range []string{"480p", "720p", "1080p"} {
+		if prices[resolution] > 0 {
+			out = append(out, resolution)
+			seen[resolution] = true
+		}
+	}
+	extra := make([]string, 0, len(prices))
+	for resolution, price := range prices {
+		resolution = strings.ToLower(strings.TrimSpace(resolution))
+		if price > 0 && resolution != "" && !seen[resolution] {
+			extra = append(extra, resolution)
+			seen[resolution] = true
+		}
+	}
+	sort.Strings(extra)
+	return append(out, extra...)
 }
 
 func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int, error) {
@@ -901,13 +948,13 @@ func (s *Service) retryRefunds(ctx context.Context) {
 	}
 }
 
-func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, index int) (io.ReadCloser, string, int64, error) {
+func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, index int, rangeHeader string) (*MediaContent, error) {
 	if job.Status != store.CreativeJobCompleted {
-		return nil, "", 0, fmt.Errorf("作品尚未完成")
+		return nil, fmt.Errorf("作品尚未完成")
 	}
 	p, err := s.store.GetCreativeProvider(ctx, job.ProviderID)
 	if err != nil {
-		return nil, "", 0, err
+		return nil, err
 	}
 	rawURL := ""
 	if job.MediaType == "image" {
@@ -917,7 +964,7 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 			} `json:"data"`
 		}
 		if json.Unmarshal([]byte(job.ResultJSON), &v) != nil || index < 0 || index >= len(v.Data) {
-			return nil, "", 0, fmt.Errorf("图片结果不存在")
+			return nil, fmt.Errorf("图片结果不存在")
 		}
 		rawURL = v.Data[index].URL
 	} else {
@@ -927,7 +974,7 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 			} `json:"video"`
 		}
 		if json.Unmarshal([]byte(job.ResultJSON), &v) != nil {
-			return nil, "", 0, fmt.Errorf("视频结果不存在")
+			return nil, fmt.Errorf("视频结果不存在")
 		}
 		rawURL = v.Video.URL
 	}
@@ -936,17 +983,20 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, "", 0, fmt.Errorf("媒体地址无效")
+		return nil, fmt.Errorf("媒体地址无效")
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, "", 0, err
+		return nil, err
+	}
+	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
 	}
 	providerURL, _ := url.Parse(s.providerBaseURL(*p))
 	if sameURLOrigin(u, providerURL) {
 		callProvider, credentialErr := s.providerForUser(ctx, job.UserID, *p)
 		if credentialErr != nil {
-			return nil, "", 0, credentialErr
+			return nil, credentialErr
 		}
 		applyProviderAuth(req, callProvider)
 		s.prepareProviderRequest(req, callProvider)
@@ -961,15 +1011,21 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	}
 	resp, err := mediaClient.Do(req)
 	if err != nil {
-		return nil, "", 0, err
+		return nil, err
 	}
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, "", 0, fmt.Errorf("媒体读取 HTTP %d: %s", resp.StatusCode, truncate(b, 300))
+		return nil, fmt.Errorf("媒体读取 HTTP %d: %s", resp.StatusCode, truncate(b, 300))
 	}
-	size := resp.ContentLength
-	return resp.Body, defaultString(resp.Header.Get("Content-Type"), "application/octet-stream"), size, nil
+	return &MediaContent{
+		Body:          resp.Body,
+		ContentType:   defaultString(resp.Header.Get("Content-Type"), "application/octet-stream"),
+		ContentLength: resp.ContentLength,
+		ContentRange:  resp.Header.Get("Content-Range"),
+		AcceptRanges:  resp.Header.Get("Accept-Ranges"),
+		StatusCode:    resp.StatusCode,
+	}, nil
 }
 
 func (s *Service) providerJSON(ctx context.Context, p store.CreativeProvider, method, path string, payload any) ([]byte, int, error) {

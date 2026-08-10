@@ -7,14 +7,15 @@ import (
 
 func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 	files := map[string][]string{
-		"static/tasks.html":     {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
-		"static/index.html":     {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\"", "./create.html", "./works.html", "AI 创作"},
-		"static/rewards.html":   {"const LIMIT = 10;"},
-		"static/create.html":    {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs/${id}", "image_data_url", "id=\"workspaceStage\"", "id=\"resultMedia\"", "class=\"composer\"", "id=\"credentialDialog\"", "class=\"top\"", "class=\"topnav\"", "class=\"active\" href=\"./create.html\"", "class=\"brand-title\"", "money(data.balance)"},
-		"static/works.html":     {"./api/creative/jobs?'", "PAGE_SIZE=10", "page_size:String(PAGE_SIZE)", "method:'DELETE'", "contentURL", "<dialog", "data-delete", "id=\"prevPage\"", "id=\"nextPage\"", "查看"},
-		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key"},
-		"static/tutorial.html":  {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
-		"static/assets/app.css": {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "grid-template-columns: repeat(3, minmax(0, 1fr))", "flex-direction: column"},
+		"static/tasks.html":       {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
+		"static/index.html":       {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\"", "./create.html", "./works.html", "AI 创作"},
+		"static/rewards.html":     {"const LIMIT = 10;"},
+		"static/create.html":      {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs/${id}", "image_data_url", "id=\"workspaceStage\"", "id=\"resultMedia\"", "class=\"composer\"", "id=\"credentialDialog\"", "class=\"top\"", "class=\"topnav\"", "class=\"active\" href=\"./create.html\"", "class=\"brand-title\"", "money(data.balance)", "./assets/media.css", "function streamURL", "preload=\"metadata\""},
+		"static/works.html":       {"./api/creative/jobs?'", "PAGE_SIZE=10", "page_size:String(PAGE_SIZE)", "method:'DELETE'", "contentURL", "<dialog", "data-delete", "id=\"prevPage\"", "id=\"nextPage\"", "查看", "./assets/media.css", "class=\"work-video\"", "function streamURL", "preload=\"metadata\""},
+		"static/admin.html":       {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key", "['480p','720p','1080p']", "价格为 0 时不开放该档"},
+		"static/tutorial.html":    {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
+		"static/assets/app.css":   {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "grid-template-columns: repeat(3, minmax(0, 1fr))", "flex-direction: column"},
+		"static/assets/media.css": {"body.app-creative .composer", "position: relative", "body.app-works .work-video", "aspect-ratio: 16 / 10", "@media (max-width: 560px)"},
 	}
 	for name, required := range files {
 		raw, err := StaticFS.ReadFile(name)

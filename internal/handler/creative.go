@@ -236,19 +236,26 @@ func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		index := queryInt(r, "index", 0)
-		body, contentType, size, err := h.creative.OpenJobContent(r.Context(), job, index)
+		content, err := h.creative.OpenJobContent(r.Context(), job, index, r.Header.Get("Range"))
 		if err != nil {
 			writeErr(w, http.StatusBadGateway, err.Error())
 			return
 		}
-		defer body.Close()
-		w.Header().Set("Content-Type", contentType)
+		defer content.Body.Close()
+		w.Header().Set("Content-Type", content.ContentType)
 		w.Header().Set("Content-Disposition", "inline")
 		w.Header().Set("Cache-Control", "private, no-store")
-		if size >= 0 {
-			w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+		if content.ContentRange != "" {
+			w.Header().Set("Content-Range", content.ContentRange)
 		}
-		_, _ = io.Copy(w, body)
+		if content.AcceptRanges != "" {
+			w.Header().Set("Accept-Ranges", content.AcceptRanges)
+		}
+		if content.ContentLength >= 0 {
+			w.Header().Set("Content-Length", strconv.FormatInt(content.ContentLength, 10))
+		}
+		w.WriteHeader(content.StatusCode)
+		_, _ = io.Copy(w, content.Body)
 		return
 	}
 	if r.Method != http.MethodGet {
