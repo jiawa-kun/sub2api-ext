@@ -110,6 +110,7 @@ html.light .brand-title .logo.light{display:block}
           <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
           <a class="active" href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</a>
           <a href="./create.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AI 创作</a>
+          <a href="./works.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>我的作品</a>
           <a href="./rewards.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>我的奖励</a>
           <a href="./tutorial.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</a>
           <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
@@ -242,12 +243,12 @@ html.light .brand-title .logo.light{display:block}
               <div class="task-title">额度回流奖励</div>
               <div class="task-desc">来自闲置额度回流池的活跃用户奖励</div>
             </div>
-            <button type="button" class="btn" data-redis-claim="${r.batch_id}" ${pending?'':'disabled'}>${label} ${Number(r.planned_amount||r.actual_amount||0).toFixed(4)}</button>
+            <button type="button" class="btn" data-redis-claim="${r.batch_id}" ${pending?'':'disabled'}>${label} ${money(r.planned_amount||r.actual_amount||0)}</button>
           </div>
           <div class="task-meta">
             <span class="${pending?'pill ok':'pill'}">${pending?'待领取':'已处理'}</span>
             <span>批次 #${r.batch_id}</span>
-            <span>额度 ${Number(r.planned_amount||r.actual_amount||0).toFixed(4)}</span>
+            <span>额度 ${money(r.planned_amount||r.actual_amount||0)}</span>
             ${expires}
           </div>
         </div>`;
@@ -257,9 +258,9 @@ html.light .brand-title .logo.light{display:block}
       const poolHTML=pool?`<div class="task pool-task">
         <div class="task-head">
           <div><div class="task-title">额度回流池</div><div class="task-desc">活跃用户每天可主动抽取一次，周六、周日也可抽取</div></div>
-          <button type="button" class="btn" data-pool-draw ${today&&today.status==='success'?'disabled':''}>${today&&today.status==='success'?'今日已抽取 '+Number(today.amount||0).toFixed(4):'立即抽取'}</button>
+          <button type="button" class="btn" data-pool-draw ${today&&today.status==='success'?'disabled':''}>${today&&today.status==='success'?'今日已抽取 '+money(today.amount):'立即抽取'}</button>
         </div>
-        <div class="task-meta"><span class="pill ok">池余额 ${Number(pool.available_pool||0).toFixed(4)}</span>${recoverable>0?`<span>可追回 ${recoverable.toFixed(4)}</span><button type="button" class="ghost-btn" data-pool-recover>追回我的额度</button>`:'<span>暂无可追回额度</span>'}</div>
+        <div class="task-meta"><span class="pill ok">池余额 ${money(pool.available_pool)}</span>${recoverable>0?`<span>可追回 ${money(recoverable)}</span><button type="button" class="ghost-btn" data-pool-recover>追回我的额度</button>`:'<span>暂无可追回额度</span>'}</div>
         ${renderPoolRules(pool.rules, pool.recoverable)}
       </div>`:'';
       if(poolFeature){
@@ -286,7 +287,7 @@ html.light .brand-title .logo.light{display:block}
         const can = !!it.can_claim;
         if(it.claimed){
           status='已领取'; pill='pill ok';
-          rewardText=`已领 ${Number(it.claim_amount||reward).toFixed(4)}`;
+          rewardText=`已领 ${money(it.claim_amount||reward)}`;
           btnLabel='已领取';
         } else if(reward <= 0){
           // 默认奖励为 0：只统计进度，不发奖
@@ -297,15 +298,15 @@ html.light .brand-title .logo.light{display:block}
           btnLabel='仅进度';
         } else if(it.done){
           status='可领取'; pill='pill ok';
-          rewardText=`奖励 ${reward.toFixed(4)}`;
-          btnLabel=`领取 ${reward.toFixed(4)}`;
+          rewardText=`奖励 ${money(reward)}`;
+          btnLabel=`领取 ${money(reward)}`;
         } else if(progress>0){
           status='进行中'; pill='pill warn';
-          rewardText=`奖励 ${reward.toFixed(4)}`;
+          rewardText=`奖励 ${money(reward)}`;
           btnLabel='未达标';
         } else {
           status='未开始'; pill='pill';
-          rewardText=`奖励 ${reward.toFixed(4)}`;
+          rewardText=`奖励 ${money(reward)}`;
           btnLabel='未达标';
         }
         return `<div class="task" data-id="${String(it.id||'').replace(/"/g,'')}">
@@ -329,6 +330,7 @@ html.light .brand-title .logo.light{display:block}
     function escapeHtml(s){
       return String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
     }
+    function money(v){ return '$'+Number(v||0).toFixed(4); }
     function formatRule(rule, inactive){
       const days=Number(rule&&rule.days||0);
       const labels={
@@ -342,20 +344,20 @@ html.light .brand-title .logo.light{display:block}
     function formatLogic(value){ return value==='all' ? '需同时满足' : '满足任一即可'; }
     function formatDrawRules(rules){
       const draw=rules||{};
-      if(draw.draw_mode==='fixed') return '抽取金额：固定 '+Number(draw.draw_fixed_amount||0).toFixed(4);
-      if(draw.draw_mode==='random') return '抽取金额：随机 '+Number(draw.draw_min_amount||0).toFixed(4)+'～'+Number(draw.draw_max_amount||0).toFixed(4);
+      if(draw.draw_mode==='fixed') return '抽取金额：固定 '+money(draw.draw_fixed_amount);
+      if(draw.draw_mode==='random') return '抽取金额：随机 '+money(draw.draw_min_amount)+'～'+money(draw.draw_max_amount);
       if(draw.active_share_mode==='usage') return '抽取金额：按活跃用户近期额度消耗占比计算';
       return '抽取金额：按符合条件的活跃用户均分';
     }
     function formatReclaimRules(rules){
       const r=rules||{};
-      let amount='固定回收 '+Number(r.reclaim_value||0).toFixed(4);
+      let amount='固定回收 '+money(r.reclaim_value);
       if(r.reclaim_mode==='percent') amount='按余额的 '+Number(r.reclaim_value||0)+'% 回收';
       if(r.reclaim_mode==='excess') amount='回收保留额度以上的余额';
       const range=[];
-      if(Number(r.reclaim_min_per_user||0)>0) range.push('最低 '+Number(r.reclaim_min_per_user).toFixed(4));
-      if(Number(r.reclaim_max_per_user||0)>0) range.push('最高 '+Number(r.reclaim_max_per_user).toFixed(4));
-      return amount+'；余额至少 '+Number(r.reclaim_min_balance||0).toFixed(4)+'，保留 '+Number(r.reclaim_reserve_balance||0).toFixed(4)+(range.length?'；'+range.join('，'):'');
+      if(Number(r.reclaim_min_per_user||0)>0) range.push('最低 '+money(r.reclaim_min_per_user));
+      if(Number(r.reclaim_max_per_user||0)>0) range.push('最高 '+money(r.reclaim_max_per_user));
+      return amount+'；余额至少 '+money(r.reclaim_min_balance)+'，保留 '+money(r.reclaim_reserve_balance)+(range.length?'；'+range.join('，'):'');
     }
     function formatDateTime(value){
       if(!value) return '';
@@ -419,7 +421,7 @@ html.light .brand-title .logo.light{display:block}
     async function claim(taskId){
       try{
         const res = await api('./api/tasks/claim', {method:'POST', body: JSON.stringify({task_id: taskId})});
-        showMsg(res.status==='already_claimed' ? '已经领取过了' : `领取成功 +${Number(res.amount||0).toFixed(4)}`, 'ok');
+        showMsg(res.status==='already_claimed' ? '已经领取过了' : `领取成功 +${money(res.amount)}`, 'ok');
         await load();
       }catch(e){
         showMsg(String(e.message||e), 'err');
@@ -429,17 +431,17 @@ html.light .brand-title .logo.light{display:block}
       try{
         const res = await api('./api/redistribution/rewards/claim', {method:'POST', body: JSON.stringify({batch_id: Number(batchID)})});
         const amount = Number((res.reward&&res.reward.actual_amount)||(res.reward&&res.reward.planned_amount)||0);
-        showMsg(`领取成功 +${amount.toFixed(4)}`, 'ok');
+        showMsg(`领取成功 +${money(amount)}`, 'ok');
         await load();
       }catch(e){
         showMsg(String(e.message||e), 'err');
       }
     }
     async function drawPool(){
-      try{if(!await load()) return;const res=await api('./api/redistribution/pool',{method:'POST',body:'{}'});showMsg(`抽取成功 +${Number(res.draw&&res.draw.amount||0).toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
+      try{if(!await load()) return;const res=await api('./api/redistribution/pool',{method:'POST',body:'{}'});showMsg(`抽取成功 +${money(res.draw&&res.draw.amount)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
     }
     async function recoverPool(){
-      try{const res=await api('./api/redistribution/recover',{method:'POST',body:'{}'});const amount=(res.items||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);showMsg(`追回成功 +${amount.toFixed(4)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
+      try{const res=await api('./api/redistribution/recover',{method:'POST',body:'{}'});const amount=(res.items||[]).reduce((sum,x)=>sum+Number(x.amount||0),0);showMsg(`追回成功 +${money(amount)}`,'ok');await load()}catch(e){showMsg(String(e.message||e),'err')}
     }
     async function resolveIsAdmin(){
       if(!accessToken) return false;

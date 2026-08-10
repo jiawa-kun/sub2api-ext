@@ -2,6 +2,7 @@ package creative
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -271,6 +272,63 @@ func TestProviderEndpointAcceptsRootOrV1BaseURL(t *testing.T) {
 		if got := providerEndpoint(base, "/v1/images/generations"); got != "https://provider.example.com/v1/images/generations" {
 			t.Fatalf("providerEndpoint(%q)=%q", base, got)
 		}
+	}
+}
+
+func TestProviderErrorExplainsDisabledImageGroup(t *testing.T) {
+	err := providerError(http.StatusForbidden, []byte(`{"error":{"message":"Image generation is not enabled for this group","type":"permission_error"}}`), nil)
+	if err == nil || !strings.Contains(err.Error(), "所属分组未开启图片生成功能") {
+		t.Fatalf("disabled image group error=%v", err)
+	}
+
+	other := providerError(http.StatusForbidden, []byte(`{"error":{"message":"quota denied","type":"permission_error"}}`), nil)
+	if other == nil || !strings.Contains(other.Error(), "上游 HTTP 403") || strings.Contains(other.Error(), "所属分组") {
+		t.Fatalf("unrelated permission error=%v", other)
+	}
+}
+
+func TestProviderErrorExplainsVideoModerationRejection(t *testing.T) {
+	err := providerError(http.StatusBadRequest, []byte(`{"error":{"message":"Generated video rejected by content moderation"}}`), nil)
+	if err == nil || err.Error() != "视频未通过内容安全审核，请调整提示词或参考图后重试" {
+		t.Fatalf("video moderation error=%v", err)
+	}
+}
+
+func TestDeleteJobRejectsActiveAndRefundPendingJobs(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative-delete-service.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	p, err := st.SaveCreativeProvider(ctx, store.CreativeProvider{Name: "provider", Kind: ProviderOpenAI, BaseURL: "https://provider.example.com", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(st, nil, nil)
+	active, err := st.CreateCreativeJob(ctx, store.CreativeJob{OrderNo: "cr_active", RequestKey: "active", UserID: 7, ProviderID: p.ID, ModelID: "image", MediaType: "image", Status: store.CreativeJobProcessing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteJob(ctx, active.ID, 7); err == nil || !strings.Contains(err.Error(), "生成中") {
+		t.Fatalf("active delete error=%v", err)
+	}
+	refunding, err := st.CreateCreativeJob(ctx, store.CreativeJob{OrderNo: "cr_refunding", RequestKey: "refunding", UserID: 7, ProviderID: p.ID, ModelID: "image", MediaType: "image", Status: store.CreativeJobFailed, ChargeStatus: "refund_pending"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteJob(ctx, refunding.ID, 7); err == nil || !strings.Contains(err.Error(), "退款") {
+		t.Fatalf("refund pending delete error=%v", err)
+	}
+	completed, err := st.CreateCreativeJob(ctx, store.CreativeJob{OrderNo: "cr_completed", RequestKey: "completed", UserID: 7, ProviderID: p.ID, ModelID: "image", MediaType: "image", Status: store.CreativeJobCompleted, ChargeStatus: "charged"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteJob(ctx, completed.ID, 7); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetCreativeJob(ctx, completed.ID, 7); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("deleted completed job error=%v", err)
 	}
 }
 

@@ -289,6 +289,24 @@ func (s *Service) GetJob(ctx context.Context, id, userID int64) (*store.Creative
 	return s.store.GetCreativeJob(ctx, id, userID)
 }
 
+func (s *Service) DeleteJob(ctx context.Context, id, userID int64) error {
+	job, err := s.store.GetCreativeJob(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+	if job.Status == store.CreativeJobCreated || job.Status == store.CreativeJobProcessing {
+		return fmt.Errorf("生成中的作品不能删除")
+	}
+	if job.ChargeStatus == "refund_pending" {
+		return fmt.Errorf("作品正在退款，完成后才能删除")
+	}
+	if err := s.store.HideCreativeJob(ctx, id, userID); err != nil {
+		return err
+	}
+	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: id, EventType: "hidden_by_user", Message: "用户从作品列表删除"})
+	return nil
+}
+
 func (s *Service) ModelOptions(ctx context.Context, userID int64) ([]ModelOption, error) {
 	models, err := s.store.ListCreativeModels(ctx, 0, true)
 	if err != nil {
@@ -1076,6 +1094,22 @@ func newToken(n int) string {
 func providerError(status int, body []byte, err error) error {
 	if err != nil {
 		return err
+	}
+	if strings.Contains(strings.ToLower(string(body)), "generated video rejected by content moderation") {
+		return fmt.Errorf("视频未通过内容安全审核，请调整提示词或参考图后重试")
+	}
+	if status == http.StatusForbidden {
+		var payload struct {
+			Error struct {
+				Message string `json:"message"`
+				Type    string `json:"type"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(body, &payload) == nil &&
+			strings.EqualFold(strings.TrimSpace(payload.Error.Type), "permission_error") &&
+			strings.Contains(strings.ToLower(payload.Error.Message), "image generation is not enabled for this group") {
+			return fmt.Errorf("当前 API Key 所属分组未开启图片生成功能，请联系管理员在 Sub2API 分组设置中开启")
+		}
 	}
 	return fmt.Errorf("上游 HTTP %d: %s", status, truncate(body, 500))
 }

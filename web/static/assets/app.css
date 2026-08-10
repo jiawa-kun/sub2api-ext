@@ -1149,15 +1149,16 @@ body.app-admin .admin-module-lottery .tbl {
   }
 
   body.app-page .topnav {
-    max-width: calc(100vw - 48px);
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 3px;
-    scrollbar-width: thin;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    overflow: visible;
   }
 
   body.app-page .topnav a {
-    flex: 0 0 auto;
+    min-width: 0;
+    justify-content: center;
     white-space: nowrap;
   }
 

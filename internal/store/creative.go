@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -73,13 +74,15 @@ type CreativeJob struct {
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
+	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
 }
 type CreativeJobFilter struct {
-	UserID    int64
-	MediaType string
-	Status    string
-	Limit     int
-	Offset    int
+	UserID         int64
+	MediaType      string
+	Status         string
+	Limit          int
+	Offset         int
+	IncludeDeleted bool
 }
 type CreativeJobEvent struct {
 	ID        int64     `json:"id"`
@@ -103,6 +106,11 @@ CREATE INDEX IF NOT EXISTS idx_creative_events_job ON creative_job_events(job_id
 CREATE TABLE IF NOT EXISTS creative_user_credentials (user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,api_key_cipher TEXT NOT NULL,key_hint TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,provider_id),FOREIGN KEY(provider_id) REFERENCES creative_providers(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS idx_creative_user_credentials_provider ON creative_user_credentials(provider_id,user_id);
 `)
+	if err != nil {
+		return err
+	}
+	_, _ = s.db.Exec(`ALTER TABLE creative_jobs ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''`)
+	_, err = s.db.Exec(`CREATE INDEX IF NOT EXISTS idx_creative_jobs_deleted ON creative_jobs(deleted_at,user_id,created_at DESC)`)
 	return err
 }
 
@@ -316,7 +324,7 @@ func scanCreativeModel(row interface{ Scan(...any) error }) (*CreativeModel, err
 	return &m, nil
 }
 
-const creativeJobSelect = `SELECT id,order_no,request_key,user_id,provider_id,model_id,media_type,prompt,params_json,upstream_request_id,upstream_status,result_json,charge_amount,charge_status,charge_ledger_id,refund_ledger_id,status,progress,error_code,error_message,created_at,updated_at,completed_at FROM creative_jobs`
+const creativeJobSelect = `SELECT id,order_no,request_key,user_id,provider_id,model_id,media_type,prompt,params_json,upstream_request_id,upstream_status,result_json,charge_amount,charge_status,charge_ledger_id,refund_ledger_id,status,progress,error_code,error_message,created_at,updated_at,completed_at,deleted_at FROM creative_jobs`
 
 func (s *Store) CreateCreativeJob(ctx context.Context, j CreativeJob) (*CreativeJob, error) {
 	now := time.Now().UTC()
@@ -343,15 +351,15 @@ func (s *Store) GetCreativeJob(ctx context.Context, id, uid int64) (*CreativeJob
 	q := creativeJobSelect + ` WHERE id=?`
 	args := []any{id}
 	if uid > 0 {
-		q += ` AND user_id=?`
+		q += ` AND user_id=? AND deleted_at=''`
 		args = append(args, uid)
 	}
 	return scanCreativeJob(s.db.QueryRowContext(ctx, q, args...))
 }
 func scanCreativeJob(row interface{ Scan(...any) error }) (*CreativeJob, error) {
 	var j CreativeJob
-	var c, u, d string
-	if err := row.Scan(&j.ID, &j.OrderNo, &j.RequestKey, &j.UserID, &j.ProviderID, &j.ModelID, &j.MediaType, &j.Prompt, &j.ParamsJSON, &j.UpstreamRequestID, &j.UpstreamStatus, &j.ResultJSON, &j.ChargeAmount, &j.ChargeStatus, &j.ChargeLedgerID, &j.RefundLedgerID, &j.Status, &j.Progress, &j.ErrorCode, &j.ErrorMessage, &c, &u, &d); err != nil {
+	var c, u, d, deleted string
+	if err := row.Scan(&j.ID, &j.OrderNo, &j.RequestKey, &j.UserID, &j.ProviderID, &j.ModelID, &j.MediaType, &j.Prompt, &j.ParamsJSON, &j.UpstreamRequestID, &j.UpstreamStatus, &j.ResultJSON, &j.ChargeAmount, &j.ChargeStatus, &j.ChargeLedgerID, &j.RefundLedgerID, &j.Status, &j.Progress, &j.ErrorCode, &j.ErrorMessage, &c, &u, &d, &deleted); err != nil {
 		return nil, err
 	}
 	j.CreatedAt = parseStoreTime(c)
@@ -359,6 +367,10 @@ func scanCreativeJob(row interface{ Scan(...any) error }) (*CreativeJob, error) 
 	if d != "" {
 		t := parseStoreTime(d)
 		j.CompletedAt = &t
+	}
+	if deleted != "" {
+		t := parseStoreTime(deleted)
+		j.DeletedAt = &t
 	}
 	return &j, nil
 }
@@ -391,6 +403,9 @@ func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]Cr
 		q += ` AND status=?`
 		args = append(args, f.Status)
 	}
+	if !f.IncludeDeleted {
+		q += ` AND deleted_at=''`
+	}
 	var total int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM creative_jobs`+q, args...).Scan(&total); err != nil {
 		return nil, 0, err
@@ -409,6 +424,22 @@ func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]Cr
 		out = append(out, *j)
 	}
 	return out, total, rows.Err()
+}
+
+func (s *Store) HideCreativeJob(ctx context.Context, id, userID int64) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := s.db.ExecContext(ctx, `UPDATE creative_jobs SET deleted_at=?,updated_at=? WHERE id=? AND user_id=? AND deleted_at=''`, now, now, id, userID)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 func (s *Store) ListPendingCreativeVideos(ctx context.Context, limit int) ([]CreativeJob, error) {
 	if limit <= 0 {

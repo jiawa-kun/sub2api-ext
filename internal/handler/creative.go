@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -211,6 +213,18 @@ func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid job id")
 		return
 	}
+	if len(parts) == 1 && r.Method == http.MethodDelete {
+		if err := h.creative.DeleteJob(r.Context(), id, u.ID); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			writeErr(w, status, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+		return
+	}
 	job, err := h.creative.GetJob(r.Context(), id, u.ID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "job not found")
@@ -260,7 +274,7 @@ func creativeJobPublic(j *store.CreativeJob) any {
 			count = len(v.Data)
 		}
 	}
-	return map[string]any{"id": j.ID, "order_no": j.OrderNo, "model_id": j.ModelID, "media_type": j.MediaType, "prompt": j.Prompt, "params": params, "charge_amount": j.ChargeAmount, "charge_status": j.ChargeStatus, "status": j.Status, "progress": j.Progress, "error_code": j.ErrorCode, "error_message": j.ErrorMessage, "content_count": count, "created_at": j.CreatedAt, "updated_at": j.UpdatedAt, "completed_at": j.CompletedAt}
+	return map[string]any{"id": j.ID, "order_no": j.OrderNo, "model_id": j.ModelID, "media_type": j.MediaType, "prompt": j.Prompt, "params": params, "charge_amount": j.ChargeAmount, "charge_status": j.ChargeStatus, "status": j.Status, "progress": j.Progress, "error_code": j.ErrorCode, "error_message": j.ErrorMessage, "content_count": count, "created_at": j.CreatedAt, "updated_at": j.UpdatedAt, "completed_at": j.CompletedAt, "deleted_at": j.DeletedAt}
 }
 
 func (h *Handler) AdminCreativeProviders(w http.ResponseWriter, r *http.Request) {
@@ -424,7 +438,7 @@ func (h *Handler) AdminCreativeJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := queryInt(r, "page_size", 10)
 	page := queryInt(r, "page", 1)
-	items, total, err := h.creative.ListJobs(r.Context(), store.CreativeJobFilter{MediaType: r.URL.Query().Get("type"), Status: r.URL.Query().Get("status"), Limit: limit, Offset: (page - 1) * limit})
+	items, total, err := h.creative.ListJobs(r.Context(), store.CreativeJobFilter{MediaType: r.URL.Query().Get("type"), Status: r.URL.Query().Get("status"), Limit: limit, Offset: (page - 1) * limit, IncludeDeleted: true})
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
