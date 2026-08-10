@@ -49,6 +49,7 @@
     </div>
   </header>
 
+  <section class="creative-studio">
   <div class="studio-controls">
     <div class="mode-switch" role="tablist" aria-label="创作模式">
       <button type="button" class="tab mode-button active" data-mode="image"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>图片</button>
@@ -84,6 +85,7 @@
       <strong class="price-value" id="priceValue">$0.0000</strong>
       <button type="button" class="submit-button" id="submitBtn" title="生成图片" aria-label="生成图片"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
+  </section>
   </section>
 </div>
 
@@ -132,11 +134,10 @@ async function deleteCredential(providerID){if(!confirm('确定删除这个 API 
 async function loadOptions(preferredProviderID=0){const data=await api('./api/creative/options');state.models=Array.isArray(data.models)?data.models:[];state.credentials=Array.isArray(data.credentials)?data.credentials:[];$('balanceBadge').innerHTML='<span class="balance-label">余额&nbsp;</span>'+money(data.balance);document.querySelectorAll('.nav-extra').forEach(link=>link.style.display=data.is_admin?'flex':'none');renderCredentials();fillModels(preferredProviderID)}
 function applyTheme(){const light=document.documentElement.classList.contains('light');$('themeBtn').textContent=light?'深色':'浅色';$('themeBtn').title=light?'切换为深色':'切换为浅色';$('favicon').href=light?'./assets/ext-center-icon-light.svg':'./assets/ext-center-icon.svg'}
 function initTheme(){let light=false;try{light=(localStorage.getItem('sub2api_ext_theme')||'')==='light'}catch{}document.documentElement.classList.toggle('light',light);applyTheme()}
-function focusActiveNav(){if(!matchMedia('(max-width: 860px)').matches)return;document.querySelector('.topnav a.active')?.scrollIntoView({block:'nearest',inline:'center'})}
 function wireInternalLinks(){document.querySelectorAll('a[href^="./"]').forEach(link=>link.addEventListener('click',event=>{if(!state.token)return;const href=link.getAttribute('href')||'';if(href.includes('token='))return;event.preventDefault();const target=new URL(href,location.href);target.searchParams.set('token',state.token);location.href=target.pathname+target.search+target.hash}))}
 $('themeBtn').onclick=()=>{const light=!document.documentElement.classList.contains('light');document.documentElement.classList.toggle('light',light);try{localStorage.setItem('sub2api_ext_theme',light?'light':'dark')}catch{}applyTheme()};
 document.querySelectorAll('[data-mode]').forEach(button=>button.onclick=()=>setMode(button.dataset.mode));$('creativePrompt').oninput=()=>{$('promptCount').textContent=$('creativePrompt').value.length+' / 4000';$('creativePrompt').style.height='auto';$('creativePrompt').style.height=Math.min(190,$('creativePrompt').scrollHeight)+'px'};$('modelSelect').onchange=syncModelControls;[$('ratioSelect'),$('resolutionSelect'),$('countSelect'),$('durationInput')].forEach(node=>node.onchange=updateEstimate);$('referenceInput').onchange=()=>readReference($('referenceInput').files[0]);$('removeReference').onclick=clearReference;$('submitBtn').onclick=()=>submitCreation().catch(()=>{});$('credentialBtn').onclick=()=>{$('credentialDialog').showModal();showCredentialMessage('')};$('closeCredential').onclick=()=>$('credentialDialog').close();$('credentialDialog').onclick=event=>{if(event.target===$('credentialDialog'))$('credentialDialog').close()};window.addEventListener('beforeunload',()=>{clearTimeout(state.pollTimer);clearResultURLs()});
-initTheme();state.token=findToken();wireInternalLinks();requestAnimationFrame(focusActiveNav);if(!state.token){showMessage('请先登录 Sub2API 后再打开创作页面')}else{loadOptions().then(()=>{if(location.hash==='#credentials'&&!$('credentialBtn').classList.contains('hidden'))$('credentialBtn').click()}).catch(error=>showMessage(error.message))}
+initTheme();state.token=findToken();wireInternalLinks();if(!state.token){showMessage('请先登录 Sub2API 后再打开创作页面')}else{loadOptions().then(()=>{if(location.hash==='#credentials'&&!$('credentialBtn').classList.contains('hidden'))$('credentialBtn').click()}).catch(error=>showMessage(error.message))}
 </script>
 </body>
 </html>

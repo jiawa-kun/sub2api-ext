@@ -10,12 +10,12 @@ func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 		"static/tasks.html":       {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
 		"static/index.html":       {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\"", "./create.html", "./works.html", "AI 创作"},
 		"static/rewards.html":     {"const LIMIT = 10;"},
-		"static/create.html":      {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs/${id}", "image_data_url", "id=\"workspaceStage\"", "id=\"resultMedia\"", "class=\"composer\"", "id=\"credentialDialog\"", "class=\"top\"", "class=\"topnav\"", "class=\"active\" href=\"./create.html\"", "class=\"brand-title\"", "money(data.balance)", "./assets/media.css", "function streamURL", "preload=\"metadata\""},
-		"static/works.html":       {"./api/creative/jobs?'", "PAGE_SIZE=10", "page_size:String(PAGE_SIZE)", "method:'DELETE'", "contentURL", "<dialog", "data-delete", "id=\"prevPage\"", "id=\"nextPage\"", "查看", "./assets/media.css", "function createVideoPoster", "class=\"video-poster\"", "state.posterActive<2", "preload=\"auto\""},
+		"static/create.html":      {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs/${id}", "image_data_url", "id=\"workspaceStage\"", "id=\"resultMedia\"", "class=\"composer\"", "class=\"creative-studio\"", "id=\"credentialDialog\"", "class=\"top\"", "class=\"topnav\"", "class=\"active\" href=\"./create.html\"", "class=\"brand-title\"", "money(data.balance)", "./assets/media.css", "function streamURL", "preload=\"metadata\""},
+		"static/works.html":       {"./api/creative/jobs?'", "PAGE_SIZE=10", "page_size:String(PAGE_SIZE)", "method:'DELETE'", "contentURL", "<dialog", "data-delete", "id=\"prevPage\"", "id=\"nextPage\"", "class=\"works-panel\"", "查看", "./assets/media.css", "function createVideoPoster", "class=\"video-poster\"", "state.posterActive<2", "preload=\"auto\""},
 		"static/admin.html":       {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key", "['480p','720p','1080p']", "价格为 0 时不开放该档"},
 		"static/tutorial.html":    {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
 		"static/assets/app.css":   {"height: clamp(220px, 22vw, 300px)", "body.app-tasks #list", "grid-template-columns: repeat(3, minmax(0, 1fr))", "flex-direction: column"},
-		"static/assets/media.css": {"width: min(1440px, 100%)", "body.app-creative .composer", "position: fixed", "body.app-works .video-poster", "aspect-ratio: 16 / 9", "repeat(4, minmax(0, 1fr))", "grid-template-columns: minmax(0, 1fr)", "overflow: hidden", "@media (max-width: 560px)"},
+		"static/assets/media.css": {"width: min(1440px, 100%)", "body.app-creative .creative-studio", "body.app-works .works-panel", "body.app-creative .composer", "position: relative", "body.app-works .video-poster", "aspect-ratio: 16 / 9", "repeat(4, minmax(0, 1fr))", "grid-template-columns: minmax(0, 1fr)", "overflow: hidden", "@media (max-width: 560px)"},
 	}
 	for name, required := range files {
 		raw, err := StaticFS.ReadFile(name)
@@ -59,20 +59,20 @@ func TestCreativePageUsesSharedHeader(t *testing.T) {
 	}
 }
 
-func TestCreativeMediaPagesUseCompactHeaderAndDoNotEmbedCardVideos(t *testing.T) {
+func TestCreativeMediaPagesUseSharedCardShellAndDoNotEmbedCardVideos(t *testing.T) {
 	cssRaw, err := StaticFS.ReadFile("static/assets/media.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	css := string(cssRaw)
-	for _, required := range []string{"position: sticky", "body.app-creative .brand-title,\nbody.app-works .brand-title", "display: none", "repeat(4, minmax(0, 1fr))"} {
+	for _, required := range []string{"body.app-creative .creative-studio,\nbody.app-works .works-panel", "border: 1px solid var(--app-border)", "background: var(--app-surface)", "repeat(4, minmax(0, 1fr))"} {
 		if !strings.Contains(css, required) {
-			t.Fatalf("media stylesheet missing compact layout marker %q", required)
+			t.Fatalf("media stylesheet missing shared card layout marker %q", required)
 		}
 	}
-	for _, forbidden := range []string{"width: min(1280px, 100%)", "repeat(3,minmax(0,1fr))"} {
+	for _, forbidden := range []string{"width: min(1280px, 100%)", "position: sticky", "position: fixed", "repeat(3,minmax(0,1fr))"} {
 		if strings.Contains(css, forbidden) {
-			t.Fatalf("media stylesheet still contains legacy layout marker %q", forbidden)
+			t.Fatalf("media stylesheet still contains standalone layout marker %q", forbidden)
 		}
 	}
 	worksRaw, err := StaticFS.ReadFile("static/works.html")
