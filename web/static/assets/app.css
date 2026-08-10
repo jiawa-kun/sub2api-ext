@@ -31,7 +31,15 @@ html.light {
   --app-shadow: 0 6px 20px rgba(15, 23, 42, .07);
 }
 
+body.app-page,
+body.app-page *,
+body.app-page *::before,
+body.app-page *::after {
+  box-sizing: border-box;
+}
+
 body.app-page {
+  display: block;
   margin: 0;
   min-height: 100vh;
   overflow-x: hidden;
@@ -45,7 +53,11 @@ body.app-page {
 body.app-page .wrap {
   width: min(1440px, 100%);
   max-width: none;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   margin: 0 auto;
+  padding: 0;
   gap: 14px;
 }
 
@@ -55,6 +67,11 @@ body.app-page.app-admin .wrap {
 
 body.app-page .top {
   min-height: 74px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
   padding: 16px 18px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
@@ -63,21 +80,50 @@ body.app-page .top {
   backdrop-filter: none;
 }
 
+body.app-page .top > :first-child {
+  min-width: 0;
+}
+
 body.app-page .brand-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
+body.app-page .page-heading-copy {
+  min-width: 0;
+}
+
 body.app-page .brand-title h1 {
+  margin: 0;
   font-size: 1.2rem;
   line-height: 1.3;
   letter-spacing: 0;
 }
 
 body.app-page .brand-title .logo {
+  flex: 0 0 34px;
   width: 34px;
   height: 34px;
   border-radius: var(--app-radius-sm);
   box-shadow: none;
+}
+
+body.app-page .brand-title .logo.dark {
+  display: block;
+}
+
+body.app-page .brand-title .logo.light {
+  display: none;
+}
+
+html.light body.app-page .brand-title .logo.dark {
+  display: none;
+}
+
+html.light body.app-page .brand-title .logo.light {
+  display: block;
 }
 
 body.app-page .lead,
@@ -89,17 +135,33 @@ body.app-page .foot {
 }
 
 body.app-page .lead {
-  margin-top: 5px;
+  margin: 5px 0 0;
   font-size: .82rem;
+  line-height: 1.45;
+}
+
+body.app-page .page-heading-copy .sub,
+body.app-page .page-heading-copy .hint {
+  margin: 3px 0 0;
+  font-size: .74rem;
+  line-height: 1.4;
 }
 
 body.app-page .topnav {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 12px;
 }
 
 body.app-page .topnav a {
   min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 6px 9px;
   border: 1px solid transparent;
   border-radius: var(--app-radius-sm);
@@ -107,7 +169,20 @@ body.app-page .topnav a {
   background: transparent;
   font-size: .76rem;
   font-weight: 650;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
   transition: color .15s ease, background .15s ease, border-color .15s ease;
+}
+
+body.app-page .topnav a svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+body.app-page .topnav a.nav-extra {
+  display: none;
 }
 
 body.app-page .topnav a:hover {
@@ -126,7 +201,10 @@ html.light body.app-page .topnav a.active {
 }
 
 body.app-page .top-meta {
+  display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
@@ -151,6 +229,92 @@ body.app-page .actions a {
   font-weight: 680;
   letter-spacing: 0;
   transition: background .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
+}
+
+body.app-page .theme-btn,
+body.app-page .ghost-btn,
+body.app-page button.secondary,
+body.app-page .credential-trigger,
+body.app-page .app-action {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  color: var(--app-text);
+  background: var(--app-surface-soft);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body.app-page .button-icon,
+body.app-page .app-action > svg,
+body.app-page .theme-btn > svg,
+body.app-page .ghost-btn > svg,
+body.app-page button.secondary > svg,
+body.app-page .credential-trigger > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+body.app-page .segmented-tabs {
+  width: max-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface-soft);
+}
+
+body.app-page .segmented-tabs .tab,
+body.app-page .segmented-tabs > button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-muted);
+  background: transparent;
+  box-shadow: none;
+  font-size: .76rem;
+  font-weight: 680;
+  line-height: 1;
+}
+
+body.app-page .segmented-tabs .tab:hover,
+body.app-page .segmented-tabs > button:hover {
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface-raised) 70%, transparent);
+}
+
+body.app-page .segmented-tabs .tab.active,
+body.app-page .segmented-tabs > button.active,
+html.light body.app-page .segmented-tabs .tab.active,
+html.light body.app-page .segmented-tabs > button.active {
+  color: var(--app-text);
+  border-color: var(--app-border);
+  background: var(--app-surface-raised);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .10);
+}
+
+body.app-page .segmented-tabs svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
 }
 
 body.app-page button:not(.secondary):not(.ghost):not(.theme-btn):not(.tab):not(.range-btn),
@@ -1134,6 +1298,15 @@ body.app-admin .admin-module-lottery .tbl {
 }
 
 @media (max-width: 980px) {
+  body.app-page .top {
+    flex-direction: column;
+  }
+
+  body.app-page .top-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   body.app-checkin .checkin-layout {
     grid-template-columns: 1fr;
   }
@@ -1303,13 +1476,17 @@ body.app-admin .admin-module-lottery .tbl {
   }
 
   body.app-page .top {
-    flex-direction: column;
     min-height: 0;
   }
 
-  body.app-page .top-meta {
+  body.app-page .segmented-tabs {
     width: 100%;
-    justify-content: flex-start;
+  }
+
+  body.app-page .segmented-tabs .tab,
+  body.app-page .segmented-tabs > button {
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   body.app-page .grid2,

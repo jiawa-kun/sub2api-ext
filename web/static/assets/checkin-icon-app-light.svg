@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="每日签到">
+  <defs>
+    <linearGradient id="g" x1="20" y1="18" x2="108" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#eef2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#bg)"/>
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="none" stroke="rgba(15,23,42,.08)" stroke-width="1.5"/>
+  <rect x="26" y="30" width="76" height="72" rx="13" fill="#fff"/>
+  <rect x="26" y="30" width="76" height="72" rx="13" fill="none" stroke="url(#g)" stroke-width="2.5"/>
+  <path d="M26 48h76" stroke="url(#g)" stroke-width="2.5"/>
+  <path d="M43 22v17M85 22v17" stroke="#5b8cff" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="43" cy="62" r="4" fill="#94a3b8"/>
+  <circle cx="60" cy="62" r="4" fill="#cbd5e1"/>
+  <circle cx="77" cy="62" r="4" fill="#cbd5e1"/>
+  <circle cx="86" cy="86" r="20" fill="url(#g)"/>
+  <path d="m76 86 6.5 6.5L97 77" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

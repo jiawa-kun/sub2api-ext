@@ -79,27 +79,29 @@
   <div class="wrap">
     <header class="top">
       <div>
-        <div class="topnav">
-          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>每日签到</a>
+        <nav class="topnav" aria-label="主导航">
+          <a href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>每日签到</a>
           <a href="./rank.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4 20h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>排行榜</a>
-          <a href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>任务中心</a>
-          <a href="./create.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AI 创作</a>
+          <a href="./tasks.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h5M8 12h8M8 16h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 7.5l1 1 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>任务中心</a>
+          <a href="./create.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l1.1 3.9L17 8l-3.9 1.1L12 13l-1.1-3.9L7 8l3.9-1.1L12 3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M18.5 14v5M16 16.5h5M5.5 15v3M4 16.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>AI 创作</a>
           <a href="./works.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>我的作品</a>
-          <a class="active" href="./rewards.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>我的奖励</a>
+          <a class="active" href="./rewards.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4h14v4a2 2 0 0 0 0 4v8H5v-8a2 2 0 0 0 0-4V4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 9h6M9 13h6M9 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>我的奖励</a>
           <a href="./tutorial.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</a>
-          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>扩展中心</a>
-          <a class="nav-extra" id="adminTopLink" href="./admin.html#ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>管理台</a>
-        </div>
+          <a class="nav-extra" href="./home.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.8"/><circle cx="5" cy="5" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="5" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="5" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><circle cx="19" cy="19" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 6.5L9.5 9.5M17.5 6.5l-3 3M6.5 17.5l3-3M17.5 17.5l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>扩展中心</a>
+          <a class="nav-extra" id="adminTopLink" href="./admin.html#ledger"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9.6 3h4.8l.6 2.4 1.7 1 2.4-.7 2.4 4.2-1.8 1.7v2l1.8 1.7-2.4 4.2-2.4-.7-1.7 1-.6 2.4H9.6L9 19.8l-1.7-1-2.4.7-2.4-4.2 1.8-1.7v-2L2.5 9.9l2.4-4.2 2.4.7 1.7-1L9.6 3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="12.6" r="3" stroke="currentColor" stroke-width="1.8"/></svg>管理台</a>
+        </nav>
         <div class="brand-title">
           <img class="logo dark" src="./assets/rewards-icon-app.svg" alt="" width="34" height="34" />
           <img class="logo light" src="./assets/rewards-icon-app-light.svg" alt="" width="34" height="34" />
-          <h1>我的奖励</h1>
+          <div class="page-heading-copy">
+            <h1>我的奖励</h1>
+            <p class="lead">查看本人在扩展侧的签到 / 抽奖 / 任务 / 排行发放记录（只读）。</p>
+          </div>
         </div>
-        <p class="lead">查看本人在扩展侧的签到 / 抽奖 / 任务 / 排行发放记录（只读）。</p>
       </div>
       <div class="top-meta">
-        <button type="button" class="theme-btn" id="themeBtn">浅色</button>
-        <button type="button" class="ghost-btn" id="refreshBtn">刷新</button>
+        <button type="button" class="ghost-btn" id="refreshBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M20 5v6h-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>刷新</span></button>
+        <button type="button" class="theme-btn" id="themeBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" opacity=".24"/></svg><span class="theme-label">浅色</span></button>
       </div>
     </header>
 
@@ -206,13 +208,15 @@
       const light=q==='light' || (!q && saved==='light');
       document.documentElement.classList.toggle('light', !!light);
       applyFavicon(!!light);
-      el('themeBtn').textContent = light ? '深色' : '浅色';
+      const label=document.querySelector('#themeBtn .theme-label');
+      if(label) label.textContent = light ? '深色' : '浅色';
     }
     function toggleTheme(){
       const light=!document.documentElement.classList.contains('light');
       document.documentElement.classList.toggle('light', light);
       applyFavicon(light);
-      el('themeBtn').textContent = light ? '深色' : '浅色';
+      const label=document.querySelector('#themeBtn .theme-label');
+      if(label) label.textContent = light ? '深色' : '浅色';
       try{ localStorage.setItem(THEME_KEY, light?'light':'dark'); }catch{}
     }
     function fmtAmt(v){

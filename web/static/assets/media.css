@@ -1,53 +1,3 @@
-body.app-creative .creative-shell,
-body.app-works .works-wrap {
-  width: min(1440px, 100%);
-  min-width: 0;
-}
-
-body.app-creative .top > div:first-child,
-body.app-works .top > div:first-child {
-  min-width: 0;
-}
-
-body.app-creative .top-meta,
-body.app-works .top-meta {
-  align-items: center;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
-body.app-works .credential-trigger,
-body.app-creative .credential-trigger,
-body.app-creative .balance-badge,
-body.app-works .balance-badge,
-body.app-creative .theme-btn,
-body.app-works .theme-btn {
-  min-height: 34px;
-  border-color: var(--app-border);
-  background: var(--app-surface-soft);
-  box-shadow: none;
-  box-sizing: border-box;
-}
-
-body.app-works .credential-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius-sm);
-  color: var(--app-text);
-  font-size: .72rem;
-  font-weight: 700;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-body.app-works .credential-trigger svg {
-  width: 15px;
-  height: 15px;
-}
-
 body.app-creative .creative-studio,
 body.app-works .works-panel {
   min-width: 0;
@@ -74,11 +24,6 @@ body.app-creative .studio-controls {
   background: var(--app-surface);
 }
 
-body.app-creative .mode-switch {
-  border-color: var(--app-border);
-  background: var(--app-surface-soft);
-}
-
 body.app-creative .workspace-stage {
   min-height: 350px;
   margin: 0;
@@ -93,7 +38,14 @@ body.app-creative .workspace-stage:has(.result-state:not(.hidden)) {
 }
 
 body.app-creative .empty-state {
+  width: 100%;
+  min-width: 0;
   min-height: 220px;
+}
+
+body.app-creative .empty-state span {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 body.app-creative .result-state {
@@ -160,10 +112,6 @@ body.app-works .library-toolbar {
 
 body.app-works .library-actions {
   gap: 7px;
-}
-
-body.app-works .filter-tabs {
-  background: var(--app-surface-soft);
 }
 
 body.app-works .works {
@@ -318,12 +266,6 @@ body.app-works .viewer-media video {
 }
 
 @media (max-width: 560px) {
-  body.app-creative .top-meta,
-  body.app-works .top-meta {
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
   body.app-creative .creative-studio {
     min-height: 0;
     grid-template-rows: auto auto auto;
