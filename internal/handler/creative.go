@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -235,31 +236,7 @@ func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
-		index := queryInt(r, "index", 0)
-		content, err := h.creative.OpenJobContent(r.Context(), job, index, r.Header.Get("Range"))
-		if err != nil {
-			writeErr(w, http.StatusBadGateway, err.Error())
-			return
-		}
-		defer content.Body.Close()
-		w.Header().Set("Content-Type", content.ContentType)
-		w.Header().Set("Content-Disposition", "inline")
-		w.Header().Set("Cache-Control", "private, no-store")
-		if content.ReadSeeker != nil {
-			http.ServeContent(w, r, content.Name, content.ModTime, content.ReadSeeker)
-			return
-		}
-		if content.ContentRange != "" {
-			w.Header().Set("Content-Range", content.ContentRange)
-		}
-		if content.AcceptRanges != "" {
-			w.Header().Set("Accept-Ranges", content.AcceptRanges)
-		}
-		if content.ContentLength >= 0 {
-			w.Header().Set("Content-Length", strconv.FormatInt(content.ContentLength, 10))
-		}
-		w.WriteHeader(content.StatusCode)
-		_, _ = io.Copy(w, content.Body)
+		h.serveCreativeJobContent(w, r, job)
 		return
 	}
 	if r.Method != http.MethodGet {
@@ -268,7 +245,7 @@ func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, creativeJobPublic(job))
 }
-func creativeJobPublic(j *store.CreativeJob) any {
+func creativeJobPublic(j *store.CreativeJob) map[string]any {
 	if j == nil {
 		return nil
 	}
@@ -286,6 +263,44 @@ func creativeJobPublic(j *store.CreativeJob) any {
 		}
 	}
 	return map[string]any{"id": j.ID, "order_no": j.OrderNo, "model_id": j.ModelID, "media_type": j.MediaType, "prompt": j.Prompt, "params": params, "charge_amount": j.ChargeAmount, "charge_status": j.ChargeStatus, "status": j.Status, "progress": j.Progress, "error_code": j.ErrorCode, "error_message": j.ErrorMessage, "content_count": count, "created_at": j.CreatedAt, "updated_at": j.UpdatedAt, "completed_at": j.CompletedAt, "deleted_at": j.DeletedAt}
+}
+
+func creativeAdminJobPublic(j *store.CreativeJob) map[string]any {
+	out := creativeJobPublic(j)
+	if out == nil {
+		return nil
+	}
+	out["user_id"] = j.UserID
+	out["provider_id"] = j.ProviderID
+	return out
+}
+
+func (h *Handler) serveCreativeJobContent(w http.ResponseWriter, r *http.Request, job *store.CreativeJob) {
+	index := queryInt(r, "index", 0)
+	content, err := h.creative.OpenJobContent(r.Context(), job, index, r.Header.Get("Range"))
+	if err != nil {
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
+	defer content.Body.Close()
+	w.Header().Set("Content-Type", content.ContentType)
+	w.Header().Set("Content-Disposition", "inline")
+	w.Header().Set("Cache-Control", "private, no-store")
+	if content.ReadSeeker != nil {
+		http.ServeContent(w, r, content.Name, content.ModTime, content.ReadSeeker)
+		return
+	}
+	if content.ContentRange != "" {
+		w.Header().Set("Content-Range", content.ContentRange)
+	}
+	if content.AcceptRanges != "" {
+		w.Header().Set("Accept-Ranges", content.AcceptRanges)
+	}
+	if content.ContentLength >= 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(content.ContentLength, 10))
+	}
+	w.WriteHeader(content.StatusCode)
+	_, _ = io.Copy(w, content.Body)
 }
 
 func (h *Handler) AdminCreativeProviders(w http.ResponseWriter, r *http.Request) {
@@ -449,12 +464,129 @@ func (h *Handler) AdminCreativeJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := queryInt(r, "page_size", 10)
 	page := queryInt(r, "page", 1)
-	items, total, err := h.creative.ListJobs(r.Context(), store.CreativeJobFilter{MediaType: r.URL.Query().Get("type"), Status: r.URL.Query().Get("status"), Limit: limit, Offset: (page - 1) * limit, IncludeDeleted: true})
+	filter := store.CreativeJobFilter{
+		UserID:    int64(queryInt(r, "user_id", 0)),
+		MediaType: strings.TrimSpace(r.URL.Query().Get("type")),
+		Status:    strings.TrimSpace(r.URL.Query().Get("status")),
+		Limit:     limit,
+		Offset:    (page - 1) * limit,
+	}
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("deleted"))) {
+	case "all":
+		filter.IncludeDeleted = true
+	case "deleted":
+		filter.DeletedOnly = true
+	}
+	items, total, err := h.creative.ListJobs(r.Context(), filter)
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "total": total, "page": page, "page_size": limit})
+	out := make([]map[string]any, 0, len(items))
+	for i := range items {
+		out = append(out, creativeAdminJobPublic(&items[i]))
+	}
+	writeJSON(w, 200, map[string]any{"items": out, "total": total, "page": page, "page_size": limit})
+}
+
+type creativeAdminUser struct {
+	UserID      int64  `json:"user_id"`
+	Username    string `json:"username,omitempty"`
+	Email       string `json:"email,omitempty"`
+	DisplayName string `json:"display_name"`
+	WorkCount   int    `json:"work_count"`
+}
+
+func (h *Handler) AdminCreativeUsers(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	summaries, err := h.store.ListCreativeJobUserSummaries(r.Context())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	profiles := map[int64]sub2api.User{}
+	h.syncAdminCred()
+	if h.client != nil && h.client.AdminToken() != "" {
+		if users, listErr := h.client.ListAllAdminUsers(r.Context(), 5000); listErr == nil {
+			for _, user := range users {
+				profiles[user.ID] = user
+			}
+		}
+	}
+	out := make([]creativeAdminUser, 0, len(summaries))
+	for _, summary := range summaries {
+		profile := profiles[summary.UserID]
+		name := strings.TrimSpace(profile.Username)
+		if name == "" {
+			name = strings.TrimSpace(profile.Email)
+		}
+		if name == "" {
+			name = fmt.Sprintf("用户 #%d", summary.UserID)
+		}
+		out = append(out, creativeAdminUser{UserID: summary.UserID, Username: strings.TrimSpace(profile.Username), Email: strings.TrimSpace(profile.Email), DisplayName: name, WorkCount: summary.WorkCount})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		left, right := strings.ToLower(out[i].DisplayName), strings.ToLower(out[j].DisplayName)
+		if left == right {
+			return out[i].UserID < out[j].UserID
+		}
+		return left < right
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"items": out})
+}
+
+func (h *Handler) AdminCreativeJobByID(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	path := strings.TrimPrefix(r.URL.Path, h.cfg.Server.BasePath+"/api/admin/creative/jobs/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	id, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || id <= 0 {
+		writeErr(w, http.StatusBadRequest, "invalid job id")
+		return
+	}
+	job, err := h.creative.GetJob(r.Context(), id, 0)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, "job not found")
+		return
+	}
+	if len(parts) > 1 && parts[1] == "content" {
+		if r.Method != http.MethodGet {
+			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		h.serveCreativeJobContent(w, r, job)
+		return
+	}
+	if len(parts) != 1 {
+		writeErr(w, http.StatusNotFound, "not found")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, creativeAdminJobPublic(job))
+	case http.MethodDelete:
+		if err := h.creative.DeleteJobAsAdmin(r.Context(), id); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, sql.ErrNoRows) {
+				status = http.StatusNotFound
+			}
+			writeErr(w, status, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true})
+	default:
+		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
 }
 func queryInt(r *http.Request, key string, fallback int) int {
 	v, _ := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get(key)))

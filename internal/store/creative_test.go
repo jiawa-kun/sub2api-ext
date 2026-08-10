@@ -119,4 +119,12 @@ func TestCreativeJobLogicalDeletePreservesAuditRecord(t *testing.T) {
 	if err != nil || total != 1 || len(items) != 1 || items[0].DeletedAt == nil {
 		t.Fatalf("audit list total=%d items=%+v err=%v", total, items, err)
 	}
+	items, total, err = st.ListCreativeJobs(ctx, store.CreativeJobFilter{UserID: 101, Limit: 10, DeletedOnly: true})
+	if err != nil || total != 1 || len(items) != 1 || items[0].DeletedAt == nil {
+		t.Fatalf("deleted-only list total=%d items=%+v err=%v", total, items, err)
+	}
+	users, err := st.ListCreativeJobUserSummaries(ctx)
+	if err != nil || len(users) != 1 || users[0].UserID != 101 || users[0].WorkCount != 1 {
+		t.Fatalf("creative user summaries=%+v err=%v", users, err)
+	}
 }

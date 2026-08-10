@@ -336,6 +336,28 @@ func (s *Service) DeleteJob(ctx context.Context, id, userID int64) error {
 	return nil
 }
 
+func (s *Service) DeleteJobAsAdmin(ctx context.Context, id int64) error {
+	job, err := s.store.GetCreativeJob(ctx, id, 0)
+	if err != nil {
+		return err
+	}
+	if job.DeletedAt != nil {
+		return sql.ErrNoRows
+	}
+	if job.Status == store.CreativeJobCreated || job.Status == store.CreativeJobProcessing {
+		return fmt.Errorf("生成中的作品不能删除")
+	}
+	if job.ChargeStatus == "refund_pending" {
+		return fmt.Errorf("作品正在退款，完成后才能删除")
+	}
+	if err := s.store.HideCreativeJob(ctx, id, job.UserID); err != nil {
+		return err
+	}
+	s.removeLocalMedia(job)
+	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: id, EventType: "deleted_by_admin", Message: "管理员从作品库删除"})
+	return nil
+}
+
 func (s *Service) ModelOptions(ctx context.Context, userID int64) ([]ModelOption, error) {
 	models, err := s.store.ListCreativeModels(ctx, 0, true)
 	if err != nil {

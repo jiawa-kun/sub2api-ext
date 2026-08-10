@@ -705,6 +705,151 @@ body.app-page .bar > i {
   white-space: nowrap;
 }
 
+.creative-work-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(130px, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.creative-work-filters .field {
+  min-width: 0;
+  margin: 0;
+}
+
+.creative-work-refresh {
+  min-width: 82px;
+  margin-bottom: 1px;
+}
+
+.creative-work-owner strong,
+.creative-work-title strong {
+  display: block;
+  color: var(--app-text);
+  font-size: .78rem;
+}
+
+.creative-work-owner .sub,
+.creative-work-title .sub {
+  max-width: 280px;
+  margin: 3px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creative-work-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 196px;
+}
+
+.creative-work-actions .app-action {
+  min-height: 32px;
+  padding: 5px 8px;
+  font-size: .72rem;
+}
+
+body.app-page .creative-work-actions .danger {
+  border-color: color-mix(in srgb, var(--app-danger) 32%, var(--app-border));
+  color: var(--app-danger);
+  background: color-mix(in srgb, var(--app-danger) 8%, var(--app-surface-soft));
+}
+
+.creative-work-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-muted);
+  font-size: .76rem;
+}
+
+.creative-work-viewer {
+  width: min(960px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  color: var(--app-text);
+  background: var(--app-surface);
+  box-shadow: 0 24px 80px rgba(2, 6, 23, .42);
+}
+
+.creative-work-viewer::backdrop {
+  background: rgba(2, 6, 23, .72);
+}
+
+.creative-work-viewer-shell {
+  display: grid;
+  grid-template-rows: auto minmax(260px, 1fr) auto;
+  max-height: calc(100vh - 32px);
+}
+
+.creative-work-viewer-head,
+.creative-work-viewer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+
+.creative-work-viewer-head {
+  border-bottom: 1px solid var(--app-border);
+}
+
+.creative-work-viewer-head strong,
+.creative-work-viewer-head span {
+  display: block;
+}
+
+.creative-work-viewer-head span {
+  margin-top: 3px;
+  color: var(--app-muted);
+  font-size: .72rem;
+}
+
+.creative-work-viewer-media {
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+  background: #070b12;
+}
+
+.creative-work-viewer-media img,
+.creative-work-viewer-media video {
+  display: block;
+  max-width: 100%;
+  max-height: min(68vh, 720px);
+  object-fit: contain;
+}
+
+.creative-work-viewer-media .sub {
+  margin: 0;
+}
+
+.creative-work-viewer-foot {
+  border-top: 1px solid var(--app-border);
+}
+
+.creative-work-viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-muted);
+  font-size: .74rem;
+}
+
 @media (max-width: 760px) {
   .creative-admin-head {
     align-items: flex-start;
@@ -721,6 +866,28 @@ body.app-page .bar > i {
   }
   .creative-source-tabs {
     width: 100%;
+  }
+  .creative-work-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .creative-work-refresh {
+    width: 100%;
+  }
+  .creative-work-actions {
+    min-width: 0;
+  }
+  .creative-work-pagination {
+    justify-content: space-between;
+  }
+  .creative-work-viewer {
+    width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+  }
+  .creative-work-viewer-shell {
+    max-height: calc(100vh - 16px);
+  }
+  .creative-work-viewer-media {
+    min-height: 240px;
   }
   .creative-responsive-table {
     display: block;
@@ -1423,6 +1590,19 @@ body.app-admin .admin-module-lottery .tbl {
 @media (max-width: 560px) {
   body.app-page {
     padding: 10px 8px 28px;
+  }
+
+  .creative-work-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .creative-work-viewer-head,
+  .creative-work-viewer-foot {
+    align-items: flex-start;
+  }
+
+  .creative-work-viewer-foot {
+    flex-direction: column;
   }
 
   body.app-checkin .checkin-layout,

@@ -86,6 +86,11 @@ type CreativeJobFilter struct {
 	Limit          int
 	Offset         int
 	IncludeDeleted bool
+	DeletedOnly    bool
+}
+type CreativeJobUserSummary struct {
+	UserID    int64 `json:"user_id"`
+	WorkCount int   `json:"work_count"`
 }
 type CreativeJobEvent struct {
 	ID        int64     `json:"id"`
@@ -409,7 +414,9 @@ func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]Cr
 		q += ` AND status=?`
 		args = append(args, f.Status)
 	}
-	if !f.IncludeDeleted {
+	if f.DeletedOnly {
+		q += ` AND deleted_at<>''`
+	} else if !f.IncludeDeleted {
 		q += ` AND deleted_at=''`
 	}
 	var total int
@@ -430,6 +437,23 @@ func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]Cr
 		out = append(out, *j)
 	}
 	return out, total, rows.Err()
+}
+
+func (s *Store) ListCreativeJobUserSummaries(ctx context.Context) ([]CreativeJobUserSummary, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT user_id,COUNT(1) FROM creative_jobs GROUP BY user_id ORDER BY MAX(id) DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CreativeJobUserSummary{}
+	for rows.Next() {
+		var item CreativeJobUserSummary
+		if err := rows.Scan(&item.UserID, &item.WorkCount); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) HideCreativeJob(ctx context.Context, id, userID int64) error {
