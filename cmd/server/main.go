@@ -179,6 +179,7 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/creative/providers/", h.AdminCreativeProviderByID)
 	mux.HandleFunc(base+"/api/admin/creative/account-pool", h.AdminCreativeAccountPool)
 	mux.HandleFunc(base+"/api/admin/creative/models", h.AdminCreativeModels)
+	mux.HandleFunc(base+"/api/admin/creative/models/", h.AdminCreativeModels)
 	mux.HandleFunc(base+"/api/admin/creative/users", h.AdminCreativeUsers)
 	mux.HandleFunc(base+"/api/admin/creative/jobs", h.AdminCreativeJobs)
 	mux.HandleFunc(base+"/api/admin/creative/jobs/", h.AdminCreativeJobByID)

@@ -506,12 +506,12 @@ func TestAccountPoolSyncUsesHealthyAccountModelMappings(t *testing.T) {
 	}
 	client := sub2api.New(upstream.URL, "admin-key", time.Second)
 	svc := New(st, client, nil)
-	count, err := svc.SyncProviderModels(context.Background(), p.ID)
+	res, err := svc.SyncProviderModels(context.Background(), p.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 2 {
-		t.Fatalf("synced=%d, want 2", count)
+	if res.Synced != 2 || res.Added != 2 || res.Kept != 0 || res.Removed != 0 {
+		t.Fatalf("sync result=%+v", res)
 	}
 	models, err := svc.ListModels(context.Background(), p.ID, false)
 	if err != nil {
@@ -524,6 +524,51 @@ func TestAccountPoolSyncUsesHealthyAccountModelMappings(t *testing.T) {
 		if model.AvailableAccounts != 1 || !model.Enabled {
 			t.Fatalf("model availability/default state=%+v", model)
 		}
+	}
+}
+
+func TestAccountPoolSyncRemovesMissingModels(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/accounts" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0,"data":{"items":[{"id":1,"name":"healthy","schedulable":true,"status":"active","credentials":{"model_mapping":{"grok-imagine-image":"image"}}}],"page":1,"pages":1,"total":1}}`)
+	}))
+	defer upstream.Close()
+
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative-sync-clean.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.SaveCreativeProvider(context.Background(), store.CreativeProvider{Name: "pool", Kind: ProviderPool, BaseURL: upstream.URL, APIKey: "media-key", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.UpsertCreativeModel(context.Background(), store.CreativeModel{ProviderID: p.ID, ModelID: "grok-imagine-image", DisplayName: "old image", Capability: CapabilityImage, Protocol: ProtocolImages, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = st.UpsertCreativeModel(context.Background(), store.CreativeModel{ProviderID: p.ID, ModelID: "legacy-video-model", DisplayName: "legacy", Capability: CapabilityVideo, Protocol: ProtocolVideo, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(st, sub2api.New(upstream.URL, "admin-key", time.Second), nil)
+	res, err := svc.SyncProviderModels(context.Background(), p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Synced != 1 || res.Added != 0 || res.Kept != 1 || res.Removed != 1 {
+		t.Fatalf("sync result=%+v", res)
+	}
+	models, err := svc.ListModels(context.Background(), p.ID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 || models[0].ModelID != "grok-imagine-image" {
+		t.Fatalf("models=%+v", models)
 	}
 }
 
@@ -633,9 +678,9 @@ func TestExternalProviderSyncDoesNotReadAccountPool(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := New(st, sub2api.New(accounts.URL, "admin-key", time.Second), nil)
-	count, err := svc.SyncProviderModels(context.Background(), p.ID)
-	if err != nil || count != 2 {
-		t.Fatalf("synced=%d err=%v", count, err)
+	res, err := svc.SyncProviderModels(context.Background(), p.ID)
+	if err != nil || res.Synced != 2 {
+		t.Fatalf("sync result=%+v err=%v", res, err)
 	}
 	if accountCalls != 0 {
 		t.Fatalf("external sync read account pool %d times", accountCalls)

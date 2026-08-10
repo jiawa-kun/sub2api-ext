@@ -212,3 +212,36 @@ func TestAdminCreativeWorkManagement(t *testing.T) {
 		t.Fatalf("deleted filter status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func TestAdminCreativeModelDelete(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative-model-delete.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	provider, err := st.SaveCreativeProvider(context.Background(), store.CreativeProvider{Name: "media", Kind: creative.ProviderOpenAI, BaseURL: "https://provider.example.com", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model, err := st.UpsertCreativeModel(context.Background(), store.CreativeModel{ProviderID: provider.ID, ModelID: "grok-imagine-image", DisplayName: "image", Capability: creative.CapabilityImage, Protocol: creative.ProtocolImages, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Sub2API.AdminToken = "admin-key"
+	client := sub2api.New("https://provider.example.com", "admin-key", time.Second)
+	h := New(cfg, st, client, settings.New(st, cfg.Checkin), nil)
+	h.SetCreative(creative.New(st, client, nil))
+	recorder, request := func() (*httptest.ResponseRecorder, *http.Request) {
+		req := httptest.NewRequest(http.MethodDelete, cfg.Server.BasePath+"/api/admin/creative/models/"+strconv.FormatInt(model.ID, 10), nil)
+		req.Header.Set("x-api-key", "admin-key")
+		return httptest.NewRecorder(), req
+	}()
+	h.AdminCreativeModels(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("delete status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if _, err := st.GetCreativeModel(context.Background(), model.ID); err == nil {
+		t.Fatal("deleted model should not exist")
+	}
+}

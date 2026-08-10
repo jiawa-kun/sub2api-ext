@@ -401,12 +401,12 @@ func (h *Handler) AdminCreativeProviderByID(w http.ResponseWriter, r *http.Reque
 	}
 	switch {
 	case r.Method == http.MethodPost && action == "sync":
-		n, err := h.creative.SyncProviderModels(r.Context(), id)
+		res, err := h.creative.SyncProviderModels(r.Context(), id)
 		if err != nil {
 			writeErr(w, 502, err.Error())
 			return
 		}
-		writeJSON(w, 200, map[string]any{"synced": n})
+		writeJSON(w, 200, res)
 	case r.Method == http.MethodPost && action == "test":
 		if err := h.creative.TestProvider(r.Context(), id); err != nil {
 			writeErr(w, 502, err.Error())
@@ -449,6 +449,22 @@ func (h *Handler) AdminCreativeModels(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, 200, saved)
+	case http.MethodDelete:
+		path := strings.TrimPrefix(r.URL.Path, h.cfg.Server.BasePath+"/api/admin/creative/models/")
+		id, err := strconv.ParseInt(strings.Trim(path, "/"), 10, 64)
+		if err != nil || id <= 0 {
+			writeErr(w, 400, "invalid model id")
+			return
+		}
+		if err := h.creative.DeleteModel(r.Context(), id); err != nil {
+			status := 400
+			if errors.Is(err, sql.ErrNoRows) {
+				status = 404
+			}
+			writeErr(w, status, err.Error())
+			return
+		}
+		writeJSON(w, 200, map[string]any{"deleted": true})
 	default:
 		writeErr(w, 405, "method not allowed")
 	}

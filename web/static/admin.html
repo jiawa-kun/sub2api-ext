@@ -329,11 +329,12 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <button type="button" id="nav-patrol"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>账号巡检</button>
           <button type="button" id="nav-notify"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10.5 21a2 2 0 003 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>通知中心</button>
         </div>
-            </div>
+      </div>
       <div class="modnav-group" data-group="content">
         <div class="modnav-group-title">内容管理</div>
         <div class="modnav-group-btns">
           <button type="button" id="nav-creative"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>AI 创作</button>
+          <button type="button" id="nav-creative-works"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="10" r="2" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 17l4-4 3 3 2.5-2.5 3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>用户作品</button>
           <button type="button" id="nav-tutorial"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.8"/><path d="M12 16v-4M12 8h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>使用教程</button>
         </div>
       </div>
@@ -1168,7 +1169,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <div class="creative-admin-head">
         <div>
           <h2>AI 创作</h2>
-          <p>管理账号池、外部渠道、模型定价和创作订单。</p>
+          <p>管理账号池、外部渠道和模型定价。</p>
         </div>
         <div class="row">
           <button type="button" class="secondary sm" id="btnCreativeRefresh">刷新</button>
@@ -1229,10 +1230,22 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           </table>
         </div>
       </div>
+    </div>
+
+    <div class="hidden admin-module creative-admin" id="sec-creative-works">
+      <div class="creative-admin-head">
+        <div>
+          <h2>用户作品</h2>
+          <p>按用户、类型和状态查看全部作品，并执行预览、下载或安全删除。</p>
+        </div>
+        <div class="row">
+          <button type="button" class="secondary sm" id="btnCreativeWorkRefresh">刷新</button>
+        </div>
+      </div>
 
       <div class="card creative-order-card">
         <div class="card-head">
-          <div><h2>用户作品管理</h2><p class="desc">按用户、类型和状态查看全部作品，并执行预览、下载或安全删除。</p></div>
+          <div><h2>用户作品管理</h2><p class="desc">优先按用户名筛选，支持按类型和状态查看全部作品。</p></div>
           <span class="badge" id="creativeJobBadge">0 条</span>
         </div>
         <div class="creative-work-filters">
@@ -1324,7 +1337,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const el=id=>document.getElementById(id);
     if(window.self!==window.top) document.body.classList.add('is-embedded');
     function setAdminSection(name){
-      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks','creative','tutorial'];
+      const secs=['overview','checkin','patrol','notify','lottery','report','ledger','redistribution','campaign','tasks','creative','creative-works','tutorial'];
       secs.forEach(s=>{
         const pan=el('sec-'+s);
         const tab=el('nav-'+s);
@@ -3192,10 +3205,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       body.innerHTML=creativeState.providers.map(p=>`<tr class="${Number(p.id)===Number(creativeState.selectedProviderID)?'selected':''}">
         <td data-label="渠道"><strong>${escapeHtml(p.name||'—')}</strong><div class="sub">${p.kind==='sub2api_pool'?'内置渠道':escapeHtml(p.base_url||'—')}</div></td>
         <td data-label="类型">${creativeKindLabel(p.kind)}</td><td data-label="路由配置">${p.kind==='sub2api_pool'?escapeHtml(p.source_group||'全部账号'):'OpenAI Compatible'}</td><td data-label="凭据与结算">${p.kind==='sub2api_pool'?'<strong>用户自有 Key</strong><div class="sub">Sub2API 结算</div>':`<strong>${escapeHtml(p.api_key_masked||'未配置')}</strong><div class="sub">扩展扣费</div>`}</td>
-        <td data-label="状态"><span class="creative-status ${p.enabled?'ok':'warn'}">${p.enabled?'启用':'停用'}</span></td><td data-label="操作"><button type="button" class="secondary sm" data-creative-provider="${Number(p.id)}">管理</button></td></tr>`).join('');
-      body.querySelectorAll('[data-creative-provider]').forEach(btn=>btn.onclick=()=>selectCreativeProvider(Number(btn.dataset.creativeProvider)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
+        <td data-label="状态"><span class="creative-status ${p.enabled?'ok':'warn'}">${p.enabled?'启用':'停用'}</span></td><td data-label="操作"><button type="button" class="secondary sm app-action" data-creative-provider="${Number(p.id)}"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 20h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4 11.5-11.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>编辑</span></button></td></tr>`).join('');
+      body.querySelectorAll('[data-creative-provider]').forEach(btn=>btn.onclick=()=>selectCreativeProvider(Number(btn.dataset.creativeProvider),true,true).catch(e=>showCreativeMsg(e.message||String(e),'err')));
     }
-    async function selectCreativeProvider(id,loadModels=true){
+    async function selectCreativeProvider(id,loadModels=true,announce=false){
       const p=creativeState.providers.find(item=>Number(item.id)===Number(id)); if(!p)return;
       creativeState.selectedProviderID=Number(p.id);
       el('creativeProviderID').value=String(p.id);
@@ -3210,6 +3223,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       renderCreativeProviders();
       if(p.kind==='sub2api_pool') await loadCreativePool(p.source_group||'');
       if(loadModels) await loadCreativeModels(p.id);
+      if(announce){
+        showCreativeMsg('正在编辑渠道：'+(p.name||('ID '+p.id)),'ok');
+        el('creativeProviderName')?.scrollIntoView({behavior:'smooth',block:'center'});
+      }
     }
     function creativeProviderPayload(){
       const pool=creativeState.kind==='sub2api_pool';
@@ -3256,8 +3273,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <td data-label="可用性">${isPool?`<span class="creative-status ${Number(m.available_accounts)>0?'ok':'bad'}">${Number(m.available_accounts)||0} 个账号</span>`:'<span class="creative-capability">外部模型</span>'}</td>
         <td data-label="${isPool?'参考价格':'用户售价'}">${creativePriceEditor(m,isPool)}</td>
         <td data-label="状态"><label class="switch"><input data-f="enabled" type="checkbox" ${m.enabled?'checked':''} /><span>${m.enabled?'已启用':'已停用'}</span></label></td>
-        <td data-label="操作"><button type="button" class="secondary sm" data-creative-model-save="${Number(m.id)}">保存</button></td></tr>`).join('');
+        <td data-label="操作"><div class="u-flex-actions"><button type="button" class="secondary sm app-action" data-creative-model-save="${Number(m.id)}"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 4h11l3 3v13H5V4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 4v6h7V4M8 17h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>保存</span></button><button type="button" class="secondary danger sm app-action" data-creative-model-delete="${Number(m.id)}"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>删除</span></button></div></td></tr>`).join('');
       body.querySelectorAll('[data-creative-model-save]').forEach(btn=>btn.onclick=()=>saveCreativeModel(Number(btn.dataset.creativeModelSave)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
+      body.querySelectorAll('[data-creative-model-delete]').forEach(btn=>btn.onclick=()=>deleteCreativeModel(Number(btn.dataset.creativeModelDelete)).catch(e=>showCreativeMsg(e.message||String(e),'err')));
       body.querySelectorAll('[data-f="enabled"]').forEach(input=>input.onchange=()=>{const label=input.nextElementSibling;if(label)label.textContent=input.checked?'已启用':'已停用'});
     }
     async function loadCreativeModels(providerID){
@@ -3276,6 +3294,13 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const payload={...m,capability,protocol,price_json:JSON.stringify(price),constraints_json:constraints,enabled:!!get('enabled').checked};
       await api('./api/admin/creative/models',{method:'POST',body:JSON.stringify(payload)});
       showCreativeMsg('模型配置已保存','ok');
+      await loadCreativeModels(creativeState.selectedProviderID);
+    }
+    async function deleteCreativeModel(id){
+      const m=creativeState.models.find(item=>Number(item.id)===Number(id)); if(!m)return;
+      if(!confirm(`确定删除模型配置 ${m.display_name||m.model_id} 吗？\n\n历史作品只保存模型名称，不会被删除。`))return;
+      await api('./api/admin/creative/models/'+Number(id),{method:'DELETE'});
+      showCreativeMsg('模型配置已删除','ok');
       await loadCreativeModels(creativeState.selectedProviderID);
     }
     function creativeWorkActionIcon(kind){
@@ -3334,7 +3359,10 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     async function deleteCreativeWork(id){const job=creativeState.jobs.find(item=>Number(item.id)===Number(id));if(!job)return;const owner=creativeUser(job.user_id);if(!confirm(`确定删除 ${owner.display_name||('用户 #'+job.user_id)} 的作品 ${job.order_no||job.id} 吗？\n\n记录会被软删除，本地媒体缓存会清理。`))return;await api('./api/admin/creative/jobs/'+Number(job.id),{method:'DELETE'});if(creativeState.viewerJob&&Number(creativeState.viewerJob.id)===Number(job.id))closeCreativeWorkViewer();showCreativeJobMsg('作品已删除','ok');await loadCreativeUsers();await loadCreativeJobs(false)}
     async function refreshCreative(){
       await loadCreativePool(el('creativeProviderGroup')?.value||'');
-      await Promise.all([loadCreativeProviders(),loadCreativeUsers()]);
+      await loadCreativeProviders();
+    }
+    async function refreshCreativeWorks(){
+      await loadCreativeUsers();
       await loadCreativeJobs(false);
     }
     async function testCreativeProvider(){
@@ -3346,7 +3374,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先保存并选择渠道');
       const data=await api('./api/admin/creative/providers/'+id+'/sync',{method:'POST',body:'{}'});
       await loadCreativeModels(id);
-      showCreativeMsg('模型同步完成，共 '+Number(data.synced||0)+' 个','ok');
+      showCreativeMsg(`模型同步完成：新增 ${Number(data.added||0)} 个，保留 ${Number(data.kept||0)} 个，清理 ${Number(data.removed||0)} 个`,'ok');
     }
     async function deleteCreativeProvider(){
       const id=Number(creativeState.selectedProviderID); if(!id)throw new Error('请先选择渠道');
@@ -3359,7 +3387,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     async function selectCreativeKind(kind){const pool=kind==='sub2api_pool',existing=pool?creativeState.providers.find(p=>p.kind==='sub2api_pool'):null;if(existing)await selectCreativeProvider(Number(existing.id));else resetCreativeProvider(pool?'sub2api_pool':'openai_compatible')}
     document.querySelectorAll('[data-creative-kind]').forEach(btn=>btn.onclick=()=>selectCreativeKind(btn.dataset.creativeKind).catch(e=>showCreativeMsg(e.message||String(e),'err')));
     el('creativeProviderKind').onchange=()=>setCreativeKind(el('creativeProviderKind').value);
-    el('creativeProviderGroup').onchange=()=>loadCreativePool(el('creativeProviderGroup').value).catch(e=>showCreativeMsg(e.message||String(e),'err'));
+    el('creativeProviderGroup').onchange=()=>loadCreativePool(el('creativeProviderGroup').value).then(()=>showCreativeMsg('账号分组已修改，请先保存渠道后再同步模型','ok')).catch(e=>showCreativeMsg(e.message||String(e),'err'));
     campRewardState=defaultCampRewards(); renderCampRewards();
     const btnCampAddReward=el('btnCampAddReward'); if(btnCampAddReward) btnCampAddReward.onclick=()=>{campRewardState.push({rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};
     document.querySelectorAll('[data-rule-add]').forEach(b=>b.onclick=()=>addRedisRule(b.dataset.ruleAdd));
@@ -3443,6 +3471,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navCampaign=el('nav-campaign'); if(navCampaign) navCampaign.onclick=(e)=>{ e.preventDefault(); setAdminSection('campaign'); refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err')); };
     const navTasks=el('nav-tasks'); if(navTasks) navTasks.onclick=(e)=>{ e.preventDefault(); setAdminSection('tasks'); refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err')); };
     const navCreative=el('nav-creative'); if(navCreative) navCreative.onclick=(e)=>{ e.preventDefault(); setAdminSection('creative'); refreshCreative().catch(e2=>showCreativeMsg(e2.message||String(e2),'err')); };
+    const navCreativeWorks=el('nav-creative-works'); if(navCreativeWorks) navCreativeWorks.onclick=(e)=>{ e.preventDefault(); setAdminSection('creative-works'); refreshCreativeWorks().catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err')); };
     const navTutorial=el('nav-tutorial'); if(navTutorial) navTutorial.onclick=(e)=>{ e.preventDefault(); setAdminSection('tutorial'); refreshTutorial().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnCreativeProviderSave=el('btnCreativeProviderSave'); if(btnCreativeProviderSave) btnCreativeProviderSave.onclick=()=>saveCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider('openai_compatible');
@@ -3450,6 +3479,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const btnCreativeProviderSync=el('btnCreativeProviderSync'); if(btnCreativeProviderSync) btnCreativeProviderSync.onclick=()=>syncCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderDelete=el('btnCreativeProviderDelete'); if(btnCreativeProviderDelete) btnCreativeProviderDelete.onclick=()=>deleteCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeRefresh=el('btnCreativeRefresh'); if(btnCreativeRefresh) btnCreativeRefresh.onclick=()=>refreshCreative().then(()=>showCreativeMsg('AI 创作配置已刷新','ok')).catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeWorkRefresh=el('btnCreativeWorkRefresh'); if(btnCreativeWorkRefresh) btnCreativeWorkRefresh.onclick=()=>refreshCreativeWorks().then(()=>showCreativeJobMsg('用户作品已刷新','ok')).catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'));
     const btnCreativeJobRefresh=el('btnCreativeJobRefresh'); if(btnCreativeJobRefresh) btnCreativeJobRefresh.onclick=()=>Promise.all([loadCreativeUsers(),loadCreativeJobs(false)]).then(()=>showCreativeJobMsg('作品列表已刷新','ok')).catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'));
     ['creativeJobUser','creativeJobType','creativeJobStatus','creativeJobDeleted'].forEach(id=>{const node=el(id);if(node)node.onchange=()=>loadCreativeJobs(true).catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'))});
     const creativeJobPrev=el('creativeJobPrev'); if(creativeJobPrev) creativeJobPrev.onclick=()=>{if(creativeState.jobPage>1){creativeState.jobPage--;loadCreativeJobs(false).catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'))}};
@@ -3546,6 +3576,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     else if(initHash==='#campaign'){ setAdminSection('campaign'); refreshCampaigns().catch(()=>{}); }
     else if(initHash==='#tasks'){ setAdminSection('tasks'); refreshTasksAdmin().catch(()=>{}); }
     else if(initHash==='#creative'){ setAdminSection('creative'); refreshCreative().catch(()=>{}); }
+    else if(initHash==='#creative-works'){ setAdminSection('creative-works'); refreshCreativeWorks().catch(()=>{}); }
     else if(initHash==='#tutorial'){ setAdminSection('tutorial'); refreshTutorial().catch(()=>{}); }
     else if(initHash==='#checkin') setAdminSection('checkin');
     else if(initHash==='#overview'){ setAdminSection('overview'); refreshOverview().catch(()=>{}); }

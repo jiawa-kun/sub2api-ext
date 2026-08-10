@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -295,6 +296,47 @@ func (s *Store) GetCreativeModel(ctx context.Context, id int64) (*CreativeModel,
 }
 func (s *Store) GetCreativeModelByProviderModel(ctx context.Context, pid int64, model string) (*CreativeModel, error) {
 	return scanCreativeModel(s.db.QueryRowContext(ctx, creativeModelSelect+` WHERE provider_id=? AND model_id=?`, pid, model))
+}
+func (s *Store) DeleteCreativeModel(ctx context.Context, id int64) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM creative_models WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+func (s *Store) DeleteCreativeModelsNotIn(ctx context.Context, providerID int64, keep map[string]bool) (int, error) {
+	if providerID <= 0 {
+		return 0, fmt.Errorf("provider_id is required")
+	}
+	if len(keep) == 0 {
+		res, err := s.db.ExecContext(ctx, `DELETE FROM creative_models WHERE provider_id=?`, providerID)
+		if err != nil {
+			return 0, err
+		}
+		n, _ := res.RowsAffected()
+		return int(n), nil
+	}
+	args := []any{providerID}
+	placeholders := make([]string, 0, len(keep))
+	modelIDs := make([]string, 0, len(keep))
+	for modelID := range keep {
+		modelIDs = append(modelIDs, modelID)
+	}
+	sort.Strings(modelIDs)
+	for _, modelID := range modelIDs {
+		placeholders = append(placeholders, "?")
+		args = append(args, modelID)
+	}
+	q := `DELETE FROM creative_models WHERE provider_id=? AND model_id NOT IN (` + strings.Join(placeholders, ",") + `)`
+	res, err := s.db.ExecContext(ctx, q, args...)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 func (s *Store) ListCreativeModels(ctx context.Context, pid int64, enabled bool) ([]CreativeModel, error) {
 	q := creativeModelSelect + ` WHERE 1=1`

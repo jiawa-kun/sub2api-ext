@@ -81,6 +81,12 @@ type ModelOption struct {
 	ProviderKind string      `json:"provider_kind"`
 	BillingMode  string      `json:"billing_mode"`
 }
+type ModelSyncResult struct {
+	Synced  int `json:"synced"`
+	Added   int `json:"added"`
+	Kept    int `json:"kept"`
+	Removed int `json:"removed"`
+}
 
 type MediaContent struct {
 	Body          io.ReadCloser
@@ -310,6 +316,12 @@ func (s *Service) SaveModel(ctx context.Context, m store.CreativeModel) (*store.
 	}
 	return s.store.UpsertCreativeModel(ctx, m)
 }
+func (s *Service) DeleteModel(ctx context.Context, id int64) error {
+	if id <= 0 {
+		return fmt.Errorf("invalid model id")
+	}
+	return s.store.DeleteCreativeModel(ctx, id)
+}
 func (s *Service) ListJobs(ctx context.Context, f store.CreativeJobFilter) ([]store.CreativeJob, int, error) {
 	return s.store.ListCreativeJobs(ctx, f)
 }
@@ -443,16 +455,16 @@ func pricedResolutions(prices map[string]float64) []string {
 	return append(out, extra...)
 }
 
-func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int, error) {
+func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (ModelSyncResult, error) {
 	p, err := s.store.GetCreativeProvider(ctx, providerID)
 	if err != nil {
-		return 0, err
+		return ModelSyncResult{}, err
 	}
 	set := map[string]bool{}
 	if p.Kind == ProviderPool {
 		counts, discoverErr := s.discoverAccountModels(ctx, *p)
 		if discoverErr != nil {
-			return 0, fmt.Errorf("account models: %w", discoverErr)
+			return ModelSyncResult{}, fmt.Errorf("account models: %w", discoverErr)
 		}
 		for modelID := range counts {
 			set[modelID] = true
@@ -460,24 +472,41 @@ func (s *Service) SyncProviderModels(ctx context.Context, providerID int64) (int
 	} else {
 		remote, remoteErr := s.listRemoteModels(ctx, *p)
 		if remoteErr != nil {
-			return 0, fmt.Errorf("provider models: %w", remoteErr)
+			return ModelSyncResult{}, fmt.Errorf("provider models: %w", remoteErr)
 		}
 		for _, modelID := range remote {
 			set[modelID] = true
 		}
 	}
-	count := 0
+	existing, err := s.store.ListCreativeModels(ctx, p.ID, false)
+	if err != nil {
+		return ModelSyncResult{}, err
+	}
+	existingByModel := make(map[string]struct{}, len(existing))
+	for _, model := range existing {
+		existingByModel[model.ModelID] = struct{}{}
+	}
+	result := ModelSyncResult{Synced: len(set)}
 	for modelID := range set {
 		capability, protocol, pricing, constraints, known := inferModel(modelID)
 		rawPrice, _ := json.Marshal(pricing)
 		rawConstraints, _ := json.Marshal(constraints)
 		_, err := s.store.UpsertCreativeModel(ctx, store.CreativeModel{ProviderID: p.ID, ModelID: modelID, DisplayName: modelID, Capability: capability, Protocol: protocol, PriceJSON: string(rawPrice), ConstraintsJSON: string(rawConstraints), SourceGroup: p.SourceGroup, Enabled: known})
 		if err != nil {
-			return count, err
+			return result, err
 		}
-		count++
+		if _, ok := existingByModel[modelID]; ok {
+			result.Kept++
+		} else {
+			result.Added++
+		}
 	}
-	return count, nil
+	removed, err := s.store.DeleteCreativeModelsNotIn(ctx, p.ID, set)
+	if err != nil {
+		return result, err
+	}
+	result.Removed = removed
+	return result, nil
 }
 
 func (s *Service) discoverAccountModels(ctx context.Context, p store.CreativeProvider) (map[string]int, error) {
