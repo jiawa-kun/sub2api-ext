@@ -10,7 +10,7 @@ func TestResponsiveTaskHistoryAndPaginationContracts(t *testing.T) {
 		"static/tasks.html":     {"id=\"poolFeature\"", "task pool-task", "box.innerHTML = rewardHTML + items.map"},
 		"static/index.html":     {"近 7 次签到记录", "近 7 次抽奖记录", "id=\"lotteryRecent\"", "./create.html", "./works.html", "AI 创作"},
 		"static/rewards.html":   {"const LIMIT = 10;"},
-		"static/create.html":    {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "image_data_url", "./works.html", "余额 '+money(data.balance)"},
+		"static/create.html":    {"./api/creative/options", "./api/creative/credentials", "./api/creative/images", "./api/creative/videos", "./api/creative/jobs/${id}", "image_data_url", "id=\"workspaceStage\"", "id=\"resultMedia\"", "class=\"composer\"", "id=\"credentialDialog\"", "class=\"top\"", "class=\"topnav\"", "class=\"active\" href=\"./create.html\"", "class=\"brand-title\"", "money(data.balance)"},
 		"static/works.html":     {"./api/creative/jobs?'", "PAGE_SIZE=10", "page_size:String(PAGE_SIZE)", "method:'DELETE'", "contentURL", "<dialog", "data-delete", "id=\"prevPage\"", "id=\"nextPage\"", "查看"},
 		"static/admin.html":     {"lotteryDrawPage={offset:0,limit:10", "ledgerPage={offset:0, limit:10", "<option value=\"10\">10条/页</option>", "id=\"tutorialVisual\"", "contenteditable=\"true\"", "btnTutorialLink", "btnTutorialSource", "insertTutorialLink", "id=\"sec-creative\"", "./api/admin/creative/jobs?page=1&page_size=10", "api_key:pool?'':el('creativeProviderKey')", "同步外部模型", "用户自有 Key"},
 		"static/tutorial.html":  {"function enhanceTutorialContent", "a.target='_blank'", "noopener noreferrer"},
@@ -41,6 +41,19 @@ func TestCreativeNavigationContracts(t *testing.T) {
 		}
 		if !strings.Contains(string(raw), `href="./works.html"`) {
 			t.Fatalf("%s missing works navigation", name)
+		}
+	}
+}
+
+func TestCreativePageUsesSharedHeader(t *testing.T) {
+	raw, err := StaticFS.ReadFile("static/create.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(raw)
+	for _, forbidden := range []string{`class="nav-menu"`, `class="studio-header"`} {
+		if strings.Contains(html, forbidden) {
+			t.Fatalf("creative page still uses standalone header marker %q", forbidden)
 		}
 	}
 }
