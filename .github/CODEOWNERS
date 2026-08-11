@@ -1,0 +1,12 @@
+# Default owner
+* @jiawa-kun
+
+# CI / deploy surface
+/.github/ @jiawa-kun
+/deploy/ @jiawa-kun
+/Dockerfile @jiawa-kun
+/docker-compose.yml @jiawa-kun
+/deploy-remote.ps1 @jiawa-kun
+
+# Money-sensitive modules (require owner review when code owners are enforced)
+/internal/ @jiawa-kun
