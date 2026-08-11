@@ -52,6 +52,9 @@ type rankingResponse struct {
 
 // RankingRewards GET /api/ranking/rewards
 func (h *Handler) RankingRewards(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "ranking") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -138,6 +141,9 @@ func (h *Handler) RankingRewards(w http.ResponseWriter, r *http.Request) {
 
 // RankingConsumption GET /api/ranking/consumption
 func (h *Handler) RankingConsumption(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "ranking") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -266,7 +272,6 @@ func (h *Handler) officialRankURL() string {
 	}
 	return origin + "/rank"
 }
-
 
 type nameCacheEntry struct {
 	name string

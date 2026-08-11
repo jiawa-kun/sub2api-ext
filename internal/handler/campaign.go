@@ -897,6 +897,9 @@ func (h *Handler) settleCampaignPeriod(ctx context.Context, c *store.RankCampaig
 
 // PublicRankCampaigns GET /api/ranking/campaigns
 func (h *Handler) PublicRankCampaigns(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "ranking") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return

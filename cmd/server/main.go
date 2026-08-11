@@ -128,6 +128,7 @@ func main() {
 	mux.HandleFunc(base+"/api/admin/settings/audit", h.AdminListAudit)
 	mux.HandleFunc(base+"/api/admin/settings/rollback", h.AdminRollbackSettings)
 	mux.HandleFunc(base+"/api/admin/stats", h.AdminStats)
+	mux.HandleFunc(base+"/api/admin/modules/settings", h.AdminModuleSettings)
 	mux.HandleFunc(base+"/api/admin/checkins", h.AdminListCheckins)
 	mux.HandleFunc(base+"/api/admin/settings/template", h.AdminApplyTemplate)
 	mux.HandleFunc(base+"/api/admin/patrol/settings", func(w http.ResponseWriter, r *http.Request) {

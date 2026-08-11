@@ -381,9 +381,9 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
         const tags = (m.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('');
         const userHref = m.user_path ? keepQuery(m.user_path) : '';
         const adminHref = m.admin_path ? keepQuery(m.admin_path) : '';
-        const enter = userHref
-          ? `<a class="primary" href="${userHref}">进入</a>`
-          : (adminHref ? `<a class="primary" href="${adminHref}">打开配置</a>` : '');
+        const enter = on
+          ? (userHref ? `<a class="primary" href="${userHref}">进入</a>` : (adminHref ? `<a class="primary" href="${adminHref}">打开配置</a>` : ''))
+          : `<span class="ghost" aria-disabled="true">未启用</span>`;
         const admin = adminHref
           ? `<a class="ghost" href="${adminHref}">管理</a>`
           : '';

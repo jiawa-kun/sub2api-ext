@@ -34,6 +34,9 @@ func (h *Handler) requireUser(r *http.Request) (*sub2api.User, error) {
 }
 
 func (h *Handler) CreativeOptions(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -61,6 +64,9 @@ func (h *Handler) CreativeOptions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreativeCredentials(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	u, err := h.requireUser(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err.Error())
@@ -110,6 +116,9 @@ func (h *Handler) CreativeCredentials(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreativeImages(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -136,6 +145,9 @@ func (h *Handler) CreativeImages(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, creativeJobPublic(job))
 }
 func (h *Handler) CreativeVideos(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	if r.Method != http.MethodPost {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -176,6 +188,9 @@ func decodeCreativeJSON(r *http.Request, out any, limit int64) error {
 }
 
 func (h *Handler) CreativeJobs(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -202,6 +217,9 @@ func (h *Handler) CreativeJobs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": out, "total": total, "page": page, "page_size": limit})
 }
 func (h *Handler) CreativeJobByID(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "creative") {
+		return
+	}
 	u, err := h.requireUser(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err.Error())

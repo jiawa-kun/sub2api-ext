@@ -368,7 +368,16 @@ SUB2API_ADMIN_TOKEN=<auth_token>
 GET /ext/api/modules
 ```
 
-返回示例字段：`product`、`product_name`、`compat_name`、`base_path`、`modules[]`。
+返回示例字段：`product`、`product_name`、`compat_name`、`base_path`、`modules[]`。`modules[].enabled` 会反映运行时启用状态；管理台「运营摘要」可统一查看和启停所有模块。
+
+管理 API：
+
+```http
+GET /ext/api/admin/modules/settings
+PUT /ext/api/admin/modules/settings
+```
+
+`PUT` 请求体示例：`{"id":"ranking","enabled":false}`。已有业务开关的模块会同步到原配置；排行榜、发放总账、AI 创作使用模块级开关。关闭用户侧模块后，管理配置与审计入口仍保留。
 
 ### 健康检查（平台）
 

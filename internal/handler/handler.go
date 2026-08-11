@@ -161,13 +161,13 @@ type adminUpdateBody struct {
 	AdminAPIKeyClear *bool   `json:"admin_api_key_clear"`
 }
 
-func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
+func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":           true,
 		"product":      modules.ProductID,
 		"product_name": modules.ProductName,
 		"compat_name":  modules.CompatName,
-		"modules":      modules.ActiveIDs(),
+		"modules":      h.activeModuleIDs(r.Context()),
 		"metrics":      metrics.Get(),
 	})
 }

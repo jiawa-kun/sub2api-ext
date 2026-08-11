@@ -264,11 +264,16 @@ html.light .patrol-log .l-error{color:#be123c}
 .campaign-status.partial{color:var(--warn);background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}
 .campaign-status.settled{color:#60a5fa;background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.25)}
 .campaign-status.cancelled{color:var(--muted)}
-.campaign-row-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}.campaign-row-actions button{padding:6px 9px}
-.campaign-more{position:relative}.campaign-more summary{list-style:none;cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:6px 9px;font-size:.74rem;font-weight:700;background:var(--soft2)}
-.campaign-more summary::-webkit-details-marker{display:none}.campaign-more-menu{position:absolute;right:0;top:calc(100% + 5px);z-index:20;min-width:128px;padding:6px;border:1px solid var(--border);border-radius:11px;background:var(--card);box-shadow:var(--shadow);display:grid;gap:4px}
-.campaign-more-menu button{width:100%;text-align:left;background:transparent;color:var(--text);box-shadow:none;border:0;padding:7px 8px}.campaign-more-menu button:hover{background:var(--soft2);transform:none}.campaign-more-menu button.danger{color:var(--danger)}
+.campaign-row-actions{display:flex;align-items:center;gap:5px;white-space:normal;flex-wrap:wrap;min-width:250px}.campaign-row-actions button{padding:6px 8px;white-space:nowrap}
 .campaign-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;color:var(--muted);font-size:.74rem}.campaign-page-controls{display:flex;align-items:center;gap:5px}.campaign-page-controls button{min-width:32px;padding:6px 9px}.campaign-page-controls button.current{background:var(--primary);color:#fff}.campaign-page-controls button:disabled{opacity:.4}
+.module-switch-panel{margin-top:14px;border:1px solid var(--border);border-radius:14px;background:var(--panel);padding:12px}
+.module-switch-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.module-switch-head h3{margin:0;font-size:.9rem}.module-switch-head p{margin:4px 0 0;color:var(--muted);font-size:.72rem;line-height:1.45}
+.module-switch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+.module-switch-item{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px;display:grid;gap:8px}
+.module-switch-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.module-switch-title strong{font-size:.8rem}.module-switch-title span{font-size:.66rem;color:var(--muted)}
+.module-switch-desc{font-size:.68rem;color:var(--muted);line-height:1.35;min-height:2.6em}
+.module-switch-item.off{opacity:.76}.module-switch-item.off .module-switch-title strong{color:var(--warn)}
 dialog.campaign-dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 28px);padding:0;border:1px solid var(--border);border-radius:18px;background:var(--card);color:var(--text);box-shadow:0 28px 80px rgba(0,0,0,.45);overflow:hidden}
 dialog.campaign-dialog.wide{width:min(940px,calc(100vw - 24px))}dialog.campaign-dialog::backdrop{background:rgba(2,6,23,.68);backdrop-filter:blur(3px)}
 .campaign-dialog-shell{display:flex;flex-direction:column;max-height:calc(100vh - 30px)}.campaign-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
@@ -420,6 +425,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <p class="desc u-mt-0">今日（配置时区）发放、预算、活动与巡检一览。点卡片可跳到对应模块。</p>
         <div id="overviewGrid" class="stats u-mt-10">
           <div class="stat"><div class="k">加载中</div><div class="v">…</div></div>
+        </div>
+        <div class="module-switch-panel">
+          <div class="module-switch-head">
+            <div>
+              <h3>模块启用状态</h3>
+              <p>统一查看和启停扩展模块；详细参数仍在各模块配置页维护。</p>
+            </div>
+            <button type="button" class="secondary sm" id="btnModuleSwitchRefresh">刷新模块</button>
+          </div>
+          <div class="module-switch-grid" id="moduleSwitchGrid"><div class="sub">加载中…</div></div>
         </div>
         <div id="overviewCampaigns" class="u-mt-14"></div>
         <div class="msg u-mt-10" id="overviewMsg"></div>
@@ -3124,8 +3139,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const body=el('campaignBody');if(!campaignState.items.length){body.innerHTML='<tr><td colspan="8"><div class="campaign-empty">没有找到符合条件的活动<br><span>可以调整筛选条件，或点击“新建活动”。</span></div></td></tr>';return}
       body.innerHTML=campaignState.items.map(c=>{
         const spend=campaignRewardSpend(c),editable=['draft','active'].includes(c.status),settleable=!['settled','cancelled'].includes(c.status),cancellable=['draft','active','partial'].includes(c.status),deletable=Number(c.award_count||0)===0;
-        const more=[editable?`<button type="button" data-campaign-action="edit" data-id="${c.id}">编辑活动</button>`:'',settleable?`<button type="button" data-campaign-action="preview" data-id="${c.id}">预览并结算</button>`:'',cancellable?`<button type="button" data-campaign-action="cancel" data-id="${c.id}">取消活动</button>`:'',deletable?`<button type="button" class="danger" data-campaign-action="delete" data-id="${c.id}">永久删除</button>`:''].filter(Boolean).join('');
-        return `<tr><td class="campaign-name-cell"><strong>${escapeHtml(c.name||'未命名活动')}</strong><span>#${c.id}</span></td><td>${escapeHtml(campaignLabels.board[c.board]||c.board||'—')}</td><td>${escapeHtml(c.start_date||'')}<br><span class="sub">至 ${escapeHtml(c.end_date||'')}</span></td><td>${escapeHtml(campaignLabels.frequency[c.frequency]||c.frequency||'—')}${c.frequency==='once'?'':`<br><span class="sub">${escapeHtml(c.settlement_time||'03:00')} 上海</span>`}</td><td>获奖 ${spend.count} 人<br><span class="sub">最高 ${spend.spend.toFixed(4)}</span></td><td><span class="campaign-status ${escapeHtml(c.status||'')}">${escapeHtml(campaignLabels.status[c.status]||c.status||'—')}</span></td><td>${Number(c.award_count||0)} 条</td><td><div class="campaign-row-actions"><button type="button" class="secondary sm" data-campaign-action="view" data-id="${c.id}">查看</button><button type="button" class="secondary sm" data-campaign-action="awards" data-id="${c.id}">发奖明细</button>${more?`<details class="campaign-more"><summary>更多</summary><div class="campaign-more-menu">${more}</div></details>`:''}</div></td></tr>`;
+        const actions=[`<button type="button" class="secondary sm" data-campaign-action="view" data-id="${c.id}">查看</button>`,`<button type="button" class="secondary sm" data-campaign-action="awards" data-id="${c.id}">明细</button>`,editable?`<button type="button" class="secondary sm" data-campaign-action="edit" data-id="${c.id}">编辑</button>`:'',settleable?`<button type="button" class="secondary sm" data-campaign-action="preview" data-id="${c.id}">预览结算</button>`:'',cancellable?`<button type="button" class="secondary sm" data-campaign-action="cancel" data-id="${c.id}">取消</button>`:'',deletable?`<button type="button" class="danger sm" data-campaign-action="delete" data-id="${c.id}">删除</button>`:''].filter(Boolean).join('');
+        return `<tr><td class="campaign-name-cell"><strong>${escapeHtml(c.name||'未命名活动')}</strong><span>#${c.id}</span></td><td>${escapeHtml(campaignLabels.board[c.board]||c.board||'—')}</td><td>${escapeHtml(c.start_date||'')}<br><span class="sub">至 ${escapeHtml(c.end_date||'')}</span></td><td>${escapeHtml(campaignLabels.frequency[c.frequency]||c.frequency||'—')}${c.frequency==='once'?'':`<br><span class="sub">${escapeHtml(c.settlement_time||'03:00')} 上海</span>`}</td><td>获奖 ${spend.count} 人<br><span class="sub">最高 ${spend.spend.toFixed(4)}</span></td><td><span class="campaign-status ${escapeHtml(c.status||'')}">${escapeHtml(campaignLabels.status[c.status]||c.status||'—')}</span></td><td>${Number(c.award_count||0)} 条</td><td><div class="campaign-row-actions">${actions}</div></td></tr>`;
       }).join('');
     }
     async function refreshCampaigns(){
@@ -3166,7 +3181,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const editor=el('campaignEditorModal'),detail=el('campaignDetailModal'),preview=el('campaignPreviewModal'),awards=el('campaignAwardsModal');[editor,detail,preview,awards].forEach(dialog=>{if(dialog)dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()})});
       el('btnCampaignNew').onclick=()=>openCampaignEditor().catch(e=>show(e.message||String(e),'err'));el('btnCampaignRefresh').onclick=()=>refreshCampaigns().catch(e=>show(e.message||String(e),'err'));el('btnCampaignSearch').onclick=()=>{campaignState.page=1;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))};el('btnCampaignReset').onclick=()=>{['campaignFilterKeyword','campaignFilterBoard','campaignFilterFrequency','campaignFilterStatus'].forEach(id=>el(id).value='');campaignState.page=1;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))};el('campaignFilterKeyword').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el('btnCampaignSearch').click()}});
       el('btnCampaignPrev').onclick=()=>{if(campaignState.page>1){campaignState.page--;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))}};el('btnCampaignNext').onclick=()=>{if(campaignState.page<campaignState.totalPages){campaignState.page++;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))}};el('campaignPageNumbers').onclick=e=>{const b=e.target.closest('[data-campaign-page]');if(b){campaignState.page=Number(b.dataset.campaignPage);refreshCampaigns().catch(err=>show(err.message||String(err),'err'))}};
-      el('campaignBody').onclick=e=>{const b=e.target.closest('[data-campaign-action]');if(!b)return;document.querySelectorAll('.campaign-more[open]').forEach(d=>d.removeAttribute('open'));const id=Number(b.dataset.id),action=b.dataset.campaignAction;const run={view:()=>openCampaignDetail(id),edit:()=>openCampaignEditor(id),preview:()=>openCampaignPreview(id),awards:()=>openCampaignAwards(id),cancel:()=>cancelCampaign(id),delete:()=>deleteCampaign(id)}[action];if(run)Promise.resolve(run()).catch(err=>show(err.message||String(err),'err'))};
+      el('campaignBody').onclick=e=>{const b=e.target.closest('[data-campaign-action]');if(!b)return;const id=Number(b.dataset.id),action=b.dataset.campaignAction;const run={view:()=>openCampaignDetail(id),edit:()=>openCampaignEditor(id),preview:()=>openCampaignPreview(id),awards:()=>openCampaignAwards(id),cancel:()=>cancelCampaign(id),delete:()=>deleteCampaign(id)}[action];if(run)Promise.resolve(run()).catch(err=>show(err.message||String(err),'err'))};
       el('campaignEditorForm').onsubmit=e=>{e.preventDefault();submitCampaignEditor()};el('btnCampaignEditorClose').onclick=el('btnCampaignEditorCancel').onclick=()=>campaignCloseDialog('campaignEditorModal');el('btnCampaignDetailClose').onclick=el('btnCampaignDetailDone').onclick=()=>campaignCloseDialog('campaignDetailModal');el('btnCampaignPreviewClose').onclick=el('btnCampaignPreviewDone').onclick=()=>campaignCloseDialog('campaignPreviewModal');el('btnCampaignAwardsClose').onclick=el('btnCampaignAwardsDone').onclick=()=>campaignCloseDialog('campaignAwardsModal');
       el('campBoard').onchange=syncCampaignEditorHelp;el('campFrequency').onchange=syncCampaignEditorHelp;el('campTopN').oninput=updateCampaignRewardSummary;el('campBudget').oninput=updateCampaignRewardSummary;el('btnCampAddReward').onclick=()=>{campRewardState.push({mode:'range',rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};el('campRewardEditor').onchange=e=>{const row=e.target.closest('[data-reward-idx]');if(!row)return;const idx=Number(row.dataset.rewardIdx),field=e.target.dataset.rewardField;if(!field)return;if(field==='mode'){campRewardState[idx].mode=e.target.value;if(e.target.value==='single'){campRewardState[idx].rank=campRewardState[idx].rank||1;campRewardState[idx].rank_from=0;campRewardState[idx].rank_to=0}else{campRewardState[idx].rank=0;campRewardState[idx].rank_from=campRewardState[idx].rank_from||1;campRewardState[idx].rank_to=campRewardState[idx].rank_to||campRewardState[idx].rank_from}renderCampRewards()}};el('campRewardEditor').oninput=e=>{const row=e.target.closest('[data-reward-idx]');if(!row)return;const idx=Number(row.dataset.rewardIdx),field=e.target.dataset.rewardField;if(field&&field!=='mode'){campRewardState[idx][field]=Number(e.target.value)||0;updateCampaignRewardSummary()}};el('campRewardEditor').onclick=e=>{const b=e.target.closest('[data-reward-delete]');if(b&&campRewardState.length>1){campRewardState.splice(Number(b.dataset.rewardDelete),1);renderCampRewards()}};
       el('btnCampaignPreviewLoad').onclick=()=>loadCampaignPreview();el('btnCampaignConfirmSettle').onclick=()=>confirmCampaignSettle().catch(e=>campaignShowError('campaignPreviewError',e.message||String(e)));
@@ -3493,6 +3508,48 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 
 
 
+
+    const MODULE_SWITCH_LABELS={
+      checkin:'每日签到',ranking:'排行榜/排行活动',tasks:'任务中心',ledger:'发放总账',creative:'AI 创作中心','account-patrol':'账号巡检',notify:'通知中心',lottery:'幸运抽奖','daily-report':'运营日报',redistribution:'额度回流'
+    };
+    const MODULE_SWITCH_HINTS={
+      checkin:'关闭后用户不能签到。',ranking:'关闭后用户侧排行榜和活动横幅不可用，管理配置保留。',tasks:'关闭后用户任务列表为空，不能领取任务奖励。',ledger:'关闭后用户侧我的奖励不可用，管理总账仍可审计。',creative:'关闭后用户不能进入创作选项、提交作品或查看作品。','account-patrol':'关闭后停止定时巡检，仍可保留巡检配置。',notify:'关闭后不再推送通知。',lottery:'关闭后用户不能抽奖。','daily-report':'关闭后不再定时发送日报。',redistribution:'关闭后用户侧领取/抽取回流奖励不可用。'
+    };
+    async function loadModuleSwitches(){
+      const box=el('moduleSwitchGrid'); if(!box) return;
+      box.innerHTML='<div class="sub">正在读取模块状态…</div>';
+      try{
+        const data=await api('./api/admin/modules/settings');
+        renderModuleSwitches(data.items||[]);
+      }catch(error){
+        box.innerHTML='<div class="campaign-inline-error show">模块状态读取失败：'+escapeHtml(error.message||String(error))+'</div>';
+      }
+    }
+    function renderModuleSwitches(items){
+      const box=el('moduleSwitchGrid'); if(!box) return;
+      if(!items.length){ box.innerHTML='<div class="sub">暂无模块</div>'; return; }
+      box.innerHTML=items.map(m=>{
+        const id=String(m.id||''),on=m.enabled!==false;
+        return `<div class="module-switch-item ${on?'':'off'}" data-module-id="${escapeHtml(id)}">
+          <div class="module-switch-title"><div><strong>${escapeHtml(MODULE_SWITCH_LABELS[id]||m.name||id)}</strong><span> · ${escapeHtml(id)}</span></div><label class="switch"><input type="checkbox" data-module-switch="${escapeHtml(id)}" ${on?'checked':''}/><span>${on?'已启用':'已停用'}</span></label></div>
+          <div class="module-switch-desc">${escapeHtml(MODULE_SWITCH_HINTS[id]||m.description||'')}</div>
+        </div>`;
+      }).join('');
+    }
+    async function toggleModuleSwitch(id, enabled){
+      const data=await api('./api/admin/modules/settings',{method:'PUT',body:JSON.stringify({id,enabled})});
+      renderModuleSwitches(data.items||[]);
+      show(`${MODULE_SWITCH_LABELS[id]||id} 已${enabled?'启用':'停用'}`,'ok');
+      // Keep module-specific forms in sync when the current page has matching controls.
+      if(id==='checkin') refresh().catch(()=>{});
+      else if(id==='lottery') refreshLotteryAll().catch(()=>{});
+      else if(id==='tasks') refreshTasksAdmin().catch(()=>{});
+      else if(id==='account-patrol') refreshPatrolSettings().catch(()=>{});
+      else if(id==='notify') refreshNotify().catch(()=>{});
+      else if(id==='daily-report') refreshReport().catch(()=>{});
+      else if(id==='redistribution') refreshRedistribution().catch(()=>{});
+    }
+
     async function refreshOverview(){
       const box = el('overviewGrid');
       const campBox = el('overviewCampaigns');
@@ -3500,6 +3557,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(msg){ msg.className='msg'; msg.textContent=''; }
       try{
         const d = await api('./api/admin/overview');
+        await loadModuleSwitches();
         const led = d.ledger_today||{};
         const ck = d.checkin||{};
         const lot = d.lottery||{};
@@ -3651,6 +3709,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const btnLotAdd=el('btnLotteryAddPrize'); if(btnLotAdd) btnLotAdd.onclick=()=>{ if(lotteryPrizes.length>=12){ show('最多 12 个奖项','err'); return; } lotteryPrizes.push({label:'新奖项',amount:0,weight:1}); renderLotteryPrizes(); };
     const btnLotReset=el('btnLotteryResetPrize'); if(btnLotReset) btnLotReset.onclick=()=>{ lotteryPrizes=LOTTERY_DEFAULT_PRIZES.map(p=>({...p})); renderLotteryPrizes(); };
     const btnOverviewRefresh=el('btnOverviewRefresh'); if(btnOverviewRefresh) btnOverviewRefresh.onclick=()=>refreshOverview().then(()=>show('摘要已刷新','ok')).catch(e=>show(e.message||e,'err'));
+    const btnModuleSwitchRefresh=el('btnModuleSwitchRefresh'); if(btnModuleSwitchRefresh) btnModuleSwitchRefresh.onclick=()=>loadModuleSwitches().then(()=>show('模块状态已刷新','ok')).catch(e=>show(e.message||e,'err'));
+    const moduleSwitchGrid=el('moduleSwitchGrid'); if(moduleSwitchGrid) moduleSwitchGrid.onchange=(e)=>{const input=e.target.closest('[data-module-switch]'); if(!input)return; const id=input.dataset.moduleSwitch; const enabled=!!input.checked; toggleModuleSwitch(id,enabled).catch(err=>{input.checked=!enabled; show(err.message||String(err),'err'); loadModuleSwitches().catch(()=>{});});};
     const themeBtn=el('themeBtn'); if(themeBtn) themeBtn.onclick=()=>toggleTheme();
     const initHash=(location.hash||'').toLowerCase();
     if(initHash==='#patrol') setAdminSection('patrol');

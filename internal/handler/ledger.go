@@ -246,6 +246,9 @@ func (h *Handler) AdminLedgerStats(w http.ResponseWriter, r *http.Request) {
 
 // MeLedger GET /api/me/ledger — current user's own reward ledger (read-only).
 func (h *Handler) MeLedger(w http.ResponseWriter, r *http.Request) {
+	if !h.requireModuleEnabled(w, r, "ledger") {
+		return
+	}
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
