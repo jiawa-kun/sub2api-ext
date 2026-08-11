@@ -47,7 +47,7 @@ button.secondary, button.sm.secondary, .tabs button, .tpl, .theme-btn{
   background:var(--soft2); color:var(--text); box-shadow:none; border:1px solid var(--border);
 }
 button.sm{padding:7px 11px; font-size:.78rem; border-radius:10px}
-button.danger{background:rgba(244,63,94,.1); color:var(--danger); border:1px solid rgba(244,63,94,.22); box-shadow:none}
+button.danger{background:rgba(244,63,94,.1)!important; color:var(--danger)!important; border:1px solid rgba(244,63,94,.22)!important; box-shadow:none!important}
 .top{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:4px 2px 2px}
 .top h1{margin:0; font-size:1.22rem; letter-spacing:.2px}
 .top .lead{margin:6px 0 0; color:var(--muted); font-size:.8rem; line-height:1.45}
@@ -249,6 +249,42 @@ html.light .patrol-log .l-warn{color:#b45309}
 html.light .patrol-log .l-error{color:#be123c}
 .split{display:grid; grid-template-columns:1.1fr .9fr; gap:12px}
 @media (max-width:860px){ .split{grid-template-columns:1fr} }
+
+.campaign-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 14px}
+.campaign-guide-step{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);display:flex;gap:9px;align-items:flex-start}
+.campaign-guide-step b{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:rgba(91,140,255,.14);color:var(--primary);flex:none;font-size:.76rem}
+.campaign-guide-step strong{display:block;font-size:.78rem;margin-bottom:2px}.campaign-guide-step span{display:block;color:var(--muted);font-size:.7rem;line-height:1.4}
+.campaign-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 0 10px}
+.campaign-list-head h3{margin:0;font-size:.9rem}.campaign-head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.campaign-filters{display:grid;grid-template-columns:1.5fr repeat(3,minmax(120px,.75fr)) auto;gap:8px;align-items:end;padding:10px;border:1px solid var(--border);border-radius:14px;background:var(--panel);margin-bottom:10px}
+.campaign-filters .field{margin:0}.campaign-filter-actions{display:flex;gap:6px}
+.campaign-table{min-width:900px}.campaign-name-cell strong{display:block;font-size:.82rem}.campaign-name-cell span{display:block;color:var(--muted);font-size:.68rem;margin-top:3px}
+.campaign-status{display:inline-flex;padding:4px 8px;border-radius:999px;font-size:.7rem;font-weight:700;border:1px solid var(--border);white-space:nowrap}
+.campaign-status.draft{color:#94a3b8}.campaign-status.active{color:var(--ok);background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25)}
+.campaign-status.partial{color:var(--warn);background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}
+.campaign-status.settled{color:#60a5fa;background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.25)}
+.campaign-status.cancelled{color:var(--muted)}
+.campaign-row-actions{display:flex;align-items:center;gap:5px;white-space:nowrap}.campaign-row-actions button{padding:6px 9px}
+.campaign-more{position:relative}.campaign-more summary{list-style:none;cursor:pointer;border:1px solid var(--border);border-radius:9px;padding:6px 9px;font-size:.74rem;font-weight:700;background:var(--soft2)}
+.campaign-more summary::-webkit-details-marker{display:none}.campaign-more-menu{position:absolute;right:0;top:calc(100% + 5px);z-index:20;min-width:128px;padding:6px;border:1px solid var(--border);border-radius:11px;background:var(--card);box-shadow:var(--shadow);display:grid;gap:4px}
+.campaign-more-menu button{width:100%;text-align:left;background:transparent;color:var(--text);box-shadow:none;border:0;padding:7px 8px}.campaign-more-menu button:hover{background:var(--soft2);transform:none}.campaign-more-menu button.danger{color:var(--danger)}
+.campaign-pagination{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;color:var(--muted);font-size:.74rem}.campaign-page-controls{display:flex;align-items:center;gap:5px}.campaign-page-controls button{min-width:32px;padding:6px 9px}.campaign-page-controls button.current{background:var(--primary);color:#fff}.campaign-page-controls button:disabled{opacity:.4}
+dialog.campaign-dialog{width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 28px);padding:0;border:1px solid var(--border);border-radius:18px;background:var(--card);color:var(--text);box-shadow:0 28px 80px rgba(0,0,0,.45);overflow:hidden}
+dialog.campaign-dialog.wide{width:min(940px,calc(100vw - 24px))}dialog.campaign-dialog::backdrop{background:rgba(2,6,23,.68);backdrop-filter:blur(3px)}
+.campaign-dialog-shell{display:flex;flex-direction:column;max-height:calc(100vh - 30px)}.campaign-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.campaign-dialog-head h3{margin:0;font-size:1rem}.campaign-dialog-head p{margin:4px 0 0;color:var(--muted);font-size:.72rem;line-height:1.45}.campaign-dialog-close{background:transparent!important;color:var(--muted)!important;border:1px solid var(--border)!important;box-shadow:none!important;padding:5px 9px!important}
+.campaign-dialog-body{padding:16px 18px;overflow:auto}.campaign-dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid var(--border);background:var(--panel)}
+.campaign-form-section{border:1px solid var(--border);border-radius:14px;padding:12px;margin-bottom:12px;background:var(--panel)}.campaign-form-section:last-child{margin-bottom:0}.campaign-form-section h4{margin:0 0 4px;font-size:.84rem}.campaign-form-section>p{margin:0 0 8px;color:var(--muted);font-size:.7rem;line-height:1.4}
+.campaign-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.campaign-form-grid .full{grid-column:1/-1}.campaign-form-grid input[type=date],.campaign-form-grid input[type=time],.campaign-award-filters input{width:100%;padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--input-bg);color:var(--text);font-size:.9rem;outline:none}
+.campaign-board-help,.campaign-frequency-help{padding:8px 10px;border-radius:10px;background:rgba(91,140,255,.07);color:var(--muted);font-size:.7rem;line-height:1.45;margin-top:7px}
+.campaign-reward-list{display:grid;gap:8px}.campaign-reward-row{display:grid;grid-template-columns:110px 1fr 150px auto;gap:8px;align-items:center;padding:9px;border:1px solid var(--border);border-radius:12px;background:var(--card)}
+.campaign-rank-fields{display:flex;align-items:center;gap:6px;min-width:0}.campaign-rank-fields input{min-width:58px}.campaign-rank-fields span{font-size:.72rem;color:var(--muted);white-space:nowrap}.campaign-reward-row .reward-amount-wrap{display:flex;align-items:center;gap:6px}.campaign-reward-row .reward-amount-wrap span{font-size:.7rem;color:var(--muted)}
+.campaign-reward-summary{margin-top:9px;padding:9px 11px;border-radius:11px;border:1px solid rgba(91,140,255,.2);background:rgba(91,140,255,.07);font-size:.74rem;line-height:1.55}.campaign-reward-summary.warn{border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.08);color:var(--warn)}
+.campaign-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.campaign-detail-item{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-detail-item .k{font-size:.68rem;color:var(--muted)}.campaign-detail-item .v{font-size:.8rem;font-weight:700;margin-top:3px;overflow-wrap:anywhere}.campaign-detail-rewards{display:grid;gap:6px;margin-top:10px}.campaign-detail-reward{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:var(--panel);font-size:.76rem}
+.campaign-preview-stats,.campaign-award-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.campaign-preview-stat{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-preview-stat .k{font-size:.66rem;color:var(--muted)}.campaign-preview-stat .v{font-size:.9rem;font-weight:760;margin-top:3px}
+.campaign-award-filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px}.campaign-award-filters .field{margin:0}.campaign-award-error{max-width:250px;white-space:normal;color:var(--danger);font-size:.68rem;line-height:1.35}.campaign-empty{text-align:center;padding:28px 12px;color:var(--muted);font-size:.78rem}.campaign-inline-error{display:none;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(244,63,94,.08);color:var(--danger);font-size:.74rem}.campaign-inline-error.show{display:block}
+@media(max-width:760px){.campaign-guide{grid-template-columns:1fr}.campaign-filters{grid-template-columns:1fr 1fr}.campaign-filters .keyword{grid-column:1/-1}.campaign-filter-actions{grid-column:1/-1}.campaign-form-grid{grid-template-columns:1fr}.campaign-form-grid .full{grid-column:auto}.campaign-reward-row{grid-template-columns:1fr}.campaign-detail-grid{grid-template-columns:1fr 1fr}.campaign-preview-stats,.campaign-award-summary{grid-template-columns:1fr 1fr}.campaign-award-filters{grid-template-columns:1fr 1fr}.campaign-award-filters .user-filter,.campaign-award-filters .actions{grid-column:1/-1}.campaign-pagination{align-items:flex-start;flex-direction:column}.campaign-dialog-body{padding:13px}.campaign-dialog-head,.campaign-dialog-foot{padding-left:13px;padding-right:13px}}
+
 .audit-item{border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:8px; background:var(--panel)}
 .audit-meta{font-size:.72rem; color:var(--muted); margin-bottom:4px}
 .audit-sum{font-size:.82rem; line-height:1.4}
@@ -1076,67 +1112,116 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <div class="card">
         <div class="card-head">
           <div>
-            <h2>排行活动结算</h2>
-            <p class="desc">支持奖励榜 / 消费榜按名次结算发奖。建议先预览再结算；失败标记 partial 可重试。取消不回滚已发放金额。</p>
+            <h2>排行活动管理</h2>
+            <p class="desc">根据奖励榜或消费榜的最终排名，给榜单前几名用户批量发放额度。</p>
           </div>
           <span class="badge" id="campaignBadge">—</span>
         </div>
 
-        <div class="section-title"><h3>新建活动</h3></div>
-        <div class="split">
-          <div>
-            <div class="field"><label for="campName">名称</label><input id="campName" type="text" placeholder="例如：7 月奖励榜 Top10" /></div>
-            <div class="field">
-              <label for="campBoard">榜单</label>
-              <select id="campBoard">
-                <option value="rewards">奖励榜（按扩展奖励排行结算发奖）</option>
-                <option value="consumption">消费榜（按消费排行结算发奖）</option>
-              </select>
-            </div>
-            <div class="field"><label for="campStart">开始日期</label><input id="campStart" type="date" /></div>
-            <div class="field"><label for="campEnd">结束日期</label><input id="campEnd" type="date" /></div>
-            <div class="field"><label for="campFrequency">结算周期</label><select id="campFrequency"><option value="once">一次性</option><option value="daily">每日</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
-          </div>
-          <div>
-            <div class="field"><label for="campSettlementTime">自动结算时间（上海）</label><input id="campSettlementTime" type="time" value="03:00" /></div>
-            <div class="field"><label for="campTopN">Top N</label><input id="campTopN" type="number" min="1" max="100" value="10" /></div>
-            <div class="field"><label for="campBudget">预算上限（0=不限）</label><input id="campBudget" type="number" step="0.0001" min="0" value="0" /></div>
-            <div class="field">
-              <label for="campStatus">状态</label>
-              <select id="campStatus">
-                <option value="draft">草稿</option>
-                <option value="active" selected>进行中</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>奖励规则</label>
-              <div id="campRewardEditor" class="reward-editor"></div>
-              <button type="button" class="secondary sm" id="btnCampAddReward">新增奖励档位</button>
-            </div>
-          </div>
-        </div>
-        <div class="toolbar">
-          <button type="button" class="sm" id="btnCampCreate">创建活动</button>
-          <button type="button" class="secondary sm" id="btnCampRefresh">刷新列表</button>
+        <div class="campaign-guide">
+          <div class="campaign-guide-step"><b>1</b><div><strong>创建活动</strong><span>设置排行范围、活动时间和奖励档位。</span></div></div>
+          <div class="campaign-guide-step"><b>2</b><div><strong>预览名单</strong><span>结算前确认获奖用户、跳过原因和预计支出。</span></div></div>
+          <div class="campaign-guide-step"><b>3</b><div><strong>确认发奖</strong><span>奖励进入用户余额，并保留发奖明细和流水编号。</span></div></div>
         </div>
 
-        <div class="section-title" style="margin-top:16px"><h3>活动列表</h3></div>
-        <div class="toolbar"><label class="field" style="margin:0;min-width:260px"><span>手工周期键（留空=上一完整周期）</span><input id="campPeriodKey" type="text" placeholder="每日 2026-08-01 · 每周 2026-W31 · 每月 2026-08" /></label></div>
+        <div class="campaign-list-head">
+          <h3>活动列表</h3>
+          <div class="campaign-head-actions">
+            <button type="button" class="secondary sm" id="btnCampaignRefresh">刷新</button>
+            <button type="button" class="sm" id="btnCampaignNew">＋ 新建活动</button>
+          </div>
+        </div>
+        <div class="campaign-filters">
+          <div class="field keyword"><label for="campaignFilterKeyword">活动名称</label><input id="campaignFilterKeyword" type="text" placeholder="输入活动名称搜索" /></div>
+          <div class="field"><label for="campaignFilterBoard">榜单</label><select id="campaignFilterBoard"><option value="">全部榜单</option><option value="rewards">奖励榜</option><option value="consumption">消费榜</option></select></div>
+          <div class="field"><label for="campaignFilterFrequency">结算周期</label><select id="campaignFilterFrequency"><option value="">全部周期</option><option value="once">一次性</option><option value="daily">每日</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
+          <div class="field"><label for="campaignFilterStatus">状态</label><select id="campaignFilterStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="active">进行中</option><option value="partial">部分成功</option><option value="settled">已完成</option><option value="cancelled">已取消</option></select></div>
+          <div class="campaign-filter-actions"><button type="button" class="sm" id="btnCampaignSearch">查询</button><button type="button" class="secondary sm" id="btnCampaignReset">重置</button></div>
+        </div>
         <div class="tbl-wrap">
-          <table class="tbl">
-            <thead><tr><th>ID</th><th>名称</th><th>榜单</th><th>区间</th><th>周期</th><th>自动时间</th><th>TopN</th><th>预算</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="campaignBody"><tr><td colspan="10" class="sub">加载中…</td></tr></tbody>
+          <table class="tbl campaign-table">
+            <thead><tr><th>活动</th><th>排名方式</th><th>活动时间</th><th>结算方式</th><th>奖励范围</th><th>状态</th><th>发奖记录</th><th>操作</th></tr></thead>
+            <tbody id="campaignBody"><tr><td colspan="8" class="sub">加载中…</td></tr></tbody>
           </table>
         </div>
-        <div class="section-title" style="margin-top:16px"><h3>发奖明细</h3></div>
-        <div class="hint" id="campaignAwardsHint">选择活动后查看</div>
-        <div class="tbl-wrap">
-          <table class="tbl">
-            <thead><tr><th>周期</th><th>名次</th><th>用户</th><th>金额</th><th>状态</th><th>Ledger</th></tr></thead>
-            <tbody id="campaignAwardsBody"><tr><td colspan="6" class="sub">—</td></tr></tbody>
-          </table>
+        <div class="campaign-pagination">
+          <span id="campaignPageMeta">—</span>
+          <div class="campaign-page-controls"><button type="button" class="secondary sm" id="btnCampaignPrev">上一页</button><span id="campaignPageNumbers"></span><button type="button" class="secondary sm" id="btnCampaignNext">下一页</button></div>
         </div>
       </div>
+
+      <dialog class="campaign-dialog" id="campaignEditorModal">
+        <form class="campaign-dialog-shell" id="campaignEditorForm">
+          <div class="campaign-dialog-head"><div><h3 id="campaignEditorTitle">新建排行活动</h3><p>设置活动后，先预览获奖名单，再确认发放额度。</p></div><button type="button" class="campaign-dialog-close" id="btnCampaignEditorClose">✕</button></div>
+          <div class="campaign-dialog-body">
+            <div class="campaign-form-section">
+              <h4>1. 活动信息</h4><p>选择榜单后，系统会按照活动时间统计排名。</p>
+              <div class="campaign-form-grid">
+                <div class="field full"><label for="campName">活动名称</label><input id="campName" type="text" maxlength="80" placeholder="例如：8 月消费榜 Top10" /></div>
+                <div class="field"><label for="campBoard">按什么排名</label><select id="campBoard"><option value="rewards">奖励榜</option><option value="consumption">消费榜</option></select><div class="campaign-board-help" id="campaignBoardHelp"></div></div>
+                <div class="field"><label for="campTopN">统计前多少名</label><input id="campTopN" type="number" min="1" max="100" value="10" /><div class="hint">排行榜最多读取的人数，不代表每个名次都必须发奖。</div></div>
+                <div class="field"><label for="campStatus">创建后是否立即生效</label><select id="campStatus"><option value="draft">保存为草稿</option><option value="active">立即生效</option></select></div>
+                <div class="field"><label for="campBudget">每个结算周期最多发放</label><input id="campBudget" type="number" step="0.0001" min="0" value="0" /><div class="hint">填写 0 表示不限制预算。</div></div>
+              </div>
+            </div>
+            <div class="campaign-form-section">
+              <h4>2. 活动时间与结算方式</h4><p>每日、每周、每月均结算上一个完整自然周期，时区固定为上海。</p>
+              <div class="campaign-form-grid">
+                <div class="field"><label for="campStart">开始日期</label><input id="campStart" type="date" /></div>
+                <div class="field"><label for="campEnd">结束日期</label><input id="campEnd" type="date" /></div>
+                <div class="field"><label for="campFrequency">结算周期</label><select id="campFrequency"><option value="once">一次性活动</option><option value="daily">每日结算</option><option value="weekly">每周结算</option><option value="monthly">每月结算</option></select><div class="campaign-frequency-help" id="campaignFrequencyHelp"></div></div>
+                <div class="field" id="campSettlementTimeWrap"><label for="campSettlementTime">自动结算时间（上海）</label><input id="campSettlementTime" type="time" value="03:00" /></div>
+              </div>
+            </div>
+            <div class="campaign-form-section">
+              <h4>3. 奖励方案</h4><p>单个名次和名次区间分开填写；区间奖励表示范围内每个人都获得相同额度。</p>
+              <div class="campaign-reward-list" id="campRewardEditor"></div>
+              <div class="toolbar"><button type="button" class="secondary sm" id="btnCampAddReward">＋ 新增奖励档位</button></div>
+              <div class="campaign-reward-summary" id="campaignRewardSummary">—</div>
+            </div>
+            <div class="campaign-inline-error" id="campaignEditorError"></div>
+          </div>
+          <div class="campaign-dialog-foot"><button type="button" class="secondary" id="btnCampaignEditorCancel">取消</button><button type="submit" id="btnCampaignEditorSubmit">创建活动</button></div>
+        </form>
+      </dialog>
+
+      <dialog class="campaign-dialog" id="campaignDetailModal">
+        <div class="campaign-dialog-shell">
+          <div class="campaign-dialog-head"><div><h3 id="campaignDetailTitle">活动详情</h3><p>查看活动配置、奖励方案和发奖记录数量。</p></div><button type="button" class="campaign-dialog-close" id="btnCampaignDetailClose">✕</button></div>
+          <div class="campaign-dialog-body" id="campaignDetailBody"></div>
+          <div class="campaign-dialog-foot"><button type="button" class="secondary" id="btnCampaignDetailDone">关闭</button></div>
+        </div>
+      </dialog>
+
+      <dialog class="campaign-dialog wide" id="campaignPreviewModal">
+        <div class="campaign-dialog-shell">
+          <div class="campaign-dialog-head"><div><h3 id="campaignPreviewTitle">发奖预览</h3><p>预览不会发放额度；确认结算后才会写入用户余额和发放流水。</p></div><button type="button" class="campaign-dialog-close" id="btnCampaignPreviewClose">✕</button></div>
+          <div class="campaign-dialog-body">
+            <div class="toolbar" id="campaignPreviewPeriodWrap"><label class="field" style="margin:0;min-width:260px"><span>指定历史周期（可选）</span><input id="campaignPreviewPeriod" type="text" placeholder="留空表示上一完整周期" /></label><button type="button" class="secondary sm" id="btnCampaignPreviewLoad">重新预览</button></div>
+            <div id="campaignPreviewBody"><div class="campaign-empty">正在加载发奖预览…</div></div>
+            <div class="campaign-inline-error" id="campaignPreviewError"></div>
+          </div>
+          <div class="campaign-dialog-foot"><button type="button" class="secondary" id="btnCampaignPreviewDone">关闭</button><button type="button" id="btnCampaignConfirmSettle">确认结算并发奖</button></div>
+        </div>
+      </dialog>
+
+      <dialog class="campaign-dialog wide" id="campaignAwardsModal">
+        <div class="campaign-dialog-shell">
+          <div class="campaign-dialog-head"><div><h3 id="campaignAwardsTitle">发奖明细</h3><p>这里展示实际进入额度发放流程的成功、失败和自动跳过记录。</p></div><button type="button" class="campaign-dialog-close" id="btnCampaignAwardsClose">✕</button></div>
+          <div class="campaign-dialog-body">
+            <div class="campaign-award-summary" id="campaignAwardsSummary"></div>
+            <div class="campaign-award-filters">
+              <div class="field"><label for="campaignAwardPeriod">结算周期</label><input id="campaignAwardPeriod" type="text" placeholder="例如 2026-08" /></div>
+              <div class="field"><label for="campaignAwardStatus">发放结果</label><select id="campaignAwardStatus"><option value="">全部结果</option><option value="success">发放成功</option><option value="failed">发放失败</option><option value="skipped">已发放，自动跳过</option></select></div>
+              <div class="field user-filter"><label for="campaignAwardUser">用户 ID</label><input id="campaignAwardUser" type="number" min="1" placeholder="输入用户 ID" /></div>
+              <div class="campaign-filter-actions actions"><button type="button" class="sm" id="btnCampaignAwardsSearch">查询</button><button type="button" class="secondary sm" id="btnCampaignAwardsReset">重置</button></div>
+            </div>
+            <div class="tbl-wrap"><table class="tbl" style="min-width:820px"><thead><tr><th>结算周期</th><th>名次</th><th>用户 ID</th><th>发放额度</th><th>发放结果</th><th>流水编号</th><th>发放时间</th><th>失败原因</th></tr></thead><tbody id="campaignAwardsBody"><tr><td colspan="8" class="sub">加载中…</td></tr></tbody></table></div>
+            <div class="campaign-pagination"><span id="campaignAwardsPageMeta">—</span><div class="campaign-page-controls"><button type="button" class="secondary sm" id="btnCampaignAwardsPrev">上一页</button><span id="campaignAwardsPageNumbers"></span><button type="button" class="secondary sm" id="btnCampaignAwardsNext">下一页</button></div></div>
+          </div>
+          <div class="campaign-dialog-foot"><button type="button" class="secondary" id="btnCampaignAwardsDone">关闭</button></div>
+        </div>
+      </dialog>
     </div>
 
     <div id="sec-tasks" class="hidden">
@@ -2957,121 +3042,136 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       redisMsg('批次 #'+id+' 已删除','ok');
       await refreshRedistribution();
     }
-    function defaultCampRewards(){ return [{rank:1,amount:5},{rank_from:2,rank_to:5,amount:1},{rank_from:6,rank_to:10,amount:0.5}]; }
+    const campaignLabels={
+      board:{rewards:'奖励榜',consumption:'消费榜'},
+      frequency:{once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'},
+      status:{draft:'草稿',active:'进行中',partial:'部分成功',settled:'已完成',cancelled:'已取消'},
+      award:{success:'发放成功',failed:'发放失败',skipped:'已发放，自动跳过',planned:'待发放',retry_failed:'失败待重试',budget_cut:'超出预算',no_reward:'该名次无奖励',already_success:'已经发放',already_skipped:'已经跳过'}
+    };
+    const campaignState={items:[],page:1,pageSize:10,total:0,totalPages:0,editingId:0,previewId:0,previewData:null,awardsId:0,awardsPage:1,awardsTotalPages:0};
+    function defaultCampRewards(){return [{mode:'single',rank:1,rank_from:0,rank_to:0,amount:5},{mode:'range',rank:0,rank_from:2,rank_to:5,amount:1},{mode:'range',rank:0,rank_from:6,rank_to:10,amount:.5}]}
     let campRewardState=defaultCampRewards();
-    function renderCampRewards(){const box=el('campRewardEditor');if(!box)return;box.innerHTML=campRewardState.map((r,i)=>`<div class="reward-row" data-reward-idx="${i}"><input type="number" min="1" placeholder="精确名次" value="${r.rank||''}"/><input type="number" min="1" placeholder="区间起始" value="${r.rank_from||''}"/><input type="number" min="1" placeholder="区间结束" value="${r.rank_to||''}"/><input type="number" min="0" step="0.0001" placeholder="奖励额度" value="${r.amount||0}"/><button type="button" class="secondary sm" data-reward-del="${i}">删除</button></div>`).join('');box.querySelectorAll('.reward-row').forEach(row=>{const i=Number(row.dataset.rewardIdx),r=campRewardState[i];const inputs=row.querySelectorAll('input');inputs[0].oninput=e=>{r.rank=Number(e.target.value)||0;r.rank_from=0;r.rank_to=0};inputs[1].oninput=e=>{r.rank_from=Number(e.target.value)||0;r.rank=0};inputs[2].oninput=e=>{r.rank_to=Number(e.target.value)||0;r.rank=0};inputs[3].oninput=e=>{r.amount=Number(e.target.value)||0};});box.querySelectorAll('[data-reward-del]').forEach(b=>b.onclick=()=>{campRewardState.splice(Number(b.dataset.rewardDel),1);renderCampRewards()})}
-    function validateCampRewards(){
-      const ranges=[];
-      campRewardState.forEach((r,i)=>{
-        const hasRank=Number(r.rank)>0, hasFrom=Number(r.rank_from)>0, hasTo=Number(r.rank_to)>0;
-        const blank=!hasRank&&!hasFrom&&!hasTo&&Number(r.amount||0)===0;
-        if(blank) return;
-        if(Number(r.amount||0)<=0) throw new Error('奖励档位 '+(i+1)+' 的奖励额度必须大于 0');
-        const from=hasRank?Number(r.rank):Number(r.rank_from), to=hasRank?Number(r.rank):Number(r.rank_to);
-        if(!from || !to || to<from) throw new Error('奖励档位 '+(i+1)+' 的名次范围无效');
-        ranges.push({from,to,index:i});
-      });
-      ranges.sort((a,b)=>a.from-b.from);
-      for(let i=0;i<ranges.length;i++) for(let j=i+1;j<ranges.length;j++) if(ranges[i].from===ranges[j].from&&ranges[i].to===ranges[j].to&&ranges[i].from===ranges[i].to) throw new Error('奖励档位 '+(ranges[i].index+1)+' 与 '+(ranges[j].index+1)+' 的精确名次重复');
-      for(let i=0;i<ranges.length;i++) for(let j=i+1;j<ranges.length;j++) if(ranges[i].from!==ranges[i].to&&ranges[j].from!==ranges[j].to&&ranges[i].from<=ranges[j].to&&ranges[j].from<=ranges[i].to) throw new Error('奖励档位 '+(ranges[i].index+1)+' 与 '+(ranges[j].index+1)+' 的区间重叠');
-      if(!ranges.length) throw new Error('至少配置一个奖励档位');
-      return campRewardState.filter(r=>Number(r.rank)>0||(Number(r.rank_from)>0&&Number(r.rank_to)>=Number(r.rank_from)));
+    function campaignCloseDialog(id){const dialog=el(id);if(dialog&&dialog.open)dialog.close()}
+    function campaignShowError(id,message){const box=el(id);if(!box)return;box.textContent=message||'';box.classList.toggle('show',Boolean(message))}
+    function campaignAmountForRank(rules,rank){let range=0,exact=null;(rules||[]).forEach(r=>{if(Number(r.rank)===rank)exact=Number(r.amount||0);if(Number(r.rank_from)>0&&rank>=Number(r.rank_from)&&rank<=Number(r.rank_to))range=Number(r.amount||0)});return exact===null?range:exact}
+    function campaignRewardLabel(rule){if(Number(rule.rank)>0)return `第 ${Number(rule.rank)} 名`;return `第 ${Number(rule.rank_from)}～${Number(rule.rank_to)} 名`}
+    function campaignRewardSpend(campaign){const top=Math.max(0,Number(campaign.top_n||0));let count=0,spend=0;for(let rank=1;rank<=top;rank++){const amount=campaignAmountForRank(campaign.rewards||[],rank);if(amount>0){count++;spend+=amount}}return {count,spend}}
+    function campaignRulesFromAPI(rules){return (Array.isArray(rules)?rules:[]).map(r=>Number(r.rank)>0?{mode:'single',rank:Number(r.rank),rank_from:0,rank_to:0,amount:Number(r.amount||0)}:{mode:'range',rank:0,rank_from:Number(r.rank_from||0),rank_to:Number(r.rank_to||0),amount:Number(r.amount||0)})}
+    function renderCampRewards(){
+      const box=el('campRewardEditor');if(!box)return;
+      if(!campRewardState.length)campRewardState=[{mode:'single',rank:1,rank_from:0,rank_to:0,amount:0}];
+      box.innerHTML=campRewardState.map((r,i)=>{
+        const single=r.mode!=='range';
+        const fields=single
+          ? `<span>第</span><input type="number" min="1" data-reward-field="rank" value="${Number(r.rank)||''}" aria-label="单个名次"/><span>名</span>`
+          : `<span>第</span><input type="number" min="1" data-reward-field="rank_from" value="${Number(r.rank_from)||''}" aria-label="区间开始名次"/><span>至</span><input type="number" min="1" data-reward-field="rank_to" value="${Number(r.rank_to)||''}" aria-label="区间结束名次"/><span>名</span>`;
+        return `<div class="campaign-reward-row" data-reward-idx="${i}">
+          <select data-reward-field="mode"><option value="single" ${single?'selected':''}>单个名次</option><option value="range" ${single?'':'selected'}>名次区间</option></select>
+          <div class="campaign-rank-fields">${fields}</div>
+          <div class="reward-amount-wrap"><input type="number" min="0" step="0.0001" data-reward-field="amount" value="${Number(r.amount||0)}" aria-label="奖励额度"/><span>额度/人</span></div>
+          <button type="button" class="danger sm" data-reward-delete="${i}" ${campRewardState.length===1?'disabled':''}>删除</button>
+        </div>`;
+      }).join('');
+      updateCampaignRewardSummary();
     }
-    async function refreshCampaigns(){
-      const data=await api('./api/admin/rank/campaigns');
-      const items=data.items||[];
-      el('campaignBadge').textContent=items.length+' 个';
-      const body=el('campaignBody');
-       if(!items.length){ body.innerHTML='<tr><td colspan="10" class="sub">暂无活动</td></tr>'; return; }
-       body.innerHTML=items.map(c=>{
-         const st=c.status||'';
-         const stLabel=({draft:'草稿',active:'进行中',partial:'部分成功',settled:'已结算',cancelled:'已取消'})[st]||st;
-         const stClass=st==='partial'?'err':(st==='settled'?'ok':(st==='cancelled'?'sub':''));
-         const boardLabel=c.board==='consumption'?'消费榜':'奖励榜';
-         const freqLabel=({once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'})[c.frequency||'once']||c.frequency||'一次性';
-         return `<tr>
-         <td>${c.id}</td>
-         <td>${escapeHtml(c.name||'')}</td>
-         <td>${escapeHtml(boardLabel)}</td>
-         <td>${escapeHtml((c.start_date||'')+' ~ '+(c.end_date||''))}</td>
-         <td>${escapeHtml(freqLabel)}</td>
-         <td>${escapeHtml(c.settlement_time||'03:00')}</td>
-         <td>${c.top_n||0}</td>
-         <td>${Number(c.budget_cap||0).toFixed(4)}</td>
-        <td><span class="${stClass}">${escapeHtml(stLabel)}</span></td>
-        <td>
-          <button type="button" class="secondary sm" data-camp-awards="${c.id}">明细</button>
-          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="secondary sm" data-camp-preview="${c.id}">预览</button>`}
-          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="sm" data-camp-settle="${c.id}">${st==='partial'?'重试结算':'结算'}</button>`}
-          ${['settled','cancelled'].includes(st)?'':`<button type="button" class="secondary sm" data-camp-cancel="${c.id}">取消</button>`}
-        </td>
-      </tr>`;
+    function collectCampRewards(){return campRewardState.map(r=>r.mode==='range'?{rank_from:Number(r.rank_from||0),rank_to:Number(r.rank_to||0),amount:Number(r.amount||0)}:{rank:Number(r.rank||0),amount:Number(r.amount||0)})}
+    function validateCampRewards(){
+      const rules=collectCampRewards(),ranges=[];
+      rules.forEach((r,i)=>{const amount=Number(r.amount||0);if(amount<=0)throw new Error(`奖励档位 ${i+1} 的奖励额度必须大于 0`);const from=Number(r.rank)>0?Number(r.rank):Number(r.rank_from),to=Number(r.rank)>0?Number(r.rank):Number(r.rank_to);if(!from||!to||to<from)throw new Error(`奖励档位 ${i+1} 的名次范围无效`);ranges.push({from,to,exact:Number(r.rank)>0,index:i})});
+      for(let i=0;i<ranges.length;i++)for(let j=i+1;j<ranges.length;j++){if(ranges[i].exact&&ranges[j].exact&&ranges[i].from===ranges[j].from)throw new Error(`奖励档位 ${ranges[i].index+1} 与 ${ranges[j].index+1} 的单个名次重复`);if(!ranges[i].exact&&!ranges[j].exact&&ranges[i].from<=ranges[j].to&&ranges[j].from<=ranges[i].to)throw new Error(`奖励档位 ${ranges[i].index+1} 与 ${ranges[j].index+1} 的区间重叠`)}
+      return rules;
+    }
+    function updateCampaignRewardSummary(){
+      const box=el('campaignRewardSummary');if(!box)return;
+      const rules=collectCampRewards(),top=Math.max(0,Number(el('campTopN')?.value||0)),budget=Math.max(0,Number(el('campBudget')?.value||0));let count=0,spend=0;
+      for(let rank=1;rank<=top;rank++){const amount=campaignAmountForRank(rules,rank);if(amount>0){count++;spend+=amount}}
+      const insufficient=budget>0&&spend>budget;box.classList.toggle('warn',insufficient);
+      box.innerHTML=`奖励覆盖 <b>${count}</b> 人，理论最高发放 <b>${spend.toFixed(4)}</b> 额度。${insufficient?`<br>⚠ 当前预算 ${budget.toFixed(4)} 不足，结算时会按照名次顺序停止后续发放。`:(budget>0?`<br>✓ 当前预算 ${budget.toFixed(4)} 可以覆盖全部奖励。`:'<br>当前未设置预算上限。')}`;
+    }
+    function syncCampaignEditorHelp(){
+      const board=el('campBoard')?.value||'rewards';
+      el('campaignBoardHelp').textContent=board==='consumption'?'按照活动期间用户在 Sub2API 中的消费金额排名，需要有效的 Admin API Key。':'按照活动期间用户通过签到和抽奖获得的额度排名。';
+      const frequency=el('campFrequency')?.value||'once';
+      const text={once:'统计开始日期至结束日期的数据，活动结束后由管理员手工预览并结算。',daily:'每天到达设定时间后，自动结算前一个自然日。',weekly:'到达设定时间后，自动结算上一个完整的周一至周日。',monthly:'到达设定时间后，自动结算上一个完整自然月。'}[frequency];
+      el('campaignFrequencyHelp').textContent=text;
+      el('campSettlementTimeWrap').classList.toggle('hidden',frequency==='once');
+    }
+    async function openCampaignEditor(id=0){
+      campaignState.editingId=Number(id)||0;campaignShowError('campaignEditorError','');
+      let c=null;
+      if(campaignState.editingId)c=await api('./api/admin/rank/campaigns/'+campaignState.editingId);
+      el('campaignEditorTitle').textContent=c?'修改排行活动':'新建排行活动';el('btnCampaignEditorSubmit').textContent=c?'保存修改':'创建活动';
+      el('campName').value=c?.name||'';el('campBoard').value=c?.board||'rewards';el('campTopN').value=Number(c?.top_n||10);el('campStart').value=c?.start_date||'';el('campEnd').value=c?.end_date||'';el('campFrequency').value=c?.frequency||'once';el('campSettlementTime').value=c?.settlement_time||'03:00';el('campBudget').value=Number(c?.budget_cap||0);el('campStatus').value=c?.status||'active';
+      campRewardState=c?campaignRulesFromAPI(c.rewards):defaultCampRewards();renderCampRewards();syncCampaignEditorHelp();
+      const dialog=el('campaignEditorModal');if(!dialog.open)dialog.showModal();setTimeout(()=>el('campName')?.focus(),0);
+    }
+    async function submitCampaignEditor(){
+      campaignShowError('campaignEditorError','');
+      try{
+        const body={name:(el('campName').value||'').trim(),board:el('campBoard').value,start_date:el('campStart').value,end_date:el('campEnd').value,frequency:el('campFrequency').value,settlement_time:el('campSettlementTime').value||'03:00',top_n:Number(el('campTopN').value||10),budget_cap:Number(el('campBudget').value||0),status:el('campStatus').value,rewards:validateCampRewards()};
+        if(!body.name)throw new Error('请填写活动名称');if(!body.start_date||!body.end_date)throw new Error('请选择活动开始和结束日期');if(body.start_date>body.end_date)throw new Error('开始日期不能晚于结束日期');if(body.top_n<1||body.top_n>100)throw new Error('统计人数必须在 1～100 之间');
+        const editing=campaignState.editingId>0;await api(editing?'./api/admin/rank/campaigns/'+campaignState.editingId:'./api/admin/rank/campaigns',{method:editing?'PUT':'POST',body:JSON.stringify(body)});
+        campaignCloseDialog('campaignEditorModal');show(editing?'活动修改成功':'活动创建成功','ok');campaignState.page=editing?campaignState.page:1;await refreshCampaigns();
+      }catch(error){campaignShowError('campaignEditorError',error.message||String(error))}
+    }
+    function campaignFiltersFromDOM(){return {keyword:(el('campaignFilterKeyword').value||'').trim(),board:el('campaignFilterBoard').value,frequency:el('campaignFilterFrequency').value,status:el('campaignFilterStatus').value}}
+    function renderCampaignPagination(){
+      const total=campaignState.total,page=campaignState.page,size=campaignState.pageSize,pages=campaignState.totalPages;const from=total?((page-1)*size+1):0,to=Math.min(page*size,total);el('campaignPageMeta').textContent=`第 ${from}～${to} 条，共 ${total} 条`;
+      el('btnCampaignPrev').disabled=page<=1;el('btnCampaignNext').disabled=pages===0||page>=pages;
+      const nums=[];const start=Math.max(1,page-2),end=Math.min(pages,start+4);for(let n=start;n<=end;n++)nums.push(`<button type="button" class="secondary sm ${n===page?'current':''}" data-campaign-page="${n}">${n}</button>`);el('campaignPageNumbers').innerHTML=nums.join('');
+    }
+    function renderCampaignRows(){
+      const body=el('campaignBody');if(!campaignState.items.length){body.innerHTML='<tr><td colspan="8"><div class="campaign-empty">没有找到符合条件的活动<br><span>可以调整筛选条件，或点击“新建活动”。</span></div></td></tr>';return}
+      body.innerHTML=campaignState.items.map(c=>{
+        const spend=campaignRewardSpend(c),editable=['draft','active'].includes(c.status),settleable=!['settled','cancelled'].includes(c.status),cancellable=['draft','active','partial'].includes(c.status),deletable=Number(c.award_count||0)===0;
+        const more=[editable?`<button type="button" data-campaign-action="edit" data-id="${c.id}">编辑活动</button>`:'',settleable?`<button type="button" data-campaign-action="preview" data-id="${c.id}">预览并结算</button>`:'',cancellable?`<button type="button" data-campaign-action="cancel" data-id="${c.id}">取消活动</button>`:'',deletable?`<button type="button" class="danger" data-campaign-action="delete" data-id="${c.id}">永久删除</button>`:''].filter(Boolean).join('');
+        return `<tr><td class="campaign-name-cell"><strong>${escapeHtml(c.name||'未命名活动')}</strong><span>#${c.id}</span></td><td>${escapeHtml(campaignLabels.board[c.board]||c.board||'—')}</td><td>${escapeHtml(c.start_date||'')}<br><span class="sub">至 ${escapeHtml(c.end_date||'')}</span></td><td>${escapeHtml(campaignLabels.frequency[c.frequency]||c.frequency||'—')}${c.frequency==='once'?'':`<br><span class="sub">${escapeHtml(c.settlement_time||'03:00')} 上海</span>`}</td><td>获奖 ${spend.count} 人<br><span class="sub">最高 ${spend.spend.toFixed(4)}</span></td><td><span class="campaign-status ${escapeHtml(c.status||'')}">${escapeHtml(campaignLabels.status[c.status]||c.status||'—')}</span></td><td>${Number(c.award_count||0)} 条</td><td><div class="campaign-row-actions"><button type="button" class="secondary sm" data-campaign-action="view" data-id="${c.id}">查看</button><button type="button" class="secondary sm" data-campaign-action="awards" data-id="${c.id}">发奖明细</button>${more?`<details class="campaign-more"><summary>更多</summary><div class="campaign-more-menu">${more}</div></details>`:''}</div></td></tr>`;
       }).join('');
     }
-    async function loadCampaignAwards(id){
-      const data=await api('./api/admin/rank/campaigns/'+id+'/awards');
-      const items=data.items||[];
-      el('campaignAwardsHint').textContent='活动 #'+id+' · '+items.length+' 条';
-      const body=el('campaignAwardsBody');
-       if(!items.length){ body.innerHTML='<tr><td colspan="6" class="sub">暂无发奖记录</td></tr>'; return; }
-       body.innerHTML=items.map(a=>`<tr>
-         <td>${escapeHtml(a.period_key||'once')}</td><td>#${a.rank}</td><td>${a.user_id}</td><td>${Number(a.amount||0).toFixed(4)}</td>
-         <td>${escapeHtml(a.status||'')}</td><td>${a.ledger_id||0}</td>
-       </tr>`).join('');
+    async function refreshCampaigns(){
+      const params=new URLSearchParams({page:String(campaignState.page),page_size:String(campaignState.pageSize)}),filters=campaignFiltersFromDOM();Object.entries(filters).forEach(([k,v])=>{if(v)params.set(k,v)});
+      const data=await api('./api/admin/rank/campaigns?'+params.toString());campaignState.items=data.items||[];campaignState.total=Number(data.total||0);campaignState.totalPages=Number(data.total_pages||0);campaignState.page=Number(data.page||campaignState.page);el('campaignBadge').textContent=campaignState.total+' 个活动';
+      if(campaignState.total>0&&campaignState.totalPages>0&&campaignState.page>campaignState.totalPages){campaignState.page=campaignState.totalPages;return refreshCampaigns()}
+      renderCampaignRows();renderCampaignPagination();
     }
-    async function createCampaign(){
-      const rewards=validateCampRewards();
-      const body={
-        name:(el('campName')?.value||'').trim(),
-        board:el('campBoard')?.value||'rewards',
-         start_date:el('campStart')?.value||'',
-         end_date:el('campEnd')?.value||'',
-         frequency:el('campFrequency')?.value||'once',
-         settlement_time:el('campSettlementTime')?.value||'03:00',
-        top_n:Number(el('campTopN')?.value||10),
-        budget_cap:Number(el('campBudget')?.value||0),
-        status:el('campStatus')?.value||'active',
-        rewards
-      };
-      if(!body.name||!body.start_date||!body.end_date) throw new Error('名称与日期必填');
-      await api('./api/admin/rank/campaigns',{method:'POST',body:JSON.stringify(body)});
-      show('活动已创建','ok');
-      await refreshCampaigns();
+    function campaignDetailHTML(c){
+      const spend=campaignRewardSpend(c),rewards=(c.rewards||[]).map(r=>`<div class="campaign-detail-reward"><span>${escapeHtml(campaignRewardLabel(r))}</span><b>${Number(r.amount||0).toFixed(4)} 额度/人</b></div>`).join('')||'<div class="campaign-empty">没有奖励规则</div>';
+      return `<div class="campaign-detail-grid"><div class="campaign-detail-item"><div class="k">排名方式</div><div class="v">${escapeHtml(campaignLabels.board[c.board]||c.board)}</div></div><div class="campaign-detail-item"><div class="k">活动状态</div><div class="v">${escapeHtml(campaignLabels.status[c.status]||c.status)}</div></div><div class="campaign-detail-item"><div class="k">发奖记录</div><div class="v">${Number(c.award_count||0)} 条</div></div><div class="campaign-detail-item"><div class="k">活动时间</div><div class="v">${escapeHtml(c.start_date)} 至 ${escapeHtml(c.end_date)}</div></div><div class="campaign-detail-item"><div class="k">结算方式</div><div class="v">${escapeHtml(campaignLabels.frequency[c.frequency]||c.frequency)}${c.frequency==='once'?'':` · ${escapeHtml(c.settlement_time||'03:00')} 上海`}</div></div><div class="campaign-detail-item"><div class="k">预算上限</div><div class="v">${Number(c.budget_cap||0)>0?Number(c.budget_cap).toFixed(4)+' 额度':'不限制'}</div></div><div class="campaign-detail-item"><div class="k">读取排行</div><div class="v">前 ${Number(c.top_n||0)} 名</div></div><div class="campaign-detail-item"><div class="k">预计获奖</div><div class="v">${spend.count} 人</div></div><div class="campaign-detail-item"><div class="k">理论最高发放</div><div class="v">${spend.spend.toFixed(4)} 额度</div></div></div><div class="section-title" style="margin-top:14px"><h3>奖励方案</h3></div><div class="campaign-detail-rewards">${rewards}</div>`;
     }
-    async function settleCampaign(id){
-       const period=(el('campPeriodKey')?.value||'').trim();
-       const suffix=period?('?period_key='+encodeURIComponent(period)):'';
-       const prev=await api('./api/admin/rank/campaigns/'+id+'/preview'+suffix);
-      const board=prev.board==='consumption'?'消费榜':'奖励榜';
-      if(prev.warning){ show('预览警告：'+prev.warning,'warn'); }
-      if(!(prev.payable>0)){
-        show('无法结算：排行空或没有应付奖励（应付 '+(prev.payable||0)+' / 行数 '+(prev.row_count||0)+'）','err');
-        return;
-      }
-      const msg=`【预览后确认结算】活动 #${id}（${board}）\n应付 ${prev.payable||0} 人 / 跳过 ${prev.skipped||0}\n计划花费 ${Number(prev.planned_spend||0).toFixed(4)} / 预算 ${Number(prev.budget_cap||0).toFixed(4)}\n\n已成功名次会跳过；失败将标记 partial 可重试。\n确认现在结算？`;
-      if(!confirm(msg)) return;
-       const res=await api('./api/admin/rank/campaigns/'+id+'/settle',{method:'POST',body:JSON.stringify(period?{period_key:period}:{})});
-      const st=res.status||'';
-      const lvl=(res.failed>0)?'warn':'ok';
-      show(`结算${st?('['+st+']'):''}：成功 ${res.awarded||0} / 跳过 ${res.skipped||0} / 失败 ${res.failed||0}，累计花费 ${Number(res.spent||0).toFixed(4)}`, lvl);
-      await refreshCampaigns();
-      await loadCampaignAwards(id);
+    async function openCampaignDetail(id){const c=await api('./api/admin/rank/campaigns/'+id);el('campaignDetailTitle').textContent=c.name||'活动详情';el('campaignDetailBody').innerHTML=campaignDetailHTML(c);const dialog=el('campaignDetailModal');if(!dialog.open)dialog.showModal()}
+    function campaignPreviewStatus(status){return campaignLabels.award[status]||status||'—'}
+    async function openCampaignPreview(id){
+      campaignState.previewId=Number(id);campaignState.previewData=null;campaignShowError('campaignPreviewError','');const c=await api('./api/admin/rank/campaigns/'+id);el('campaignPreviewTitle').textContent='发奖预览 · '+(c.name||('#'+id));el('campaignPreviewPeriod').value='';el('campaignPreviewPeriodWrap').classList.toggle('hidden',(c.frequency||'once')==='once');el('btnCampaignConfirmSettle').disabled=true;const dialog=el('campaignPreviewModal');if(!dialog.open)dialog.showModal();await loadCampaignPreview();
     }
-    async function previewCampaign(id){
-       const period=(el('campPeriodKey')?.value||'').trim();
-       const suffix=period?('?period_key='+encodeURIComponent(period)):'';
-       const res=await api('./api/admin/rank/campaigns/'+id+'/preview'+suffix);
-       const lines=(res.details||[]).slice(0,15).map(d=>`#${d.rank} u${d.user_id} ${Number(d.amount||0).toFixed(4)} ${d.status}`).join('\n');
-       const more=(res.details||[]).length>15?('\n…共 '+(res.details||[]).length+' 行'):'';
-       alert(`预览 #${id} · ${res.period_key||'once'}\n应付 ${res.payable||0} 人 / 跳过 ${res.skipped||0}\n计划花费 ${Number(res.planned_spend||0).toFixed(4)} / 预算 ${Number(res.budget_cap||0).toFixed(4)}\n\n${lines}${more}`);
+    async function loadCampaignPreview(){
+      campaignShowError('campaignPreviewError','');el('campaignPreviewBody').innerHTML='<div class="campaign-empty">正在计算获奖名单…</div>';
+      try{const period=(el('campaignPreviewPeriod').value||'').trim(),suffix=period?'?period_key='+encodeURIComponent(period):'';const data=await api('./api/admin/rank/campaigns/'+campaignState.previewId+'/preview'+suffix);campaignState.previewData=data;const rows=(data.details||[]).map(d=>`<tr><td>#${Number(d.rank||0)}</td><td>${Number(d.user_id||0)}</td><td>${Number(d.board_amount||0).toFixed(4)}</td><td>${Number(d.amount||0).toFixed(4)}</td><td>${escapeHtml(campaignPreviewStatus(d.status))}</td></tr>`).join('');el('campaignPreviewBody').innerHTML=`<div class="campaign-preview-stats"><div class="campaign-preview-stat"><div class="k">统计周期</div><div class="v">${escapeHtml(data.period_key||'once')}</div></div><div class="campaign-preview-stat"><div class="k">排行榜人数</div><div class="v">${Number(data.row_count||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">本次应发</div><div class="v">${Number(data.payable||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">预计总支出</div><div class="v">${Number(data.planned_spend||0).toFixed(4)}</div></div></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>名次</th><th>用户 ID</th><th>榜单金额</th><th>奖励额度</th><th>处理结果</th></tr></thead><tbody>${rows||'<tr><td colspan="5"><div class="campaign-empty">当前周期排行榜为空，没有可发放奖励。</div></td></tr>'}</tbody></table></div>`;el('btnCampaignConfirmSettle').disabled=!(Number(data.payable||0)>0);if(data.warning)campaignShowError('campaignPreviewError',data.warning==='ranking is empty'?'当前周期排行榜为空，无法结算。':'当前周期没有需要发放的奖励。');}
+      catch(error){campaignState.previewData=null;el('campaignPreviewBody').innerHTML='<div class="campaign-empty">发奖预览加载失败</div>';campaignShowError('campaignPreviewError',error.message||String(error));el('btnCampaignConfirmSettle').disabled=true}
     }
-    
-    async function cancelCampaign(id){
-      if(!confirm('确认取消活动 #'+id+'？取消后不可再结算；已成功发放的奖励不会自动扣回。')) return;
-      const res=await api('./api/admin/rank/campaigns/'+id+'/cancel',{method:'POST',body:'{}'});
-      show(res.message==='already cancelled'?'活动已是取消状态':'活动已取消'+(res.note?('（'+res.note+'）'):''),'ok');
-      await refreshCampaigns();
-      await loadCampaignAwards(id);
+    async function confirmCampaignSettle(){
+      const data=campaignState.previewData;if(!data||Number(data.payable||0)<=0)return;if(!confirm(`确认向 ${Number(data.payable)} 名用户发放奖励？\n预计支出 ${Number(data.planned_spend||0).toFixed(4)} 额度。`))return;
+      const period=(el('campaignPreviewPeriod').value||'').trim(),result=await api('./api/admin/rank/campaigns/'+campaignState.previewId+'/settle',{method:'POST',body:JSON.stringify(period?{period_key:period}:{})});show(`结算完成：成功 ${Number(result.awarded||0)}，跳过 ${Number(result.skipped||0)}，失败 ${Number(result.failed||0)}`,Number(result.failed||0)>0?'warn':'ok');el('campaignPreviewBody').innerHTML=`<div class="campaign-empty">结算完成<br>成功 ${Number(result.awarded||0)} 人，跳过 ${Number(result.skipped||0)} 人，失败 ${Number(result.failed||0)} 人，累计发放 ${Number(result.spent||0).toFixed(4)} 额度。</div>`;el('btnCampaignConfirmSettle').disabled=true;await refreshCampaigns();
+    }
+    async function cancelCampaign(id){const c=campaignState.items.find(x=>Number(x.id)===Number(id));if(!confirm(`确认取消活动“${c?.name||('#'+id)}”？\n取消后不能继续结算，已经发放的额度不会撤回。`))return;await api('./api/admin/rank/campaigns/'+id+'/cancel',{method:'POST',body:'{}'});show('活动已取消','ok');await refreshCampaigns()}
+    async function deleteCampaign(id){const c=campaignState.items.find(x=>Number(x.id)===Number(id))||await api('./api/admin/rank/campaigns/'+id);if(Number(c.award_count||0)>0)throw new Error('该活动已经产生发奖记录，只能取消，不能永久删除');const typed=prompt(`永久删除活动“${c.name}”？\n该活动没有发奖记录，删除后无法恢复。\n\n请输入完整活动名称确认：`);if(typed===null)return;if(typed!==c.name)throw new Error('活动名称输入不一致，已取消删除');await api('./api/admin/rank/campaigns/'+id,{method:'DELETE'});show('活动已永久删除','ok');if(campaignState.items.length===1&&campaignState.page>1)campaignState.page--;await refreshCampaigns()}
+    function campaignAwardStatusLabel(status){return campaignLabels.award[status]||status||'—'}
+    function renderCampaignAwardsPagination(total,page,pageSize,pages){const from=total?((page-1)*pageSize+1):0,to=Math.min(page*pageSize,total);el('campaignAwardsPageMeta').textContent=`第 ${from}～${to} 条，共 ${total} 条`;el('btnCampaignAwardsPrev').disabled=page<=1;el('btnCampaignAwardsNext').disabled=pages===0||page>=pages;const nums=[];const start=Math.max(1,page-2),end=Math.min(pages,start+4);for(let n=start;n<=end;n++)nums.push(`<button type="button" class="secondary sm ${n===page?'current':''}" data-campaign-award-page="${n}">${n}</button>`);el('campaignAwardsPageNumbers').innerHTML=nums.join('')}
+    async function openCampaignAwards(id){campaignState.awardsId=Number(id);campaignState.awardsPage=1;const c=campaignState.items.find(x=>Number(x.id)===Number(id))||await api('./api/admin/rank/campaigns/'+id);el('campaignAwardsTitle').textContent='发奖明细 · '+(c.name||('#'+id));el('campaignAwardPeriod').value='';el('campaignAwardStatus').value='';el('campaignAwardUser').value='';const dialog=el('campaignAwardsModal');if(!dialog.open)dialog.showModal();await loadCampaignAwards()}
+    async function loadCampaignAwards(){
+      const params=new URLSearchParams({page:String(campaignState.awardsPage),page_size:'10'}),period=(el('campaignAwardPeriod').value||'').trim(),status=el('campaignAwardStatus').value,user=(el('campaignAwardUser').value||'').trim();if(period)params.set('period_key',period);if(status)params.set('status',status);if(user)params.set('user_id',user);
+      const data=await api('./api/admin/rank/campaigns/'+campaignState.awardsId+'/awards?'+params.toString()),summary=data.summary||{};campaignState.awardsTotalPages=Number(data.total_pages||0);el('campaignAwardsSummary').innerHTML=`<div class="campaign-preview-stat"><div class="k">发放成功</div><div class="v">${Number(summary.success||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">发放失败</div><div class="v">${Number(summary.failed||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">自动跳过</div><div class="v">${Number(summary.skipped||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">成功发放额度</div><div class="v">${Number(summary.total_amount||0).toFixed(4)}</div></div>`;
+      const items=data.items||[];el('campaignAwardsBody').innerHTML=items.length?items.map(a=>`<tr><td>${escapeHtml(a.period_key||'once')}</td><td>#${Number(a.rank||0)}</td><td>${Number(a.user_id||0)}</td><td>${Number(a.amount||0).toFixed(4)}</td><td>${escapeHtml(campaignAwardStatusLabel(a.status))}</td><td>${Number(a.ledger_id||0)||'—'}</td><td>${a.created_at?escapeHtml(new Date(a.created_at).toLocaleString('zh-CN')):'—'}</td><td><div class="campaign-award-error">${escapeHtml(a.error||'—')}</div></td></tr>`).join(''):'<tr><td colspan="8"><div class="campaign-empty">没有找到符合条件的发奖记录。</div></td></tr>';renderCampaignAwardsPagination(Number(data.total||0),Number(data.page||1),Number(data.page_size||10),campaignState.awardsTotalPages);
+    }
+    function initCampaignUI(){
+      const editor=el('campaignEditorModal'),detail=el('campaignDetailModal'),preview=el('campaignPreviewModal'),awards=el('campaignAwardsModal');[editor,detail,preview,awards].forEach(dialog=>{if(dialog)dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()})});
+      el('btnCampaignNew').onclick=()=>openCampaignEditor().catch(e=>show(e.message||String(e),'err'));el('btnCampaignRefresh').onclick=()=>refreshCampaigns().catch(e=>show(e.message||String(e),'err'));el('btnCampaignSearch').onclick=()=>{campaignState.page=1;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))};el('btnCampaignReset').onclick=()=>{['campaignFilterKeyword','campaignFilterBoard','campaignFilterFrequency','campaignFilterStatus'].forEach(id=>el(id).value='');campaignState.page=1;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))};el('campaignFilterKeyword').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();el('btnCampaignSearch').click()}});
+      el('btnCampaignPrev').onclick=()=>{if(campaignState.page>1){campaignState.page--;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))}};el('btnCampaignNext').onclick=()=>{if(campaignState.page<campaignState.totalPages){campaignState.page++;refreshCampaigns().catch(e=>show(e.message||String(e),'err'))}};el('campaignPageNumbers').onclick=e=>{const b=e.target.closest('[data-campaign-page]');if(b){campaignState.page=Number(b.dataset.campaignPage);refreshCampaigns().catch(err=>show(err.message||String(err),'err'))}};
+      el('campaignBody').onclick=e=>{const b=e.target.closest('[data-campaign-action]');if(!b)return;document.querySelectorAll('.campaign-more[open]').forEach(d=>d.removeAttribute('open'));const id=Number(b.dataset.id),action=b.dataset.campaignAction;const run={view:()=>openCampaignDetail(id),edit:()=>openCampaignEditor(id),preview:()=>openCampaignPreview(id),awards:()=>openCampaignAwards(id),cancel:()=>cancelCampaign(id),delete:()=>deleteCampaign(id)}[action];if(run)Promise.resolve(run()).catch(err=>show(err.message||String(err),'err'))};
+      el('campaignEditorForm').onsubmit=e=>{e.preventDefault();submitCampaignEditor()};el('btnCampaignEditorClose').onclick=el('btnCampaignEditorCancel').onclick=()=>campaignCloseDialog('campaignEditorModal');el('btnCampaignDetailClose').onclick=el('btnCampaignDetailDone').onclick=()=>campaignCloseDialog('campaignDetailModal');el('btnCampaignPreviewClose').onclick=el('btnCampaignPreviewDone').onclick=()=>campaignCloseDialog('campaignPreviewModal');el('btnCampaignAwardsClose').onclick=el('btnCampaignAwardsDone').onclick=()=>campaignCloseDialog('campaignAwardsModal');
+      el('campBoard').onchange=syncCampaignEditorHelp;el('campFrequency').onchange=syncCampaignEditorHelp;el('campTopN').oninput=updateCampaignRewardSummary;el('campBudget').oninput=updateCampaignRewardSummary;el('btnCampAddReward').onclick=()=>{campRewardState.push({mode:'range',rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};el('campRewardEditor').onchange=e=>{const row=e.target.closest('[data-reward-idx]');if(!row)return;const idx=Number(row.dataset.rewardIdx),field=e.target.dataset.rewardField;if(!field)return;if(field==='mode'){campRewardState[idx].mode=e.target.value;if(e.target.value==='single'){campRewardState[idx].rank=campRewardState[idx].rank||1;campRewardState[idx].rank_from=0;campRewardState[idx].rank_to=0}else{campRewardState[idx].rank=0;campRewardState[idx].rank_from=campRewardState[idx].rank_from||1;campRewardState[idx].rank_to=campRewardState[idx].rank_to||campRewardState[idx].rank_from}renderCampRewards()}};el('campRewardEditor').oninput=e=>{const row=e.target.closest('[data-reward-idx]');if(!row)return;const idx=Number(row.dataset.rewardIdx),field=e.target.dataset.rewardField;if(field&&field!=='mode'){campRewardState[idx][field]=Number(e.target.value)||0;updateCampaignRewardSummary()}};el('campRewardEditor').onclick=e=>{const b=e.target.closest('[data-reward-delete]');if(b&&campRewardState.length>1){campRewardState.splice(Number(b.dataset.rewardDelete),1);renderCampRewards()}};
+      el('btnCampaignPreviewLoad').onclick=()=>loadCampaignPreview();el('btnCampaignConfirmSettle').onclick=()=>confirmCampaignSettle().catch(e=>campaignShowError('campaignPreviewError',e.message||String(e)));
+      el('btnCampaignAwardsSearch').onclick=()=>{campaignState.awardsPage=1;loadCampaignAwards().catch(e=>show(e.message||String(e),'err'))};el('btnCampaignAwardsReset').onclick=()=>{el('campaignAwardPeriod').value='';el('campaignAwardStatus').value='';el('campaignAwardUser').value='';campaignState.awardsPage=1;loadCampaignAwards().catch(e=>show(e.message||String(e),'err'))};el('btnCampaignAwardsPrev').onclick=()=>{if(campaignState.awardsPage>1){campaignState.awardsPage--;loadCampaignAwards().catch(e=>show(e.message||String(e),'err'))}};el('btnCampaignAwardsNext').onclick=()=>{if(campaignState.awardsPage<campaignState.awardsTotalPages){campaignState.awardsPage++;loadCampaignAwards().catch(e=>show(e.message||String(e),'err'))}};el('campaignAwardsPageNumbers').onclick=e=>{const b=e.target.closest('[data-campaign-award-page]');if(b){campaignState.awardsPage=Number(b.dataset.campaignAwardPage);loadCampaignAwards().catch(err=>show(err.message||String(err),'err'))}};
+      syncCampaignEditorHelp();renderCampRewards();
     }
     let tasksAdminCache={enabled:true,defs:[],defaults:[],supported_kinds:[]};
     const TASK_KIND_LABELS={daily_checkin:'每日签到',daily_lottery:'每日抽奖',streak:'连续签到',weekly_checkin:'周签到次数',weekly_lottery:'周抽奖次数'};
@@ -3388,20 +3488,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     document.querySelectorAll('[data-creative-kind]').forEach(btn=>btn.onclick=()=>selectCreativeKind(btn.dataset.creativeKind).catch(e=>showCreativeMsg(e.message||String(e),'err')));
     el('creativeProviderKind').onchange=()=>setCreativeKind(el('creativeProviderKind').value);
     el('creativeProviderGroup').onchange=()=>loadCreativePool(el('creativeProviderGroup').value).then(()=>showCreativeMsg('账号分组已修改，请先保存渠道后再同步模型','ok')).catch(e=>showCreativeMsg(e.message||String(e),'err'));
-    campRewardState=defaultCampRewards(); renderCampRewards();
-    const btnCampAddReward=el('btnCampAddReward'); if(btnCampAddReward) btnCampAddReward.onclick=()=>{campRewardState.push({rank:0,rank_from:1,rank_to:1,amount:0});renderCampRewards()};
+    initCampaignUI();
     document.querySelectorAll('[data-rule-add]').forEach(b=>b.onclick=()=>addRedisRule(b.dataset.ruleAdd));
-    const campBodyEl=el('campaignBody');
-    if(campBodyEl) campBodyEl.addEventListener('click', (e)=>{
-      const a=e.target.closest('[data-camp-awards]');
-      const s=e.target.closest('[data-camp-settle]');
-      const p=e.target.closest('[data-camp-preview]');
-      const cxl=e.target.closest('[data-camp-cancel]');
-      if(a){ loadCampaignAwards(a.dataset.campAwards).catch(err=>show(err.message||String(err),'err')); }
-      if(s){ settleCampaign(s.dataset.campSettle).catch(err=>show(err.message||String(err),'err')); }
-      if(p){ previewCampaign(p.dataset.campPreview).catch(err=>show(err.message||String(err),'err')); }
-      if(cxl){ cancelCampaign(cxl.dataset.campCancel).catch(err=>show(err.message||String(err),'err')); }
-    });
 
 
 
@@ -3515,8 +3603,6 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         refreshLedger().catch(err=>show(err.message||String(err),'err'));
       });
     }
-    const btnCampCreate=el('btnCampCreate'); if(btnCampCreate) btnCampCreate.onclick=()=>createCampaign().catch(e2=>show(e2.message||String(e2),'err'));
-    const btnCampRefresh=el('btnCampRefresh'); if(btnCampRefresh) btnCampRefresh.onclick=()=>refreshCampaigns().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksSave=el('btnTasksSave'); if(btnTasksSave) btnTasksSave.onclick=()=>saveTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksRefresh=el('btnTasksRefresh'); if(btnTasksRefresh) btnTasksRefresh.onclick=()=>refreshTasksAdmin().catch(e2=>show(e2.message||String(e2),'err'));
     const btnTasksAdd=el('btnTasksAdd'); if(btnTasksAdd) btnTasksAdd.onclick=()=>{tasksAdminCache.defs=collectTaskDefsFromDOM();tasksAdminCache.defs.push(newTaskDef());renderTasksAdmin()};

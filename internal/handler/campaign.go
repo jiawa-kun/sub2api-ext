@@ -37,6 +37,7 @@ func campaignJSON(c store.RankCampaign) map[string]any {
 		"frequency": c.Frequency, "settlement_time": c.SettlementTime,
 		"rewards": rewards, "budget_cap": c.BudgetCap, "status": c.Status,
 		"settled_at": c.SettledAt, "created_at": c.CreatedAt, "updated_at": c.UpdatedAt,
+		"award_count": c.AwardCount,
 	}
 }
 
@@ -52,7 +53,37 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusTooManyRequests, "rate limited")
 			return
 		}
-		list, err := h.store.ListRankCampaigns(r.Context(), 100)
+		page := queryInt(r, "page", 1)
+		pageSize := queryInt(r, "page_size", 10)
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 {
+			pageSize = 10
+		}
+		if pageSize > 100 {
+			pageSize = 100
+		}
+		filter := store.RankCampaignFilter{
+			Keyword:   strings.TrimSpace(r.URL.Query().Get("keyword")),
+			Board:     strings.TrimSpace(r.URL.Query().Get("board")),
+			Frequency: strings.TrimSpace(r.URL.Query().Get("frequency")),
+			Status:    strings.TrimSpace(r.URL.Query().Get("status")),
+			Limit:     pageSize, Offset: (page - 1) * pageSize,
+		}
+		if filter.Board != "" && filter.Board != store.CampaignBoardRewards && filter.Board != store.CampaignBoardConsumption {
+			writeErr(w, http.StatusBadRequest, "invalid board filter")
+			return
+		}
+		if filter.Frequency != "" && filter.Frequency != store.CampaignFrequencyOnce && filter.Frequency != store.CampaignFrequencyDaily && filter.Frequency != store.CampaignFrequencyWeekly && filter.Frequency != store.CampaignFrequencyMonthly {
+			writeErr(w, http.StatusBadRequest, "invalid frequency filter")
+			return
+		}
+		if filter.Status != "" && filter.Status != store.CampaignStatusDraft && filter.Status != store.CampaignStatusActive && filter.Status != store.CampaignStatusPartial && filter.Status != store.CampaignStatusSettled && filter.Status != store.CampaignStatusCancelled {
+			writeErr(w, http.StatusBadRequest, "invalid status filter")
+			return
+		}
+		list, total, err := h.store.ListRankCampaignsPage(r.Context(), filter)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
@@ -61,7 +92,11 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		for _, c := range list {
 			items = append(items, campaignJSON(c))
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		totalPages := 0
+		if total > 0 {
+			totalPages = (total + pageSize - 1) / pageSize
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": total, "page": page, "page_size": pageSize, "total_pages": totalPages})
 	case http.MethodPost:
 		if !h.limitAdminWrite.Allow("campaign-w:" + clientIP(r)) {
 			writeErr(w, http.StatusTooManyRequests, "rate limited")
@@ -92,6 +127,10 @@ func (h *Handler) AdminRankCampaigns(w http.ResponseWriter, r *http.Request) {
 		st := strings.TrimSpace(in.Status)
 		if st == "" {
 			st = store.CampaignStatusDraft
+		}
+		if st != store.CampaignStatusDraft && st != store.CampaignStatusActive {
+			writeErr(w, http.StatusBadRequest, "status must be draft or active")
+			return
 		}
 		candidate := store.RankCampaign{
 			Name: in.Name, Board: board, StartDate: in.StartDate, EndDate: in.EndDate,
@@ -140,7 +179,7 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		action = parts[1]
 	}
 
-	writeAction := action == "settle" || action == "cancel" || r.Method == http.MethodPut || (r.Method == http.MethodPost && action == "")
+	writeAction := action == "settle" || action == "cancel" || r.Method == http.MethodPut || r.Method == http.MethodDelete || (r.Method == http.MethodPost && action == "")
 	// preview uses POST or GET but is read-only planning
 	if action == "preview" {
 		writeAction = false
@@ -170,14 +209,27 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if action == "awards" && r.Method == http.MethodGet {
-		periodKey := strings.TrimSpace(r.URL.Query().Get("period_key"))
-		var list []store.RankCampaignAward
-		var err error
-		if periodKey == "" {
-			list, err = h.store.ListCampaignAwards(r.Context(), id)
-		} else {
-			list, err = h.store.ListCampaignAwardsForPeriod(r.Context(), id, periodKey)
+		page := queryInt(r, "page", 1)
+		pageSize := queryInt(r, "page_size", 10)
+		if page < 1 {
+			page = 1
 		}
+		if pageSize < 1 {
+			pageSize = 10
+		}
+		if pageSize > 100 {
+			pageSize = 100
+		}
+		status := strings.TrimSpace(r.URL.Query().Get("status"))
+		if status != "" && status != "success" && status != "failed" && status != "skipped" {
+			writeErr(w, http.StatusBadRequest, "invalid award status filter")
+			return
+		}
+		userID := int64(queryInt(r, "user_id", 0))
+		list, total, summary, err := h.store.ListCampaignAwardsPage(r.Context(), id, store.RankCampaignAwardFilter{
+			PeriodKey: strings.TrimSpace(r.URL.Query().Get("period_key")), Status: status, UserID: userID,
+			Limit: pageSize, Offset: (page - 1) * pageSize,
+		})
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
@@ -186,12 +238,18 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		for _, a := range list {
 			items = append(items, map[string]any{
 				"id": a.ID, "campaign_id": a.CampaignID, "user_id": a.UserID,
-				"period_key": a.PeriodKey,
-				"rank":       a.Rank, "amount": a.Amount, "ledger_id": a.LedgerID,
-				"status": a.Status, "created_at": a.CreatedAt,
+				"period_key": a.PeriodKey, "rank": a.Rank, "amount": a.Amount, "ledger_id": a.LedgerID,
+				"status": a.Status, "error": a.Error, "created_at": a.CreatedAt,
 			})
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+		totalPages := 0
+		if total > 0 {
+			totalPages = (total + pageSize - 1) / pageSize
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"items": items, "total": total, "page": page, "page_size": pageSize, "total_pages": totalPages,
+			"summary": map[string]any{"total_amount": summary.TotalAmount, "success": summary.SuccessCount, "failed": summary.FailedCount, "skipped": summary.SkippedCount},
+		})
 		return
 	}
 
@@ -200,11 +258,32 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusNotFound, "campaign not found")
 		return
 	}
+	count, countErr := h.store.CampaignAwardCount(r.Context(), c.ID)
+	if countErr == nil {
+		c.AwardCount = count
+	}
 	if r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, campaignJSON(*c))
 		return
 	}
+	if r.Method == http.MethodDelete && action == "" {
+		deleted, err := h.store.DeleteRankCampaignIfNoAwards(r.Context(), c.ID)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !deleted {
+			writeErr(w, http.StatusConflict, "campaign has award records and can only be cancelled")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "campaign_id": c.ID})
+		return
+	}
 	if r.Method == http.MethodPut || r.Method == http.MethodPost {
+		if c.Status != store.CampaignStatusDraft && c.Status != store.CampaignStatusActive {
+			writeErr(w, http.StatusBadRequest, "only draft or active campaigns can be edited")
+			return
+		}
 		if c.Status == store.CampaignStatusSettled {
 			writeErr(w, http.StatusBadRequest, "settled campaign is immutable")
 			return
@@ -245,6 +324,10 @@ func (h *Handler) AdminRankCampaignByID(w http.ResponseWriter, r *http.Request) 
 			c.RewardsJSON = string(rj)
 		}
 		if in.Status != "" {
+			if in.Status != store.CampaignStatusDraft && in.Status != store.CampaignStatusActive {
+				writeErr(w, http.StatusBadRequest, "status must be draft or active")
+				return
+			}
 			c.Status = in.Status
 		}
 		c.BudgetCap = in.BudgetCap
@@ -766,9 +849,9 @@ func (h *Handler) settleCampaignPeriod(ctx context.Context, c *store.RankCampaig
 			status = "failed"
 			details = append(details, map[string]any{"user_id": row.UserID, "rank": rank, "amount": amt, "status": status, "error": grantErr.Error(), "period_key": period.Key})
 			if prev, ok := existing[row.UserID]; ok {
-				_ = h.store.UpdateCampaignAward(ctx, prev.ID, amt, 0, status)
+				_ = h.store.UpdateCampaignAwardResult(ctx, prev.ID, amt, 0, status, grantErr.Error())
 			} else {
-				_, _ = h.store.InsertCampaignAward(ctx, store.RankCampaignAward{CampaignID: c.ID, PeriodKey: period.Key, UserID: row.UserID, Rank: rank, Amount: amt, Status: status})
+				_, _ = h.store.InsertCampaignAward(ctx, store.RankCampaignAward{CampaignID: c.ID, PeriodKey: period.Key, UserID: row.UserID, Rank: rank, Amount: amt, Status: status, Error: grantErr.Error()})
 			}
 			continue
 		}
@@ -783,7 +866,7 @@ func (h *Handler) settleCampaignPeriod(ctx context.Context, c *store.RankCampaig
 			}
 		}
 		if prev, ok := existing[row.UserID]; ok {
-			_ = h.store.UpdateCampaignAward(ctx, prev.ID, amt, ledgerID, status)
+			_ = h.store.UpdateCampaignAwardResult(ctx, prev.ID, amt, ledgerID, status, "")
 		} else {
 			_, _ = h.store.InsertCampaignAward(ctx, store.RankCampaignAward{CampaignID: c.ID, PeriodKey: period.Key, UserID: row.UserID, Rank: rank, Amount: amt, LedgerID: ledgerID, Status: status})
 		}

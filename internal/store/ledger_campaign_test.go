@@ -193,7 +193,6 @@ func TestTaskPeriodKeyAndWeekRange(t *testing.T) {
 	}
 }
 
-
 func TestListActiveRankCampaignsDateWindow(t *testing.T) {
 	dir := t.TempDir()
 	st, err := store.Open(filepath.Join(dir, "t.db"))
@@ -259,7 +258,6 @@ func TestMarkCampaignPartialAndUpdateAward(t *testing.T) {
 	}
 }
 
-
 func TestCancelCampaignStatus(t *testing.T) {
 	dir := t.TempDir()
 	st, err := store.Open(filepath.Join(dir, "t.db"))
@@ -292,5 +290,60 @@ func TestCancelCampaignStatus(t *testing.T) {
 		if a.ID == id {
 			t.Fatal("cancelled campaign still active")
 		}
+	}
+}
+
+func TestCampaignPaginationFiltersAndSafeDelete(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "campaign-page.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	ids := make([]int64, 0, 3)
+	for _, campaign := range []store.RankCampaign{
+		{Name: "八月奖励榜", Board: store.CampaignBoardRewards, StartDate: "2026-08-01", EndDate: "2026-08-31", Frequency: store.CampaignFrequencyMonthly, Status: store.CampaignStatusActive, RewardsJSON: `[{"rank":1,"amount":5}]`},
+		{Name: "八月消费榜", Board: store.CampaignBoardConsumption, StartDate: "2026-08-01", EndDate: "2026-08-31", Frequency: store.CampaignFrequencyOnce, Status: store.CampaignStatusDraft, RewardsJSON: `[{"rank":1,"amount":3}]`},
+		{Name: "七月奖励榜", Board: store.CampaignBoardRewards, StartDate: "2026-07-01", EndDate: "2026-07-31", Frequency: store.CampaignFrequencyOnce, Status: store.CampaignStatusCancelled, RewardsJSON: `[{"rank":1,"amount":1}]`},
+	} {
+		id, err := st.CreateRankCampaign(ctx, campaign)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id)
+	}
+	items, total, err := st.ListRankCampaignsPage(ctx, store.RankCampaignFilter{Keyword: "八月", Limit: 1})
+	if err != nil || total != 2 || len(items) != 1 {
+		t.Fatalf("page items=%d total=%d err=%v", len(items), total, err)
+	}
+	items, total, err = st.ListRankCampaignsPage(ctx, store.RankCampaignFilter{Board: store.CampaignBoardRewards, Status: store.CampaignStatusActive, Limit: 10})
+	if err != nil || total != 1 || len(items) != 1 || items[0].Name != "八月奖励榜" {
+		t.Fatalf("filtered items=%+v total=%d err=%v", items, total, err)
+	}
+	deleted, err := st.DeleteRankCampaignIfNoAwards(ctx, ids[2])
+	if err != nil || !deleted {
+		t.Fatalf("delete empty campaign deleted=%v err=%v", deleted, err)
+	}
+	if campaign, err := st.GetRankCampaign(ctx, ids[2]); err != nil || campaign != nil {
+		t.Fatalf("deleted campaign=%+v err=%v", campaign, err)
+	}
+
+	if _, err := st.InsertCampaignAward(ctx, store.RankCampaignAward{
+		CampaignID: ids[0], PeriodKey: "2026-08", UserID: 7, Rank: 1, Amount: 5, Status: "failed", Error: "upstream unavailable",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	awards, awardTotal, summary, err := st.ListCampaignAwardsPage(ctx, ids[0], store.RankCampaignAwardFilter{Status: "failed", Limit: 10})
+	if err != nil || awardTotal != 1 || len(awards) != 1 || awards[0].Error != "upstream unavailable" || summary.FailedCount != 1 {
+		t.Fatalf("awards=%+v total=%d summary=%+v err=%v", awards, awardTotal, summary, err)
+	}
+	deleted, err = st.DeleteRankCampaignIfNoAwards(ctx, ids[0])
+	if err != nil || deleted {
+		t.Fatalf("campaign with awards must not delete deleted=%v err=%v", deleted, err)
+	}
+	items, _, err = st.ListRankCampaignsPage(ctx, store.RankCampaignFilter{Keyword: "八月奖励榜", Limit: 10})
+	if err != nil || len(items) != 1 || items[0].AwardCount != 1 {
+		t.Fatalf("award count items=%+v err=%v", items, err)
 	}
 }

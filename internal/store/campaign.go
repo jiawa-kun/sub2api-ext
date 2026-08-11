@@ -49,6 +49,7 @@ type RankCampaign struct {
 	SettledAt      string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	AwardCount     int
 }
 
 // RankCampaignAward is one settled grant row.
@@ -61,7 +62,34 @@ type RankCampaignAward struct {
 	Amount     float64
 	LedgerID   int64
 	Status     string
+	Error      string
 	CreatedAt  time.Time
+}
+
+// RankCampaignFilter controls admin campaign listing.
+type RankCampaignFilter struct {
+	Keyword   string
+	Board     string
+	Frequency string
+	Status    string
+	Limit     int
+	Offset    int
+}
+
+// RankCampaignAwardFilter controls award detail listing.
+type RankCampaignAwardFilter struct {
+	PeriodKey string
+	Status    string
+	UserID    int64
+	Limit     int
+	Offset    int
+}
+
+type RankCampaignAwardSummary struct {
+	TotalAmount  float64
+	SuccessCount int
+	FailedCount  int
+	SkippedCount int
 }
 
 // RankCampaignPeriod records one independent settlement window.
@@ -106,6 +134,7 @@ CREATE TABLE IF NOT EXISTS rank_campaign_awards (
   amount REAL NOT NULL DEFAULT 0,
   ledger_id INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'success',
+  error_text TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   UNIQUE(campaign_id, period_key, user_id)
 );
@@ -142,6 +171,9 @@ CREATE INDEX IF NOT EXISTS idx_rank_campaign_periods_campaign ON rank_campaign_p
 		if err := s.migrateCampaignAwardsPeriod(); err != nil {
 			return err
 		}
+	}
+	if err := s.ensureCampaignColumn("rank_campaign_awards", "error_text", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return err
 	}
 	_, err = s.db.Exec(`
 CREATE INDEX IF NOT EXISTS idx_rank_awards_campaign ON rank_campaign_awards(campaign_id);
@@ -199,6 +231,7 @@ CREATE TABLE rank_campaign_awards_new (
   amount REAL NOT NULL DEFAULT 0,
   ledger_id INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'success',
+  error_text TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   UNIQUE(campaign_id, period_key, user_id)
 )`); err != nil {
@@ -301,26 +334,62 @@ FROM rank_campaigns WHERE id=?
 }
 
 func (s *Store) ListRankCampaigns(ctx context.Context, limit int) ([]RankCampaign, error) {
-	if limit <= 0 {
-		limit = 50
+	items, _, err := s.ListRankCampaignsPage(ctx, RankCampaignFilter{Limit: limit})
+	return items, err
+}
+
+func (s *Store) ListRankCampaignsPage(ctx context.Context, filter RankCampaignFilter) ([]RankCampaign, int, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 50
 	}
+	if filter.Limit > 1000 {
+		filter.Limit = 1000
+	}
+	where := []string{"1=1"}
+	args := make([]any, 0, 8)
+	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
+		where = append(where, "c.name LIKE ?")
+		args = append(args, "%"+keyword+"%")
+	}
+	if board := strings.TrimSpace(filter.Board); board != "" {
+		where = append(where, "c.board=?")
+		args = append(args, board)
+	}
+	if frequency := strings.TrimSpace(filter.Frequency); frequency != "" {
+		where = append(where, "c.frequency=?")
+		args = append(args, frequency)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		where = append(where, "c.status=?")
+		args = append(args, status)
+	}
+	whereSQL := strings.Join(where, " AND ")
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM rank_campaigns c WHERE "+whereSQL, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	queryArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
 	rows, err := s.db.QueryContext(ctx, `
-	SELECT id, name, board, start_date, end_date, frequency, settlement_time, top_n, rewards_json, budget_cap, status, settled_at, created_at, updated_at
-FROM rank_campaigns ORDER BY id DESC LIMIT ?
-`, limit)
+SELECT c.id, c.name, c.board, c.start_date, c.end_date, c.frequency, c.settlement_time, c.top_n, c.rewards_json, c.budget_cap, c.status, c.settled_at, c.created_at, c.updated_at, COUNT(a.id)
+FROM rank_campaigns c
+LEFT JOIN rank_campaign_awards a ON a.campaign_id=c.id
+WHERE `+whereSQL+`
+GROUP BY c.id
+ORDER BY c.id DESC
+LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	var out []RankCampaign
 	for rows.Next() {
-		c, err := scanCampaignRows(rows)
+		c, err := scanCampaignRowsWithAwardCount(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, *c)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 // ListActiveRankCampaigns returns active campaigns whose date window covers today (YYYY-MM-DD).
@@ -398,9 +467,13 @@ func (s *Store) CampaignAwardMapForPeriod(ctx context.Context, campaignID int64,
 
 // UpdateCampaignAward rewrites one award row (for retry after failure).
 func (s *Store) UpdateCampaignAward(ctx context.Context, id int64, amount float64, ledgerID int64, status string) error {
+	return s.UpdateCampaignAwardResult(ctx, id, amount, ledgerID, status, "")
+}
+
+func (s *Store) UpdateCampaignAwardResult(ctx context.Context, id int64, amount float64, ledgerID int64, status, errorText string) error {
 	_, err := s.db.ExecContext(ctx, `
-UPDATE rank_campaign_awards SET amount=?, ledger_id=?, status=? WHERE id=?
-`, amount, ledgerID, status, id)
+UPDATE rank_campaign_awards SET amount=?, ledger_id=?, status=?, error_text=? WHERE id=?
+`, amount, ledgerID, status, errorText, id)
 	return err
 }
 
@@ -410,9 +483,9 @@ func (s *Store) InsertCampaignAward(ctx context.Context, a RankCampaignAward) (i
 		a.PeriodKey = CampaignFrequencyOnce
 	}
 	res, err := s.db.ExecContext(ctx, `
-	INSERT INTO rank_campaign_awards(campaign_id, period_key, user_id, rank, amount, ledger_id, status, created_at)
-	VALUES(?,?,?,?,?,?,?,?)
-	`, a.CampaignID, a.PeriodKey, a.UserID, a.Rank, a.Amount, a.LedgerID, a.Status, now)
+	INSERT INTO rank_campaign_awards(campaign_id, period_key, user_id, rank, amount, ledger_id, status, error_text, created_at)
+	VALUES(?,?,?,?,?,?,?,?,?)
+	`, a.CampaignID, a.PeriodKey, a.UserID, a.Rank, a.Amount, a.LedgerID, a.Status, a.Error, now)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return 0, fmt.Errorf("award already exists")
@@ -423,51 +496,110 @@ func (s *Store) InsertCampaignAward(ctx context.Context, a RankCampaignAward) (i
 }
 
 func (s *Store) ListCampaignAwards(ctx context.Context, campaignID int64) ([]RankCampaignAward, error) {
-	rows, err := s.db.QueryContext(ctx, `
-	SELECT id, campaign_id, period_key, user_id, rank, amount, ledger_id, status, created_at
-	FROM rank_campaign_awards WHERE campaign_id=? ORDER BY rank ASC
-`, campaignID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []RankCampaignAward
-	for rows.Next() {
-		var a RankCampaignAward
-		var created string
-		if err := rows.Scan(&a.ID, &a.CampaignID, &a.PeriodKey, &a.UserID, &a.Rank, &a.Amount, &a.LedgerID, &a.Status, &created); err != nil {
-			return nil, err
-		}
-		if t, err := time.Parse(time.RFC3339Nano, created); err == nil {
-			a.CreatedAt = t
-		}
-		out = append(out, a)
-	}
-	return out, rows.Err()
+	items, _, _, err := s.ListCampaignAwardsPage(ctx, campaignID, RankCampaignAwardFilter{Limit: 100000})
+	return items, err
 }
 
 func (s *Store) ListCampaignAwardsForPeriod(ctx context.Context, campaignID int64, periodKey string) ([]RankCampaignAward, error) {
+	items, _, _, err := s.ListCampaignAwardsPage(ctx, campaignID, RankCampaignAwardFilter{PeriodKey: periodKey, Limit: 100000})
+	return items, err
+}
+
+func (s *Store) ListCampaignAwardsPage(ctx context.Context, campaignID int64, filter RankCampaignAwardFilter) ([]RankCampaignAward, int, RankCampaignAwardSummary, error) {
+	if filter.Limit <= 0 {
+		filter.Limit = 10
+	}
+	if filter.Limit > 100000 {
+		filter.Limit = 100000
+	}
+	where := []string{"campaign_id=?"}
+	args := []any{campaignID}
+	if periodKey := strings.TrimSpace(filter.PeriodKey); periodKey != "" {
+		where = append(where, "period_key=?")
+		args = append(args, periodKey)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		where = append(where, "status=?")
+		args = append(args, status)
+	}
+	if filter.UserID > 0 {
+		where = append(where, "user_id=?")
+		args = append(args, filter.UserID)
+	}
+	whereSQL := strings.Join(where, " AND ")
+	var total int
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM rank_campaign_awards WHERE "+whereSQL, args...).Scan(&total); err != nil {
+		return nil, 0, RankCampaignAwardSummary{}, err
+	}
+	var summary RankCampaignAwardSummary
+	if err := s.db.QueryRowContext(ctx, `
+SELECT COALESCE(SUM(CASE WHEN status='success' THEN amount ELSE 0 END),0),
+       COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END),0),
+       COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0),
+       COALESCE(SUM(CASE WHEN status='skipped' THEN 1 ELSE 0 END),0)
+FROM rank_campaign_awards WHERE `+whereSQL, args...).Scan(&summary.TotalAmount, &summary.SuccessCount, &summary.FailedCount, &summary.SkippedCount); err != nil {
+		return nil, 0, RankCampaignAwardSummary{}, err
+	}
+	queryArgs := append(append([]any{}, args...), filter.Limit, filter.Offset)
 	rows, err := s.db.QueryContext(ctx, `
-	SELECT id, campaign_id, period_key, user_id, rank, amount, ledger_id, status, created_at
-	FROM rank_campaign_awards WHERE campaign_id=? AND period_key=? ORDER BY rank ASC
-	`, campaignID, periodKey)
+SELECT id, campaign_id, period_key, user_id, rank, amount, ledger_id, status, error_text, created_at
+FROM rank_campaign_awards WHERE `+whereSQL+` ORDER BY created_at DESC, rank ASC LIMIT ? OFFSET ?`, queryArgs...)
 	if err != nil {
-		return nil, err
+		return nil, 0, RankCampaignAwardSummary{}, err
 	}
 	defer rows.Close()
 	var out []RankCampaignAward
 	for rows.Next() {
 		var a RankCampaignAward
 		var created string
-		if err := rows.Scan(&a.ID, &a.CampaignID, &a.PeriodKey, &a.UserID, &a.Rank, &a.Amount, &a.LedgerID, &a.Status, &created); err != nil {
-			return nil, err
+		if err := rows.Scan(&a.ID, &a.CampaignID, &a.PeriodKey, &a.UserID, &a.Rank, &a.Amount, &a.LedgerID, &a.Status, &a.Error, &created); err != nil {
+			return nil, 0, RankCampaignAwardSummary{}, err
 		}
 		if t, err := time.Parse(time.RFC3339Nano, created); err == nil {
 			a.CreatedAt = t
 		}
 		out = append(out, a)
 	}
-	return out, rows.Err()
+	return out, total, summary, rows.Err()
+}
+
+func (s *Store) CampaignAwardCount(ctx context.Context, campaignID int64) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM rank_campaign_awards WHERE campaign_id=?`, campaignID).Scan(&count)
+	return count, err
+}
+
+// DeleteRankCampaignIfNoAwards permanently removes an activity only when it has no award records.
+func (s *Store) DeleteRankCampaignIfNoAwards(ctx context.Context, campaignID int64) (bool, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM rank_campaigns WHERE id=?`, campaignID).Scan(&exists); err != nil {
+		return false, err
+	}
+	if exists == 0 {
+		return false, sql.ErrNoRows
+	}
+	var awards int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM rank_campaign_awards WHERE campaign_id=?`, campaignID).Scan(&awards); err != nil {
+		return false, err
+	}
+	if awards > 0 {
+		return false, nil
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM rank_campaign_periods WHERE campaign_id=?`, campaignID); err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM rank_campaigns WHERE id=?`, campaignID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Store) GetCampaignPeriod(ctx context.Context, campaignID int64, periodKey string) (*RankCampaignPeriod, error) {
@@ -532,6 +664,23 @@ func scanCampaignRows(rows *sql.Rows) (*RankCampaign, error) {
 	var c RankCampaign
 	var created, updated string
 	if err := rows.Scan(&c.ID, &c.Name, &c.Board, &c.StartDate, &c.EndDate, &c.Frequency, &c.SettlementTime, &c.TopN, &c.RewardsJSON, &c.BudgetCap, &c.Status, &c.SettledAt, &created, &updated); err != nil {
+		return nil, err
+	}
+	if t, e := time.Parse(time.RFC3339Nano, created); e == nil {
+		c.CreatedAt = t
+	}
+	c.Frequency = NormalizeCampaignFrequency(c.Frequency)
+	c.SettlementTime = NormalizeCampaignSettlementTime(c.SettlementTime)
+	if t, e := time.Parse(time.RFC3339Nano, updated); e == nil {
+		c.UpdatedAt = t
+	}
+	return &c, nil
+}
+
+func scanCampaignRowsWithAwardCount(rows *sql.Rows) (*RankCampaign, error) {
+	var c RankCampaign
+	var created, updated string
+	if err := rows.Scan(&c.ID, &c.Name, &c.Board, &c.StartDate, &c.EndDate, &c.Frequency, &c.SettlementTime, &c.TopN, &c.RewardsJSON, &c.BudgetCap, &c.Status, &c.SettledAt, &created, &updated, &c.AwardCount); err != nil {
 		return nil, err
 	}
 	if t, e := time.Parse(time.RFC3339Nano, created); e == nil {
