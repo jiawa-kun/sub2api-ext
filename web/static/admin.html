@@ -250,7 +250,8 @@ html.light .patrol-log .l-error{color:#be123c}
 .split{display:grid; grid-template-columns:1.1fr .9fr; gap:12px}
 @media (max-width:860px){ .split{grid-template-columns:1fr} }
 
-.campaign-guide{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 14px}
+.campaign-title-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.campaign-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}.campaign-summary-item{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:linear-gradient(180deg,rgba(91,140,255,.05),var(--panel))}.campaign-summary-item span,.campaign-summary-item strong{display:block}.campaign-summary-item span{font-size:.68rem;color:var(--muted);font-weight:700}.campaign-summary-item strong{margin-top:4px;font-size:1.02rem;font-variant-numeric:tabular-nums}.campaign-summary-item.active strong{color:var(--primary)}.campaign-summary-item.warn strong{color:var(--warn)}
+.campaign-guide{display:block;margin:12px 0 14px;border:1px solid var(--border);border-radius:13px;background:var(--panel);overflow:hidden}.campaign-guide>summary{cursor:pointer;padding:9px 12px;color:var(--muted);font-size:.74rem;font-weight:750;list-style:none}.campaign-guide>summary::-webkit-details-marker{display:none}.campaign-guide-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 10px 10px}
 .campaign-guide-step{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--panel);display:flex;gap:9px;align-items:flex-start}
 .campaign-guide-step b{display:grid;place-items:center;width:24px;height:24px;border-radius:999px;background:rgba(91,140,255,.14);color:var(--primary);flex:none;font-size:.76rem}
 .campaign-guide-step strong{display:block;font-size:.78rem;margin-bottom:2px}.campaign-guide-step span{display:block;color:var(--muted);font-size:.7rem;line-height:1.4}
@@ -288,7 +289,7 @@ dialog.campaign-dialog.wide{width:min(940px,calc(100vw - 24px))}dialog.campaign-
 .campaign-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.campaign-detail-item{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-detail-item .k{font-size:.68rem;color:var(--muted)}.campaign-detail-item .v{font-size:.8rem;font-weight:700;margin-top:3px;overflow-wrap:anywhere}.campaign-detail-rewards{display:grid;gap:6px;margin-top:10px}.campaign-detail-reward{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:var(--panel);font-size:.76rem}
 .campaign-preview-stats,.campaign-award-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.campaign-preview-stat{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-preview-stat .k{font-size:.66rem;color:var(--muted)}.campaign-preview-stat .v{font-size:.9rem;font-weight:760;margin-top:3px}
 .campaign-award-filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px}.campaign-award-filters .field{margin:0}.campaign-award-error{max-width:250px;white-space:normal;color:var(--danger);font-size:.68rem;line-height:1.35}.campaign-empty{text-align:center;padding:28px 12px;color:var(--muted);font-size:.78rem}.campaign-inline-error{display:none;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(244,63,94,.08);color:var(--danger);font-size:.74rem}.campaign-inline-error.show{display:block}
-@media(max-width:760px){.campaign-guide{grid-template-columns:1fr}.campaign-filters{grid-template-columns:1fr 1fr}.campaign-filters .keyword{grid-column:1/-1}.campaign-filter-actions{grid-column:1/-1}.campaign-form-grid{grid-template-columns:1fr}.campaign-form-grid .full{grid-column:auto}.campaign-reward-row{grid-template-columns:1fr}.campaign-detail-grid{grid-template-columns:1fr 1fr}.campaign-preview-stats,.campaign-award-summary{grid-template-columns:1fr 1fr}.campaign-award-filters{grid-template-columns:1fr 1fr}.campaign-award-filters .user-filter,.campaign-award-filters .actions{grid-column:1/-1}.campaign-pagination{align-items:flex-start;flex-direction:column}.campaign-dialog-body{padding:13px}.campaign-dialog-head,.campaign-dialog-foot{padding-left:13px;padding-right:13px}}
+@media(max-width:760px){.campaign-summary,.campaign-guide-grid{grid-template-columns:1fr}.campaign-filters{grid-template-columns:1fr 1fr}.campaign-filters .keyword{grid-column:1/-1}.campaign-filter-actions{grid-column:1/-1}.campaign-form-grid{grid-template-columns:1fr}.campaign-form-grid .full{grid-column:auto}.campaign-reward-row{grid-template-columns:1fr}.campaign-detail-grid{grid-template-columns:1fr 1fr}.campaign-preview-stats,.campaign-award-summary{grid-template-columns:1fr 1fr}.campaign-award-filters{grid-template-columns:1fr 1fr}.campaign-award-filters .user-filter,.campaign-award-filters .actions{grid-column:1/-1}.campaign-pagination{align-items:flex-start;flex-direction:column}.campaign-dialog-body{padding:13px}.campaign-dialog-head,.campaign-dialog-foot{padding-left:13px;padding-right:13px}}
 
 .audit-item{border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:8px; background:var(--panel)}
 .audit-meta{font-size:.72rem; color:var(--muted); margin-bottom:4px}
@@ -333,6 +334,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
       </div>
       <div class="top-meta">
+        <a class="admin-quick-link" href="./home.html">扩展中心</a>
+        <a class="admin-quick-link" href="./create.html" target="_blank" rel="noopener">创作中心</a>
+        <a class="admin-quick-link" href="./works.html" target="_blank" rel="noopener">用户作品</a>
         <span class="chip" id="todayChip">日期 —</span>
         <div id="authStatus" class="auth-status">检测中…</div>
         <button type="button" class="theme-btn" id="themeBtn"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" opacity=".24"/></svg><span class="theme-label">浅色</span></button>
@@ -1130,20 +1134,29 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <h2>排行活动管理</h2>
             <p class="desc">根据奖励榜或消费榜的最终排名，给榜单前几名用户批量发放额度。</p>
           </div>
-          <span class="badge" id="campaignBadge">—</span>
+          <div class="campaign-title-actions"><span class="badge" id="campaignBadge">—</span><button type="button" id="btnCampaignNew">＋ 新建活动</button></div>
         </div>
 
-        <div class="campaign-guide">
+        <div class="campaign-summary" aria-label="排行活动摘要">
+          <div class="campaign-summary-item"><span>全部活动</span><strong id="campaignSummaryTotal">—</strong></div>
+          <div class="campaign-summary-item active"><span>本页进行中</span><strong id="campaignSummaryActive">—</strong></div>
+          <div class="campaign-summary-item"><span>本页已完成</span><strong id="campaignSummarySettled">—</strong></div>
+          <div class="campaign-summary-item warn"><span>本页需关注</span><strong id="campaignSummaryAttention">—</strong></div>
+        </div>
+
+        <details class="campaign-guide" open>
+          <summary>发奖流程说明</summary>
+          <div class="campaign-guide-grid">
           <div class="campaign-guide-step"><b>1</b><div><strong>创建活动</strong><span>设置排行范围、活动时间和奖励档位。</span></div></div>
           <div class="campaign-guide-step"><b>2</b><div><strong>预览名单</strong><span>结算前确认获奖用户、跳过原因和预计支出。</span></div></div>
           <div class="campaign-guide-step"><b>3</b><div><strong>确认发奖</strong><span>奖励进入用户余额，并保留发奖明细和流水编号。</span></div></div>
-        </div>
+          </div>
+        </details>
 
         <div class="campaign-list-head">
           <h3>活动列表</h3>
           <div class="campaign-head-actions">
             <button type="button" class="secondary sm" id="btnCampaignRefresh">刷新</button>
-            <button type="button" class="sm" id="btnCampaignNew">＋ 新建活动</button>
           </div>
         </div>
         <div class="campaign-filters">
@@ -1284,6 +1297,20 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="creative-kpi"><span>视频模型</span><strong id="creativePoolVideos">—</strong></div>
       </div>
 
+      <div class="creative-admin-workspace">
+      <div class="card creative-model-card">
+        <div class="card-head">
+          <div><h2 id="creativeModelTitle">模型与参考价格</h2><p class="desc" id="creativeModelDesc">参考价格仅用于费用预估，实际由用户的 Sub2API API Key 结算。</p></div>
+          <span class="badge" id="creativeModelBadge">0 个模型</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="tbl creative-model-table creative-responsive-table">
+            <thead><tr><th>模型</th><th>能力</th><th>可用性</th><th id="creativePriceHeading">参考价格</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="creativeModelBody"><tr><td colspan="6" class="sub">请先选择渠道</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="card creative-channel-card">
         <div class="card-head">
           <div><h2>调用渠道</h2><p class="desc">账号池使用用户自己的 API Key；外部渠道使用管理员配置的全局 Key。</p></div>
@@ -1317,18 +1344,6 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           </table>
         </div>
       </div>
-
-      <div class="card creative-model-card">
-        <div class="card-head">
-          <div><h2 id="creativeModelTitle">模型与参考价格</h2><p class="desc" id="creativeModelDesc">参考价格仅用于费用预估，实际由用户的 Sub2API API Key 结算。</p></div>
-          <span class="badge" id="creativeModelBadge">0 个模型</span>
-        </div>
-        <div class="tbl-wrap">
-          <table class="tbl creative-model-table creative-responsive-table">
-            <thead><tr><th>模型</th><th>能力</th><th>可用性</th><th id="creativePriceHeading">参考价格</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="creativeModelBody"><tr><td colspan="6" class="sub">请先选择渠道</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -3135,6 +3150,15 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       el('btnCampaignPrev').disabled=page<=1;el('btnCampaignNext').disabled=pages===0||page>=pages;
       const nums=[];const start=Math.max(1,page-2),end=Math.min(pages,start+4);for(let n=start;n<=end;n++)nums.push(`<button type="button" class="secondary sm ${n===page?'current':''}" data-campaign-page="${n}">${n}</button>`);el('campaignPageNumbers').innerHTML=nums.join('');
     }
+    function renderCampaignSummary(){
+      const items=campaignState.items||[];
+      const counts=items.reduce((acc,c)=>{const s=String(c.status||'');acc.total++;if(s==='active'||s==='draft')acc.active++;if(s==='settled')acc.settled++;if(s==='partial'||s==='cancelled'||Number(c.award_failed||0)>0)acc.attention++;return acc},{total:0,active:0,settled:0,attention:0});
+      const set=(id,value)=>{const node=el(id);if(node)node.textContent=String(value)};
+      set('campaignSummaryTotal',Number(campaignState.total||counts.total));
+      set('campaignSummaryActive',counts.active);
+      set('campaignSummarySettled',counts.settled);
+      set('campaignSummaryAttention',counts.attention);
+    }
     function renderCampaignRows(){
       const body=el('campaignBody');if(!campaignState.items.length){body.innerHTML='<tr><td colspan="8"><div class="campaign-empty">没有找到符合条件的活动<br><span>可以调整筛选条件，或点击“新建活动”。</span></div></td></tr>';return}
       body.innerHTML=campaignState.items.map(c=>{
@@ -3147,7 +3171,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       const params=new URLSearchParams({page:String(campaignState.page),page_size:String(campaignState.pageSize)}),filters=campaignFiltersFromDOM();Object.entries(filters).forEach(([k,v])=>{if(v)params.set(k,v)});
       const data=await api('./api/admin/rank/campaigns?'+params.toString());campaignState.items=data.items||[];campaignState.total=Number(data.total||0);campaignState.totalPages=Number(data.total_pages||0);campaignState.page=Number(data.page||campaignState.page);el('campaignBadge').textContent=campaignState.total+' 个活动';
       if(campaignState.total>0&&campaignState.totalPages>0&&campaignState.page>campaignState.totalPages){campaignState.page=campaignState.totalPages;return refreshCampaigns()}
-      renderCampaignRows();renderCampaignPagination();
+      renderCampaignSummary();renderCampaignRows();renderCampaignPagination();
     }
     function campaignDetailHTML(c){
       const spend=campaignRewardSpend(c),rewards=(c.rewards||[]).map(r=>`<div class="campaign-detail-reward"><span>${escapeHtml(campaignRewardLabel(r))}</span><b>${Number(r.amount||0).toFixed(4)} 额度/人</b></div>`).join('')||'<div class="campaign-empty">没有奖励规则</div>';
