@@ -80,6 +80,14 @@ type CreativeJob struct {
 	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 	DeletedAt         *time.Time `json:"deleted_at,omitempty"`
 }
+type CreativeJobImage struct {
+	JobID          int64     `json:"job_id"`
+	ImageIndex     int       `json:"image_index"`
+	LocalMediaFile string    `json:"-"`
+	LocalMediaType string    `json:"-"`
+	LocalMediaSize int64     `json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+}
 type CreativeJobFilter struct {
 	UserID         int64
 	MediaType      string
@@ -110,6 +118,7 @@ CREATE INDEX IF NOT EXISTS idx_creative_models_provider ON creative_models(provi
 CREATE TABLE IF NOT EXISTS creative_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,order_no TEXT NOT NULL UNIQUE,request_key TEXT NOT NULL,user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,model_id TEXT NOT NULL,media_type TEXT NOT NULL,prompt TEXT NOT NULL DEFAULT '',params_json TEXT NOT NULL DEFAULT '{}',upstream_request_id TEXT NOT NULL DEFAULT '',upstream_status TEXT NOT NULL DEFAULT '',result_json TEXT NOT NULL DEFAULT '{}',charge_amount REAL NOT NULL DEFAULT 0,charge_status TEXT NOT NULL DEFAULT '',charge_ledger_id INTEGER NOT NULL DEFAULT 0,refund_ledger_id INTEGER NOT NULL DEFAULT 0,status TEXT NOT NULL,progress INTEGER NOT NULL DEFAULT 0,error_code TEXT NOT NULL DEFAULT '',error_message TEXT NOT NULL DEFAULT '',local_media_file TEXT NOT NULL DEFAULT '',local_media_type TEXT NOT NULL DEFAULT '',local_media_size INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,completed_at TEXT NOT NULL DEFAULT '',FOREIGN KEY(provider_id) REFERENCES creative_providers(id),UNIQUE(user_id,request_key));
 CREATE INDEX IF NOT EXISTS idx_creative_jobs_user ON creative_jobs(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_creative_jobs_status ON creative_jobs(status,updated_at);
+CREATE TABLE IF NOT EXISTS creative_job_images (job_id INTEGER NOT NULL,image_index INTEGER NOT NULL,local_media_file TEXT NOT NULL,local_media_type TEXT NOT NULL,local_media_size INTEGER NOT NULL DEFAULT 0,created_at TEXT NOT NULL,PRIMARY KEY(job_id,image_index),FOREIGN KEY(job_id) REFERENCES creative_jobs(id) ON DELETE CASCADE);
 CREATE TABLE IF NOT EXISTS creative_job_events (id INTEGER PRIMARY KEY AUTOINCREMENT,job_id INTEGER NOT NULL,event_type TEXT NOT NULL,message TEXT NOT NULL DEFAULT '',data_json TEXT NOT NULL DEFAULT '{}',created_at TEXT NOT NULL,FOREIGN KEY(job_id) REFERENCES creative_jobs(id) ON DELETE CASCADE);
 CREATE INDEX IF NOT EXISTS idx_creative_events_job ON creative_job_events(job_id,created_at);
 CREATE TABLE IF NOT EXISTS creative_user_credentials (user_id INTEGER NOT NULL,provider_id INTEGER NOT NULL,api_key_cipher TEXT NOT NULL,key_hint TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,provider_id),FOREIGN KEY(provider_id) REFERENCES creative_providers(id) ON DELETE CASCADE);
@@ -428,12 +437,85 @@ func scanCreativeJob(row interface{ Scan(...any) error }) (*CreativeJob, error) 
 	return &j, nil
 }
 func (s *Store) UpdateCreativeJob(ctx context.Context, j CreativeJob) error {
+	return updateCreativeJob(ctx, s.db, j)
+}
+
+type creativeJobExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func updateCreativeJob(ctx context.Context, execer creativeJobExecer, j CreativeJob) error {
 	d := ""
 	if j.CompletedAt != nil {
 		d = j.CompletedAt.UTC().Format(time.RFC3339Nano)
 	}
-	_, err := s.db.ExecContext(ctx, `UPDATE creative_jobs SET upstream_request_id=?,upstream_status=?,result_json=?,charge_amount=?,charge_status=?,charge_ledger_id=?,refund_ledger_id=?,status=?,progress=?,error_code=?,error_message=?,local_media_file=?,local_media_type=?,local_media_size=?,updated_at=?,completed_at=? WHERE id=?`, j.UpstreamRequestID, j.UpstreamStatus, j.ResultJSON, j.ChargeAmount, j.ChargeStatus, j.ChargeLedgerID, j.RefundLedgerID, j.Status, j.Progress, j.ErrorCode, j.ErrorMessage, j.LocalMediaFile, j.LocalMediaType, j.LocalMediaSize, time.Now().UTC().Format(time.RFC3339Nano), d, j.ID)
+	_, err := execer.ExecContext(ctx, `UPDATE creative_jobs SET upstream_request_id=?,upstream_status=?,result_json=?,charge_amount=?,charge_status=?,charge_ledger_id=?,refund_ledger_id=?,status=?,progress=?,error_code=?,error_message=?,local_media_file=?,local_media_type=?,local_media_size=?,updated_at=?,completed_at=? WHERE id=?`, j.UpstreamRequestID, j.UpstreamStatus, j.ResultJSON, j.ChargeAmount, j.ChargeStatus, j.ChargeLedgerID, j.RefundLedgerID, j.Status, j.Progress, j.ErrorCode, j.ErrorMessage, j.LocalMediaFile, j.LocalMediaType, j.LocalMediaSize, time.Now().UTC().Format(time.RFC3339Nano), d, j.ID)
 	return err
+}
+
+func (s *Store) CompleteCreativeImageJob(ctx context.Context, j CreativeJob, images []CreativeJobImage) error {
+	if j.ID <= 0 || j.MediaType != "image" || j.Status != CreativeJobCompleted || len(images) == 0 {
+		return fmt.Errorf("creative image job and local images are required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := updateCreativeJob(ctx, tx, j); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM creative_job_images WHERE job_id=?`, j.ID); err != nil {
+		return err
+	}
+	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
+	for index, image := range images {
+		if image.JobID != j.ID || image.ImageIndex != index || strings.TrimSpace(image.LocalMediaFile) == "" || !strings.HasPrefix(image.LocalMediaType, "image/") || image.LocalMediaSize <= 0 {
+			return fmt.Errorf("invalid local image metadata")
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO creative_job_images(job_id,image_index,local_media_file,local_media_type,local_media_size,created_at) VALUES(?,?,?,?,?,?)`, image.JobID, image.ImageIndex, image.LocalMediaFile, image.LocalMediaType, image.LocalMediaSize, createdAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+const creativeJobImageSelect = `SELECT job_id,image_index,local_media_file,local_media_type,local_media_size,created_at FROM creative_job_images`
+
+func (s *Store) GetCreativeJobImage(ctx context.Context, jobID int64, imageIndex int) (*CreativeJobImage, error) {
+	return scanCreativeJobImage(s.db.QueryRowContext(ctx, creativeJobImageSelect+` WHERE job_id=? AND image_index=?`, jobID, imageIndex))
+}
+
+func (s *Store) ListCreativeJobImages(ctx context.Context, jobID int64) ([]CreativeJobImage, error) {
+	rows, err := s.db.QueryContext(ctx, creativeJobImageSelect+` WHERE job_id=? ORDER BY image_index`, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CreativeJobImage{}
+	for rows.Next() {
+		image, scanErr := scanCreativeJobImage(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		out = append(out, *image)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) DeleteCreativeJobImages(ctx context.Context, jobID int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM creative_job_images WHERE job_id=?`, jobID)
+	return err
+}
+
+func scanCreativeJobImage(row interface{ Scan(...any) error }) (*CreativeJobImage, error) {
+	var image CreativeJobImage
+	var createdAt string
+	if err := row.Scan(&image.JobID, &image.ImageIndex, &image.LocalMediaFile, &image.LocalMediaType, &image.LocalMediaSize, &createdAt); err != nil {
+		return nil, err
+	}
+	image.CreatedAt = parseStoreTime(createdAt)
+	return &image, nil
 }
 func (s *Store) ListCreativeJobs(ctx context.Context, f CreativeJobFilter) ([]CreativeJob, int, error) {
 	if f.Limit <= 0 {

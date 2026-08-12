@@ -111,6 +111,7 @@ type Service struct {
 	wg            sync.WaitGroup
 	pollMu        sync.Mutex
 	routeMu       sync.Mutex
+	mediaMu       sync.Mutex
 }
 
 type creditService interface {
@@ -343,7 +344,7 @@ func (s *Service) DeleteJob(ctx context.Context, id, userID int64) error {
 	if err := s.store.HideCreativeJob(ctx, id, userID); err != nil {
 		return err
 	}
-	s.removeLocalMedia(job)
+	s.removeLocalMedia(ctx, job)
 	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: id, EventType: "hidden_by_user", Message: "用户从作品列表删除"})
 	return nil
 }
@@ -365,7 +366,7 @@ func (s *Service) DeleteJobAsAdmin(ctx context.Context, id int64) error {
 	if err := s.store.HideCreativeJob(ctx, id, job.UserID); err != nil {
 		return err
 	}
-	s.removeLocalMedia(job)
+	s.removeLocalMedia(ctx, job)
 	_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: id, EventType: "deleted_by_admin", Message: "管理员从作品库删除"})
 	return nil
 }
@@ -719,15 +720,22 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 	if json.Unmarshal(body, &parsed) != nil || len(parsed.Data) == 0 {
 		return s.failAndRefund(ctx, job, "invalid_response", fmt.Errorf("图片接口未返回图片"))
 	}
+	archiveCtx, archiveCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Minute)
+	images, sanitizedResult, archiveErr := s.archiveImages(archiveCtx, job, body)
+	archiveCancel()
+	if archiveErr != nil {
+		return s.failAndRefund(ctx, job, "image_archive_failed", fmt.Errorf("保存图片到本地失败: %w", archiveErr))
+	}
 	now := time.Now().UTC()
-	job.ResultJSON = string(body)
+	job.ResultJSON = sanitizedResult
 	job.UpstreamStatus = "done"
 	job.Status = store.CreativeJobCompleted
 	job.Progress = 100
 	job.CompletedAt = &now
 	durableCtx, cancel := durableContext(ctx)
 	defer cancel()
-	if err := s.store.UpdateCreativeJob(durableCtx, *job); err != nil {
+	if err := s.store.CompleteCreativeImageJob(durableCtx, *job, images); err != nil {
+		s.removeArchivedImages(images)
 		return s.failAndRefund(durableCtx, job, "result_state_failed", fmt.Errorf("保存图片结果失败: %w", err))
 	}
 	_ = s.store.AddCreativeJobEvent(durableCtx, store.CreativeJobEvent{JobID: job.ID, EventType: "completed", Message: "图片生成完成"})
@@ -1015,6 +1023,16 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 	if job.Status != store.CreativeJobCompleted {
 		return nil, fmt.Errorf("作品尚未完成")
 	}
+	if job.MediaType == "image" {
+		if content, err := s.openLocalImage(ctx, job, index); content != nil || err != nil {
+			return content, err
+		}
+		if err := s.archiveExistingImages(ctx, job); err == nil {
+			if content, openErr := s.openLocalImage(ctx, job, index); content != nil || openErr != nil {
+				return content, openErr
+			}
+		}
+	}
 	if content, err := s.openLocalMedia(job); content != nil || err != nil {
 		return content, err
 	}
@@ -1048,8 +1066,14 @@ func (s *Service) openRemoteJobContent(ctx context.Context, job *store.CreativeJ
 		}
 		rawURL = v.Video.URL
 	}
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, fmt.Errorf("媒体地址无效")
+	}
 	if strings.HasPrefix(rawURL, "/") {
 		rawURL = s.providerEndpoint(*p, rawURL)
+	} else if parsed, parseErr := url.Parse(rawURL); parseErr == nil && !parsed.IsAbs() && parsed.Host == "" {
+		rawURL = s.providerEndpoint(*p, "/"+strings.TrimLeft(rawURL, "./"))
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {

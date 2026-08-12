@@ -20,6 +20,13 @@ import (
 	"sub2api-ext/internal/sub2api"
 )
 
+const testPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+func testPNGBytes() []byte {
+	raw, _ := base64.StdEncoding.DecodeString(testPNGBase64)
+	return raw
+}
+
 func TestInferGrokMediaPricing(t *testing.T) {
 	tests := []struct {
 		model      string
@@ -754,7 +761,7 @@ func TestGenerateAccountPoolImageEditUsesEncryptedUserKeyWithoutDoubleCharge(t *
 			if err := json.NewDecoder(r.Body).Decode(&gotEditPayload); err != nil {
 				t.Error(err)
 			}
-			_, _ = io.WriteString(w, `{"data":[{"url":"https://assets.example/image.png"}]}`)
+			_, _ = io.WriteString(w, `{"data":[{"b64_json":"`+testPNGBase64+`"}]}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -783,7 +790,7 @@ func TestGenerateAccountPoolImageEditUsesEncryptedUserKeyWithoutDoubleCharge(t *
 		t.Fatal(err)
 	}
 	client := sub2api.New(upstream.URL, "admin-key", time.Second)
-	svc := New(st, client, credit.New(st, client), "test-credential-secret-with-at-least-32-characters")
+	svc := New(st, client, credit.New(st, client), "test-credential-secret-with-at-least-32-characters", filepath.Join(t.TempDir(), "creative", "videos"))
 	if _, err := svc.SaveUserCredential(context.Background(), 7, p.ID, "user-media-key"); err != nil {
 		t.Fatal(err)
 	}
@@ -804,6 +811,22 @@ func TestGenerateAccountPoolImageEditUsesEncryptedUserKeyWithoutDoubleCharge(t *
 	}
 	if job.ChargeAmount != 0.06 || job.ChargeStatus != "upstream" || job.Status != store.CreativeJobCompleted {
 		t.Fatalf("job=%+v", job)
+	}
+	if strings.Contains(job.ResultJSON, "b64_json") {
+		t.Fatalf("base64 image leaked into stored result: %s", job.ResultJSON)
+	}
+	images, err := st.ListCreativeJobImages(context.Background(), job.ID)
+	if err != nil || len(images) != 1 || images[0].LocalMediaSize != int64(len(testPNGBytes())) {
+		t.Fatalf("local images=%+v err=%v", images, err)
+	}
+	content, err := svc.OpenJobContent(context.Background(), job, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotImage, err := io.ReadAll(content.Body)
+	_ = content.Body.Close()
+	if err != nil || string(gotImage) != string(testPNGBytes()) {
+		t.Fatalf("local image=%x err=%v", gotImage, err)
 	}
 	if balanceCalled {
 		t.Fatal("account-pool request invoked extension balance deduction")
@@ -831,7 +854,10 @@ func TestGenerateExternalImageUsesGlobalKeyAndExtensionBilling(t *testing.T) {
 			_, _ = io.WriteString(w, `{"code":0,"data":{"id":7,"balance":9.98}}`)
 		case "/v1/images/generations":
 			providerAuth = r.Header.Get("Authorization")
-			_, _ = io.WriteString(w, `{"data":[{"url":"https://assets.example/image.png"}]}`)
+			_, _ = io.WriteString(w, `{"data":[{"url":"/image.png"}]}`)
+		case "/image.png":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(testPNGBytes())
 		default:
 			http.NotFound(w, r)
 		}
@@ -857,7 +883,7 @@ func TestGenerateExternalImageUsesGlobalKeyAndExtensionBilling(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := sub2api.New(upstream.URL, "admin-key", time.Second)
-	svc := New(st, client, credit.New(st, client))
+	svc := New(st, client, credit.New(st, client), "", filepath.Join(t.TempDir(), "creative", "videos"))
 	job, err := svc.GenerateImage(context.Background(), 7, ImageInput{
 		ModelDBID: m.ID, Prompt: "generate", Count: 1, AspectRatio: "1:1", Resolution: "1k", RequestKey: "external-request",
 	})
