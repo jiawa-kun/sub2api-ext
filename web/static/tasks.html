@@ -95,9 +95,73 @@ html.light .brand-title .logo.light{display:block}
 .btn:disabled{opacity:.45; cursor:not-allowed}
 .btn.secondary{background:var(--soft2); color:var(--text); border:1px solid var(--border)}
 .empty{text-align:center; color:var(--muted); padding:28px 8px; font-size:.86rem}
-.pool-rules{margin-top:10px; padding-top:10px; border-top:1px solid var(--border)}
-.pool-rules-title{font-size:.78rem; font-weight:700; color:var(--text); margin-bottom:6px}
-.pool-rules-list{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--muted); font-size:.74rem; line-height:1.45}
+.pool-feature .task.pool-task{
+  position:relative; overflow:hidden; gap:12px; padding:14px 14px 12px;
+  border:1px solid rgba(34,197,94,.32);
+  background:
+    radial-gradient(520px 180px at 100% 0%, rgba(34,197,94,.16), transparent 60%),
+    radial-gradient(420px 160px at 0% 100%, rgba(91,140,255,.12), transparent 55%),
+    var(--card);
+}
+.pool-feature .task.pool-task::before{
+  content:""; position:absolute; inset:0 auto 0 0; width:4px;
+  background:linear-gradient(180deg,#22c55e,#5b8cff); border-radius:14px 0 0 14px;
+}
+.pool-kicker{
+  display:inline-flex; align-items:center; gap:6px; margin-bottom:4px;
+  padding:3px 9px; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.02em;
+  color:#166534; background:rgba(34,197,94,.16); border:1px solid rgba(34,197,94,.28);
+}
+html:not(.light) .pool-kicker{color:#86efac}
+.pool-title-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.pool-task .task-title{font-size:1.08rem; letter-spacing:.01em}
+.pool-task .task-desc{margin-top:4px; font-size:.84rem; color:var(--text); opacity:.88; font-weight:600}
+.pool-task .btn{min-width:118px; padding:9px 14px; font-size:.82rem; box-shadow:0 8px 18px rgba(34,197,94,.18)}
+.pool-task .btn:disabled{box-shadow:none}
+.pool-stats{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+.pool-stat{
+  border:1px solid var(--border); border-radius:12px; padding:10px 12px;
+  background:rgba(255,255,255,.04);
+}
+html.light .pool-stat{background:rgba(15,23,42,.03)}
+.pool-stat .k{font-size:.7rem; color:var(--muted); font-weight:650}
+.pool-stat .v{margin-top:4px; font-size:1.05rem; font-weight:800; color:var(--ok); letter-spacing:.01em}
+.pool-stat .v.muted{color:var(--muted); font-size:.88rem; font-weight:700}
+.pool-stat.recover .v{color:var(--warn)}
+.pool-stat .action{margin-top:8px}
+.pool-highlights{display:flex; flex-wrap:wrap; gap:8px}
+.pool-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  border-radius:999px; padding:7px 11px; font-size:.76rem; font-weight:750; line-height:1.2;
+  border:1px solid rgba(91,140,255,.28); background:rgba(91,140,255,.12); color:var(--text);
+}
+.pool-chip strong{color:#93c5fd; font-weight:800}
+html.light .pool-chip strong{color:#2563eb}
+.pool-chip.accent{
+  border-color:rgba(34,197,94,.35); background:rgba(34,197,94,.14);
+}
+.pool-chip.accent strong{color:#86efac}
+html.light .pool-chip.accent strong{color:#15803d}
+.pool-chip.warn{
+  border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.12);
+}
+.pool-chip.warn strong{color:#fbbf24}
+html.light .pool-chip.warn strong{color:#b45309}
+.pool-rules{margin-top:2px; border-top:1px dashed var(--border); padding-top:8px}
+.pool-rules > summary{
+  list-style:none; cursor:pointer; user-select:none;
+  display:inline-flex; align-items:center; gap:6px;
+  color:var(--muted); font-size:.75rem; font-weight:700;
+}
+.pool-rules > summary::-webkit-details-marker{display:none}
+.pool-rules > summary::after{content:"▾"; font-size:.7rem; opacity:.75}
+.pool-rules[open] > summary::after{content:"▴"}
+.pool-rules[open] > summary{margin-bottom:8px; color:var(--text)}
+.pool-rules-list{display:grid; gap:4px; margin:0; padding:0; list-style:none; color:var(--muted); font-size:.72rem; line-height:1.45}
+@media (max-width:520px){
+  .pool-stats{grid-template-columns:1fr}
+  .pool-task .btn{min-width:0}
+}
   </style>
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
@@ -259,12 +323,27 @@ html.light .brand-title .logo.light{display:block}
       }).join('');
       const recoverable=(pool&&pool.recoverable||[]).reduce((sum,x)=>sum+Number(x.remaining_amount||0),0);
       const today=pool&&pool.today_draw;
+      const drawn=!!(today&&today.status==='success');
       const poolHTML=pool?`<div class="task pool-task">
         <div class="task-head">
-          <div><div class="task-title">额度回流池</div><div class="task-desc">活跃用户每天可主动抽取一次，周六、周日也可抽取</div></div>
-          <button type="button" class="btn" data-pool-draw ${today&&today.status==='success'?'disabled':''}>${today&&today.status==='success'?'今日已抽取 '+money(today.amount):'立即抽取'}</button>
+          <div>
+            <div class="pool-kicker">限时福利 · 闲置额度再分配</div>
+            <div class="pool-title-row"><div class="task-title">额度回流池</div></div>
+            <div class="task-desc">闲置额度进公共池，活跃用户每天抽一次</div>
+          </div>
+          <button type="button" class="btn" data-pool-draw ${drawn?'disabled':''}>${drawn?'今日已抽 '+money(today.amount):'立即抽取'}</button>
         </div>
-        <div class="task-meta"><span class="pill ok">池余额 ${money(pool.available_pool)}</span>${recoverable>0?`<span>可追回 ${money(recoverable)}</span><button type="button" class="ghost-btn" data-pool-recover>追回我的额度</button>`:'<span>暂无可追回额度</span>'}</div>
+        <div class="pool-stats">
+          <div class="pool-stat">
+            <div class="k">当前池余额</div>
+            <div class="v">${money(pool.available_pool)}</div>
+          </div>
+          <div class="pool-stat${recoverable>0?' recover':''}">
+            <div class="k">我的可追回</div>
+            <div class="v${recoverable>0?'':' muted'}">${recoverable>0?money(recoverable):'暂无'}</div>
+            ${recoverable>0?`<div class="action"><button type="button" class="ghost-btn" data-pool-recover>一键追回</button></div>`:''}
+          </div>
+        </div>
         ${renderPoolRules(pool.rules, pool.recoverable)}
       </div>`:'';
       if(poolFeature){
@@ -353,6 +432,17 @@ html.light .brand-title .logo.light{display:block}
       if(draw.active_share_mode==='usage') return '抽取金额：按活跃用户近期额度消耗占比计算';
       return '抽取金额：按符合条件的活跃用户均分';
     }
+    function formatDrawShort(rules){
+      const draw=rules||{};
+      if(draw.draw_mode==='fixed') return '固定 <strong>'+money(draw.draw_fixed_amount)+'</strong>';
+      if(draw.draw_mode==='random') return '随机 <strong>'+money(draw.draw_min_amount)+'～'+money(draw.draw_max_amount)+'</strong>';
+      if(draw.active_share_mode==='usage') return '按近期消耗占比分配';
+      return '活跃用户均分';
+    }
+    function formatFrequencyShort(rules){
+      if((rules||{}).draw_frequency==='daily') return '每天 <strong>1 次</strong> · 含周末';
+      return '按当前规则抽取';
+    }
     function formatReclaimRules(rules){
       const r=rules||{};
       let amount='固定回收 '+money(r.reclaim_value);
@@ -381,12 +471,24 @@ html.light .brand-title .logo.light{display:block}
       const protect=[];
       if(rules.paid_balance_protected) protect.push('存在充值记录的用户不回收');
       if(Number(rules.new_user_protection_days||0)>0) protect.push('新用户保护 '+Number(rules.new_user_protection_days)+' 天');
+      const expireDays=Number(rules.pool_expire_days||0);
       const recovery=rules.can_recover_before_expiry
         ? '未被抽取的剩余额度可在自动退还前追回；超过期限后自动退还给原用户'
         : '未被抽取的额度按系统规则自动处理';
       const expiry=earliestExpiry(recoverableLots);
-      return `<div class="pool-rules">
-        <div class="pool-rules-title">当前生效规则</div>
+      const chips=[
+        `<span class="pool-chip">${formatFrequencyShort(rules)}</span>`,
+        `<span class="pool-chip accent">${formatDrawShort(rules)}</span>`,
+        expireDays>0
+          ? `<span class="pool-chip warn"><strong>${expireDays} 天</strong>未抽完自动退还</span>`
+          : `<span class="pool-chip warn">按规则自动退还</span>`
+      ];
+      if(rules.can_recover_before_expiry){
+        chips.push('<span class="pool-chip">被回收可先<strong>追回</strong></span>');
+      }
+      return `<div class="pool-highlights">${chips.join('')}</div>
+      <details class="pool-rules">
+        <summary>规则详情（可选看）</summary>
         <ul class="pool-rules-list">
           <li>入池条件：${escapeHtml(inactive)}（${formatLogic(rules.inactive_logic)}）</li>
           ${protect.length?`<li>保护规则：${escapeHtml(protect.join('；'))}</li>`:''}
@@ -395,12 +497,12 @@ html.light .brand-title .logo.light{display:block}
           <li>工作日定义：${escapeHtml(rules.workday_definition||'周一至周五计入工作日；周末不计天数，但周末活动仍有效')}</li>
           <li>${frequency}</li>
           <li>${escapeHtml(formatDrawRules(rules))}</li>
-          <li>自动退还：入池后 ${Number(rules.pool_expire_days||0)} 天未被抽取，自动退还给原用户</li>
+          <li>自动退还：入池后 ${expireDays} 天未被抽取，自动退还给原用户</li>
           <li>${recovery}</li>
           ${expiry?`<li>我的最近自动退还时间：${escapeHtml(expiry)}</li>`:''}
           ${rules.effective_at?`<li>规则更新时间：${escapeHtml(formatDateTime(rules.effective_at))}</li>`:''}
         </ul>
-      </div>`;
+      </details>`;
     }
     async function load(){
       const panel=el('panel');
