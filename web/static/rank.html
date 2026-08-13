@@ -126,6 +126,7 @@ html.light .tab.active{color:#4f46e5}
 .meta-right{display:flex; gap:8px; align-items:center; color:var(--muted); font-size:.75rem}
 .table-wrap{overflow:auto; border:1px solid var(--border); border-radius:14px}
 table{width:100%; border-collapse:collapse; min-width:560px}
+table.token-board{min-width:920px}
 th,td{padding:11px 12px; text-align:left; font-size:.82rem; border-bottom:1px solid var(--border)}
 th{color:var(--muted); font-weight:700; background:var(--soft); position:sticky; top:0}
 tr:last-child td{border-bottom:0}
@@ -188,7 +189,7 @@ tr.me{background:rgba(91,140,255,.08)}
 
     <section class="card" id="panel">
       <div class="tabs segmented-tabs" role="tablist" aria-label="排行榜类型">
-        <button type="button" class="tab active" role="tab" aria-selected="true" data-board="consumption">消费榜</button>
+        <button type="button" class="tab active" role="tab" aria-selected="true" data-board="consumption">Token 使用榜</button>
         <button type="button" class="tab" role="tab" aria-selected="false" data-board="rewards">奖励榜</button>
       </div>
 
@@ -196,7 +197,7 @@ tr.me{background:rgba(91,140,255,.08)}
         <div class="stat">
           <div class="ico g">$</div>
           <div>
-            <p class="k" id="s1k">总消费</p>
+            <p class="k" id="s1k">周期总 Token</p>
             <p class="v green" id="s1v">—</p>
             <p class="s" id="s1s">当前范围</p>
           </div>
@@ -204,7 +205,7 @@ tr.me{background:rgba(91,140,255,.08)}
         <div class="stat">
           <div class="ico b">#</div>
           <div>
-            <p class="k">展示条目</p>
+            <p class="k" id="s2k">参与用户</p>
             <p class="v" id="s2v">—</p>
             <p class="s" id="s2s">Top N</p>
           </div>
@@ -212,9 +213,9 @@ tr.me{background:rgba(91,140,255,.08)}
         <div class="stat">
           <div class="ico y">↑</div>
           <div>
-            <p class="k" id="s3k">榜首</p>
+            <p class="k" id="s3k">榜首 Token</p>
             <p class="v" id="s3v">—</p>
-            <p class="s">当前范围第一名</p>
+            <p class="s" id="s3s">当前范围第一名</p>
           </div>
         </div>
         <div class="stat">
@@ -255,19 +256,21 @@ tr.me{background:rgba(91,140,255,.08)}
             <tr id="headRow">
               <th style="width:64px">排名</th>
               <th>用户</th>
-              <th>消费</th>
+              <th>Token 使用量</th>
+              <th>占比</th>
               <th>请求数</th>
-              <th>TOKEN</th>
+              <th>平均 Token/次</th>
+              <th>实际消费</th>
             </tr>
           </thead>
           <tbody id="tbody">
-            <tr><td colspan="5" class="empty">加载中…</td></tr>
+            <tr><td colspan="7" class="empty">加载中…</td></tr>
           </tbody>
         </table>
       </div>
       <div class="msg" id="msg"></div>
     </section>
-    <div class="foot">消费榜对接 Sub2API 用量；奖励榜统计签到+抽奖获得总额 · 用户名已脱敏</div>
+    <div class="foot">Token 使用榜按统计周期内的 Token 总量排名；奖励榜统计签到+抽奖获得总额 · 用户名已脱敏</div>
   </div>
 
   <script>
@@ -298,6 +301,11 @@ tr.me{background:rgba(91,140,255,.08)}
     function fmtInt(n){
       const x = Math.round(Number(n||0));
       return isFinite(x) ? x.toLocaleString('en-US') : '0';
+    }
+    function fmtPercent(n){
+      const x = Number(n||0) * 100;
+      if(!isFinite(x) || x<=0) return '0%';
+      return x.toFixed(x>=10?1:2).replace(/\.0+$/,'') + '%';
     }
     function escapeHtml(s){
       return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -397,14 +405,16 @@ tr.me{background:rgba(91,140,255,.08)}
       });
       el('lead').textContent = board === 'rewards'
         ? '签到 + 抽奖获得余额排行'
-        : '查看不同时间范围内的用户消费排行';
-      el('s1k').textContent = board === 'rewards' ? '总获得' : '总消费';
-      el('s3k').textContent = board === 'rewards' ? '榜首获得' : '榜首消费';
+        : '按统计周期内的 Token 使用总量排名';
+      el('s1k').textContent = board === 'rewards' ? '总获得' : '周期总 Token';
+      el('s2k').textContent = board === 'rewards' ? '展示条目' : '参与用户';
+      el('s3k').textContent = board === 'rewards' ? '榜首获得' : '榜首 Token';
       if(board === 'rewards'){
         el('headRow').innerHTML = '<th style="width:64px">排名</th><th>用户</th><th>获得总额</th><th>签到</th><th>抽奖</th>';
       } else {
-        el('headRow').innerHTML = '<th style="width:64px">排名</th><th>用户</th><th>消费</th><th>请求数</th><th>TOKEN</th>';
+        el('headRow').innerHTML = '<th style="width:64px">排名</th><th>用户</th><th>Token 使用量</th><th>占比</th><th>请求数</th><th>平均 Token/次</th><th>实际消费</th>';
       }
+      el('headRow').closest('table').classList.toggle('token-board',board!=='rewards');
     }
     function rankClass(r){
       if(r===1) return 'r1';
@@ -414,17 +424,18 @@ tr.me{background:rgba(91,140,255,.08)}
     }
     function render(data){
       const s = data.summary || {};
-      el('s1v').textContent = money(s.total_amount);
+      el('s1v').textContent = board === 'rewards' ? money(s.total_amount) : fmtToken(s.total_tokens);
       el('s1s').textContent = RANGE_LABEL[data.range] || data.range || '当前范围';
-      el('s2v').textContent = String(s.display_count ?? (data.items||[]).length ?? 0);
-      el('s2s').textContent = 'Top' + (data.limit || 20);
-      el('s3v').textContent = money(s.top_amount);
+      el('s2v').textContent = String(board === 'rewards' ? (s.display_count ?? (data.items||[]).length ?? 0) : (s.user_count ?? 0));
+      el('s2s').textContent = board === 'rewards' ? ('Top' + (data.limit || 20)) : ('总请求 ' + fmtInt(s.total_requests));
+      el('s3v').textContent = board === 'rewards' ? money(s.top_amount) : fmtToken(s.top_tokens);
+      el('s3s').textContent = board === 'rewards' ? '当前范围第一名' : ('Top3 占比 ' + fmtPercent(s.top3_token_share));
       if(s.my_rank > 0){
         el('s4v').textContent = '#' + s.my_rank;
-        el('s4s').textContent = '我的' + (board==='rewards'?'获得 ':'消费 ') + money(s.my_amount);
+        el('s4s').textContent = board==='rewards' ? ('我的获得 ' + money(s.my_amount)) : ('我的 Token ' + fmtToken(s.my_tokens));
       } else {
         el('s4v').textContent = accessToken ? '未上榜' : '—';
-        el('s4s').textContent = accessToken ? ('我的 ' + money(s.my_amount||0)) : '登录后显示';
+        el('s4s').textContent = accessToken ? (board==='rewards' ? ('我的 ' + money(s.my_amount||0)) : ('我的 Token ' + fmtToken(s.my_tokens||0))) : '登录后显示';
       }
       el('dateSpan').textContent = (data.from||'') + (data.to && data.to !== data.from ? (' - ' + data.to) : '');
 
@@ -439,7 +450,7 @@ tr.me{background:rgba(91,140,255,.08)}
       const items = Array.isArray(data.items) ? data.items : [];
       const tb = el('tbody');
       if(!items.length){
-        tb.innerHTML = '<tr><td colspan="5" class="empty">暂无排行数据</td></tr>';
+        tb.innerHTML = `<tr><td colspan="${board==='rewards'?5:7}" class="empty">暂无排行数据</td></tr>`;
       } else if(board === 'rewards'){
         tb.innerHTML = items.map(it => {
           return `<tr class="${it.is_me?'me':''}">
@@ -455,9 +466,11 @@ tr.me{background:rgba(91,140,255,.08)}
           return `<tr class="${it.is_me?'me':''}">
             <td><span class="rank-pill ${rankClass(it.rank)}">${it.rank}</span></td>
             <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':'已脱敏展示'}</div></div></div></td>
-            <td class="amt">${money(it.amount)}</td>
+            <td class="amt" title="${fmtInt(it.token_count)} Token">${fmtToken(it.token_count)}</td>
+            <td>${fmtPercent(it.token_share)}</td>
             <td>${fmtInt(it.request_count)}</td>
-            <td>${fmtToken(it.token_count)}</td>
+            <td title="${fmtInt(it.avg_tokens_per_request)} Token/次">${fmtToken(it.avg_tokens_per_request)}</td>
+            <td>${money(it.amount)}</td>
           </tr>`;
         }).join('');
       }
@@ -492,7 +505,7 @@ tr.me{background:rgba(91,140,255,.08)}
         const data = await api(path);
         render(data || {});
       }catch(e){
-        el('tbody').innerHTML = '<tr><td colspan="5" class="empty">加载失败</td></tr>';
+        el('tbody').innerHTML = `<tr><td colspan="${board==='rewards'?5:7}" class="empty">加载失败</td></tr>`;
         showMsg(String(e.message || e), 'err');
       }finally{
         panel.classList.remove('loading');
@@ -553,7 +566,7 @@ tr.me{background:rgba(91,140,255,.08)}
         box.classList.remove('hidden');
         const esc = (s)=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
         list.innerHTML = items.map(c=>{
-          const board = c.board === 'consumption' ? '消费榜' : '奖励榜';
+          const board = c.board === 'consumption' ? 'Token 使用榜' : '奖励榜';
           const frequency = ({once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'})[c.frequency||'once'] || c.frequency || '一次性';
           const rewards = Array.isArray(c.rewards) ? c.rewards : [];
           const rewardText = rewards.length

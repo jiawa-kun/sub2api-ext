@@ -4,33 +4,46 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
-// UsageRankItem is one row on the consumption leaderboard.
+const tokenRankingMaxCandidates = 5000
+
+// UsageRankItem is one normalized row from an upstream usage leaderboard.
 type UsageRankItem struct {
-	UserID       int64   `json:"user_id"`
-	DisplayName  string  `json:"display_name"`
-	Amount       float64 `json:"amount"`
-	RequestCount int64   `json:"request_count"`
-	TokenCount   float64 `json:"token_count"`
-	Rank         int     `json:"rank,omitempty"`
+	UserID               int64   `json:"user_id"`
+	DisplayName          string  `json:"display_name"`
+	Amount               float64 `json:"amount"`
+	RequestCount         int64   `json:"request_count"`
+	TokenCount           float64 `json:"token_count"`
+	TokenShare           float64 `json:"token_share,omitempty"`
+	AvgTokensPerRequest  float64 `json:"avg_tokens_per_request,omitempty"`
+	CostPerRequest       float64 `json:"cost_per_request,omitempty"`
+	CostPerMillionTokens float64 `json:"cost_per_million_tokens,omitempty"`
+	Rank                 int     `json:"rank,omitempty"`
 }
 
-// UsageRankResult is the normalized consumption ranking payload.
+// UsageRankResult is the normalized usage ranking payload.
 type UsageRankResult struct {
-	Items        []UsageRankItem `json:"items"`
-	TotalAmount  float64         `json:"total_amount"`
-	TotalRequests int64          `json:"total_requests"`
-	TotalTokens  float64         `json:"total_tokens"`
-	MyRank       int             `json:"my_rank,omitempty"`
-	MyAmount     float64         `json:"my_amount,omitempty"`
-	Source       string          `json:"source,omitempty"`
-	RawHint      string          `json:"-"`
+	Items          []UsageRankItem `json:"items"`
+	TotalAmount    float64         `json:"total_amount"`
+	TotalRequests  int64           `json:"total_requests"`
+	TotalTokens    float64         `json:"total_tokens"`
+	UserCount      int             `json:"user_count"`
+	TopTokens      float64         `json:"top_tokens"`
+	Top3TokenShare float64         `json:"top3_token_share"`
+	MyRank         int             `json:"my_rank,omitempty"`
+	MyAmount       float64         `json:"my_amount,omitempty"`
+	MyTokens       float64         `json:"my_tokens,omitempty"`
+	MyRequestCount int64           `json:"my_request_count,omitempty"`
+	Source         string          `json:"source,omitempty"`
+	RawHint        string          `json:"-"`
 }
 
 // UsageRankQuery describes a date-bounded ranking request.
@@ -84,6 +97,119 @@ func (c *Client) FetchUsageRanking(ctx context.Context, userToken string, meta C
 		lastErr = fmt.Errorf("usage ranking unavailable")
 	}
 	return nil, lastErr
+}
+
+// FetchTokenUsageRanking loads the complete admin usage board and ranks it by
+// token volume. The upstream endpoint ranks by cost, so truncating before this
+// local sort would produce an incorrect token leaderboard.
+func (c *Client) FetchTokenUsageRanking(ctx context.Context, q UsageRankQuery) (*UsageRankResult, error) {
+	if c.AdminToken() == "" {
+		return nil, fmt.Errorf("admin credential required for token ranking")
+	}
+	displayLimit := q.Limit
+	if displayLimit <= 0 {
+		displayLimit = 20
+	}
+	if displayLimit > 100 {
+		displayLimit = 100
+	}
+
+	fullQuery := q
+	fullQuery.Limit = tokenRankingMaxCandidates
+	res, err := c.fetchAdminUsageRanking(ctx, fullQuery)
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, fmt.Errorf("token ranking unavailable")
+	}
+	if len(res.Items) >= tokenRankingMaxCandidates {
+		return nil, fmt.Errorf("token ranking reached %d-user safety limit", tokenRankingMaxCandidates)
+	}
+
+	upstreamTotalTokens := res.TotalTokens
+	listedTokens := 0.0
+	for _, item := range res.Items {
+		listedTokens += item.TokenCount
+	}
+	if upstreamTotalTokens <= 0 {
+		upstreamTotalTokens = listedTokens
+	} else {
+		tolerance := math.Max(1, math.Abs(upstreamTotalTokens)*1e-9)
+		if listedTokens+tolerance < upstreamTotalTokens {
+			return nil, fmt.Errorf("token ranking is incomplete: listed %.0f of %.0f tokens", listedTokens, upstreamTotalTokens)
+		}
+	}
+
+	ranked := res.Items[:0]
+	for _, item := range res.Items {
+		if item.UserID > 0 && item.TokenCount > 0 {
+			ranked = append(ranked, item)
+		}
+	}
+	res.Items = ranked
+
+	sort.SliceStable(res.Items, func(i, j int) bool {
+		left, right := res.Items[i], res.Items[j]
+		if left.TokenCount != right.TokenCount {
+			return left.TokenCount > right.TokenCount
+		}
+		if left.Amount != right.Amount {
+			return left.Amount > right.Amount
+		}
+		return left.UserID < right.UserID
+	})
+
+	res.TotalAmount = 0
+	res.TotalRequests = 0
+	res.TotalTokens = 0
+	for _, item := range res.Items {
+		res.TotalAmount += item.Amount
+		res.TotalRequests += item.RequestCount
+		res.TotalTokens += item.TokenCount
+	}
+
+	top3Tokens := 0.0
+	res.MyRank = 0
+	res.MyAmount = 0
+	res.MyTokens = 0
+	res.MyRequestCount = 0
+	for i := range res.Items {
+		item := &res.Items[i]
+		item.Rank = i + 1
+		if res.TotalTokens > 0 {
+			item.TokenShare = item.TokenCount / res.TotalTokens
+		}
+		if item.RequestCount > 0 {
+			item.AvgTokensPerRequest = item.TokenCount / float64(item.RequestCount)
+			item.CostPerRequest = item.Amount / float64(item.RequestCount)
+		}
+		if item.TokenCount > 0 {
+			item.CostPerMillionTokens = item.Amount * 1_000_000 / item.TokenCount
+		}
+		if i < 3 {
+			top3Tokens += item.TokenCount
+		}
+		if q.UserID > 0 && item.UserID == q.UserID {
+			res.MyRank = item.Rank
+			res.MyAmount = item.Amount
+			res.MyTokens = item.TokenCount
+			res.MyRequestCount = item.RequestCount
+		}
+	}
+
+	res.UserCount = len(res.Items)
+	if len(res.Items) > 0 {
+		res.TopTokens = res.Items[0].TokenCount
+	}
+	if res.TotalTokens > 0 {
+		res.Top3TokenShare = top3Tokens / res.TotalTokens
+	}
+	if len(res.Items) > displayLimit {
+		res.Items = res.Items[:displayLimit]
+	}
+	res.Source = "admin-token"
+	return res, nil
 }
 
 func (c *Client) fetchUserUsageRanking(ctx context.Context, userToken string, meta ClientMeta, q UsageRankQuery) (*UsageRankResult, error) {

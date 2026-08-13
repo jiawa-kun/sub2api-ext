@@ -385,8 +385,14 @@ func (h *Handler) adminCancelCampaign(w http.ResponseWriter, r *http.Request, id
 }
 
 type campaignRankRow struct {
-	UserID int64
-	Amount float64
+	UserID              int64
+	Amount              float64
+	RequestCount        int64
+	ActualCost          float64
+	TokenShare          float64
+	AvgTokensPerRequest float64
+	CostPerRequest      float64
+	CostPerMillionToken float64
 }
 
 // validateCampaignMeta checks board/status/date/reward rules before preview or settle.
@@ -565,7 +571,11 @@ func planCampaignAwards(c *store.RankCampaign, rows []campaignRankRow, rules []s
 		}
 		details = append(details, map[string]any{
 			"user_id": row.UserID, "rank": rank, "amount": amt, "status": status,
-			"board_amount": row.Amount,
+			"board_amount": row.Amount, "request_count": row.RequestCount,
+			"actual_cost": row.ActualCost, "token_share": row.TokenShare,
+			"avg_tokens_per_request":  row.AvgTokensPerRequest,
+			"cost_per_request":        row.CostPerRequest,
+			"cost_per_million_tokens": row.CostPerMillionToken,
 		})
 	}
 	return payable, skipped, spentPlan, details
@@ -603,9 +613,9 @@ func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaig
 	case store.CampaignBoardConsumption:
 		h.syncAdminCred()
 		if h.effectiveAdminCred() == "" {
-			return nil, fmt.Errorf("admin api key required for consumption ranking")
+			return nil, fmt.Errorf("admin api key required for token usage ranking")
 		}
-		res, err := h.client.FetchUsageRanking(ctx, "", sub2api.ClientMeta{}, sub2api.UsageRankQuery{
+		res, err := h.client.FetchTokenUsageRanking(ctx, sub2api.UsageRankQuery{
 			FromDate: period.StartDate,
 			ToDate:   period.EndDate,
 			Limit:    topN,
@@ -622,7 +632,13 @@ func (h *Handler) loadCampaignRankRows(ctx context.Context, c *store.RankCampaig
 			if uid <= 0 {
 				continue
 			}
-			out = append(out, campaignRankRow{UserID: uid, Amount: it.Amount})
+			out = append(out, campaignRankRow{
+				UserID: uid, Amount: it.TokenCount, RequestCount: it.RequestCount,
+				ActualCost: it.Amount, TokenShare: it.TokenShare,
+				AvgTokensPerRequest: it.AvgTokensPerRequest,
+				CostPerRequest:      it.CostPerRequest,
+				CostPerMillionToken: it.CostPerMillionTokens,
+			})
 		}
 		if len(out) > topN {
 			out = out[:topN]

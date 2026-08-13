@@ -103,3 +103,71 @@ func TestAdminCampaignPaginationAwardsAndSafeDelete(t *testing.T) {
 		t.Fatalf("deleted campaign=%+v err=%v", campaign, err)
 	}
 }
+
+func TestAdminCampaignPreviewUsesTokenRanking(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/dashboard/users-ranking" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"total_actual_cost":15,"total_requests":6,"total_tokens":500,"ranking":[` +
+			`{"user_id":11,"username":"cost-first","actual_cost":10,"requests":2,"tokens":100},` +
+			`{"user_id":22,"username":"token-first","actual_cost":5,"requests":4,"tokens":400}]}}`))
+	}))
+	defer upstream.Close()
+
+	const adminKey = "campaign-token-key"
+	cfg := config.Default()
+	cfg.Store.SQLitePath = filepath.Join(t.TempDir(), "campaign-token.db")
+	cfg.Sub2API.BaseURL = upstream.URL
+	cfg.Sub2API.AdminToken = adminKey
+	st, err := store.Open(cfg.Store.SQLitePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	client := sub2api.New(upstream.URL, adminKey, time.Second)
+	h := handler.New(cfg, st, client, settings.New(st, cfg.Checkin), nil)
+	campaignID, err := st.CreateRankCampaign(context.Background(), store.RankCampaign{
+		Name: "Token 日榜", Board: store.CampaignBoardConsumption,
+		StartDate: "2026-08-01", EndDate: "2026-08-31", Frequency: store.CampaignFrequencyDaily,
+		SettlementTime: "01:00", TopN: 2, Status: store.CampaignStatusActive,
+		RewardsJSON: `[{"rank":1,"amount":2},{"rank":2,"amount":1}]`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	target := "/api/admin/rank/campaigns/" + strconv.FormatInt(campaignID, 10) + "/preview?period_key=2026-08-12"
+	req := campaignAdminRequest(http.MethodGet, target, adminKey)
+	rec := httptest.NewRecorder()
+	h.AdminRankCampaignByID(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Board   string `json:"board"`
+		Details []struct {
+			Rank                int     `json:"rank"`
+			UserID              int64   `json:"user_id"`
+			BoardAmount         float64 `json:"board_amount"`
+			RequestCount        int64   `json:"request_count"`
+			ActualCost          float64 `json:"actual_cost"`
+			TokenShare          float64 `json:"token_share"`
+			AvgTokensPerRequest float64 `json:"avg_tokens_per_request"`
+			CostPerRequest      float64 `json:"cost_per_request"`
+			CostPerMillionToken float64 `json:"cost_per_million_tokens"`
+		} `json:"details"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Board != store.CampaignBoardConsumption || len(body.Details) != 2 {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+	top := body.Details[0]
+	if top.Rank != 1 || top.UserID != 22 || top.BoardAmount != 400 || top.RequestCount != 4 || top.ActualCost != 5 || top.TokenShare != 0.8 || top.AvgTokensPerRequest != 100 || top.CostPerRequest != 1.25 || top.CostPerMillionToken != 12500 {
+		t.Fatalf("top=%+v", top)
+	}
+}

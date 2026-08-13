@@ -25,12 +25,12 @@
 | 抽奖锚点 | `/ext/admin.html#lottery` | 直达幸运抽奖配置 |
 | 通知锚点 | `/ext/admin.html#notify` | 直达通知中心配置 |
 | 日报锚点 | `/ext/admin.html#report` | 直达运营日报配置 |
-| 排行榜 | `/ext/rank.html` | 消费榜 + 奖励榜（展示进行中活动） |
+| 排行榜 | `/ext/rank.html` | Token 使用榜 + 奖励榜（展示进行中活动） |
 | 任务中心 | `/ext/tasks.html` | 用户任务进度与领取 |
 | 我的奖励 | `/ext/rewards.html` | 用户本人扩展发放流水（只读） |
 | 运营摘要 | `/ext/admin.html#overview` | 管理台默认总览（今日发放/预算/活动/巡检） |
 | 发放总账 | `/ext/admin.html#ledger` | 扩展侧统一发放流水 |
-| 排行活动 | `/ext/admin.html#campaign` | 奖励榜活动创建与结算 |
+| 排行活动 | `/ext/admin.html#campaign` | 奖励榜 / Token 使用榜活动创建与结算 |
 | 任务配置 | `/ext/admin.html#tasks` | 任务开关与奖励额度 |
 | 健康检查 | `/ext/healthz` | 含 `product` / `modules` 字段 |
 | 模块列表 API | `/ext/api/modules` | 公开，供首页渲染 |
@@ -52,7 +52,8 @@
 - API：`GET /ext/api/me/ledger`、`GET /ext/api/admin/overview`、`GET /ext/api/admin/ledger`、`GET /ext/api/admin/ledger/stats`
 
 ### 排行活动结算（campaign）
-- **奖励榜**与**消费榜**均可预览/结算发奖（消费榜依赖 Admin API Key 拉取 Sub2API 用量榜）
+- **奖励榜**与**Token 使用榜**均可预览/结算发奖（Token 使用榜依赖 Admin API Key 拉取完整用量后按 Token 总量排序）
+- Token 使用榜展示 Token 使用量、占比、请求数、平均 Token/次和实际消费；摘要展示周期总 Token、参与用户、总请求、榜首 Token、Top3 占比及我的排名
 - 支持一次性、每日、每周、每月活动；周期按 `Asia/Shanghai` 计算，每日结算前一自然日、每周结算上一个周一至周日、每月结算上一个自然月
 - 周期活动在配置的上海时间自动结算；活动开始/结束日期必须覆盖完整周期，发奖唯一键为活动 + 周期 + 用户，同一用户可跨周期重复获奖
 - 管理台以活动列表为主，支持名称/榜单/周期/状态筛选和每页 10 条分页；新建、修改、查看、预览结算与发奖明细均使用弹窗
@@ -97,7 +98,7 @@ internal/
 web/static/
   index.html               用户签到页（含抽奖卡片，默认入口）
   home.html                扩展中心（模块总览）
-  rank.html                排行榜（消费 / 奖励 + 活动横幅）
+  rank.html                排行榜（Token 使用 / 奖励 + 活动横幅）
   tasks.html               任务中心用户页
   admin.html               扩展管理台（签到 / 巡检 / 抽奖 / 通知 / 日报 / 总账 / 活动 / 任务）
 configs/                   配置示例
@@ -240,14 +241,14 @@ LOTTERY_HARD_CAP=0
 
 用户侧双榜：
 
-1. **消费榜**：对接 Sub2API 用量排行（用户 JWT / Admin 凭证），失败时提供官方 `/rank` 跳转
+1. **Token 使用榜**：使用 Admin 凭证拉取 Sub2API 周期用量，按 Token 总量降序排列，失败时提供官方 `/rank` 跳转
 2. **奖励榜**：本服务签到 + 抽奖获得余额聚合排行
 
 时间范围：今日 / 昨日 / 近 7 天 / 近 30 天。默认 Top 20，用户名脱敏，展示「我的排名」。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/ranking/consumption` | 用户消费排行 |
+| GET | `/api/ranking/consumption` | 用户 Token 使用排行（兼容保留 consumption 路径） |
 | GET | `/api/ranking/rewards` | 扩展奖励排行 |
 
 查询参数：`range=today|yesterday|7d|30d`，`limit`（默认 20）。

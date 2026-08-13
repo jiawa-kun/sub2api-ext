@@ -289,6 +289,7 @@ dialog.campaign-dialog.wide{width:min(940px,calc(100vw - 24px))}dialog.campaign-
 .campaign-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.campaign-detail-item{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-detail-item .k{font-size:.68rem;color:var(--muted)}.campaign-detail-item .v{font-size:.8rem;font-weight:700;margin-top:3px;overflow-wrap:anywhere}.campaign-detail-rewards{display:grid;gap:6px;margin-top:10px}.campaign-detail-reward{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:10px;background:var(--panel);font-size:.76rem}
 .campaign-preview-stats,.campaign-award-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}.campaign-preview-stat{border:1px solid var(--border);border-radius:11px;padding:9px;background:var(--panel)}.campaign-preview-stat .k{font-size:.66rem;color:var(--muted)}.campaign-preview-stat .v{font-size:.9rem;font-weight:760;margin-top:3px}
 .campaign-award-filters{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px}.campaign-award-filters .field{margin:0}.campaign-award-error{max-width:250px;white-space:normal;color:var(--danger);font-size:.68rem;line-height:1.35}.campaign-empty{text-align:center;padding:28px 12px;color:var(--muted);font-size:.78rem}.campaign-inline-error{display:none;margin-top:10px;padding:8px 10px;border-radius:10px;background:rgba(244,63,94,.08);color:var(--danger);font-size:.74rem}.campaign-inline-error.show{display:block}
+.campaign-token-preview{min-width:1160px}
 @media(max-width:760px){.campaign-summary,.campaign-guide-grid{grid-template-columns:1fr}.campaign-filters{grid-template-columns:1fr 1fr}.campaign-filters .keyword{grid-column:1/-1}.campaign-filter-actions{grid-column:1/-1}.campaign-form-grid{grid-template-columns:1fr}.campaign-form-grid .full{grid-column:auto}.campaign-reward-row{grid-template-columns:1fr}.campaign-detail-grid{grid-template-columns:1fr 1fr}.campaign-preview-stats,.campaign-award-summary{grid-template-columns:1fr 1fr}.campaign-award-filters{grid-template-columns:1fr 1fr}.campaign-award-filters .user-filter,.campaign-award-filters .actions{grid-column:1/-1}.campaign-pagination{align-items:flex-start;flex-direction:column}.campaign-dialog-body{padding:13px}.campaign-dialog-head,.campaign-dialog-foot{padding-left:13px;padding-right:13px}}
 
 .audit-item{border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:8px; background:var(--panel)}
@@ -1132,7 +1133,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         <div class="card-head">
           <div>
             <h2>排行活动管理</h2>
-            <p class="desc">根据奖励榜或消费榜的最终排名，给榜单前几名用户批量发放额度。</p>
+            <p class="desc">根据奖励榜或 Token 使用榜的最终排名，给榜单前几名用户批量发放额度。</p>
           </div>
           <div class="campaign-title-actions"><span class="badge" id="campaignBadge">—</span><button type="button" id="btnCampaignNew">＋ 新建活动</button></div>
         </div>
@@ -1161,7 +1162,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
         <div class="campaign-filters">
           <div class="field keyword"><label for="campaignFilterKeyword">活动名称</label><input id="campaignFilterKeyword" type="text" placeholder="输入活动名称搜索" /></div>
-          <div class="field"><label for="campaignFilterBoard">榜单</label><select id="campaignFilterBoard"><option value="">全部榜单</option><option value="rewards">奖励榜</option><option value="consumption">消费榜</option></select></div>
+          <div class="field"><label for="campaignFilterBoard">榜单</label><select id="campaignFilterBoard"><option value="">全部榜单</option><option value="rewards">奖励榜</option><option value="consumption">Token 使用榜</option></select></div>
           <div class="field"><label for="campaignFilterFrequency">结算周期</label><select id="campaignFilterFrequency"><option value="">全部周期</option><option value="once">一次性</option><option value="daily">每日</option><option value="weekly">每周</option><option value="monthly">每月</option></select></div>
           <div class="field"><label for="campaignFilterStatus">状态</label><select id="campaignFilterStatus"><option value="">全部状态</option><option value="draft">草稿</option><option value="active">进行中</option><option value="partial">部分成功</option><option value="settled">已完成</option><option value="cancelled">已取消</option></select></div>
           <div class="campaign-filter-actions"><button type="button" class="sm" id="btnCampaignSearch">查询</button><button type="button" class="secondary sm" id="btnCampaignReset">重置</button></div>
@@ -1185,9 +1186,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
             <div class="campaign-form-section">
               <h4>1. 活动信息</h4><p>选择榜单后，系统会按照活动时间统计排名。</p>
               <div class="campaign-form-grid">
-                <div class="field full"><label for="campName">活动名称</label><input id="campName" type="text" maxlength="80" placeholder="例如：8 月消费榜 Top10" /></div>
-                <div class="field"><label for="campBoard">按什么排名</label><select id="campBoard"><option value="rewards">奖励榜</option><option value="consumption">消费榜</option></select><div class="campaign-board-help" id="campaignBoardHelp"></div></div>
-                <div class="field"><label for="campTopN">统计前多少名</label><input id="campTopN" type="number" min="1" max="100" value="10" /><div class="hint">排行榜最多读取的人数，不代表每个名次都必须发奖。</div></div>
+                <div class="field full"><label for="campName">活动名称</label><input id="campName" type="text" maxlength="80" placeholder="例如：8 月 Token 使用榜 Top10" /></div>
+                <div class="field"><label for="campBoard">按什么排名</label><select id="campBoard"><option value="rewards">奖励榜</option><option value="consumption">Token 使用榜</option></select><div class="campaign-board-help" id="campaignBoardHelp"></div></div>
+                <div class="field"><label for="campTopN">统计前多少名</label><input id="campTopN" type="number" min="1" max="100" value="10" /><div class="hint">取排序后的前 N 名参与奖励计算，不代表每个名次都必须发奖。</div></div>
                 <div class="field"><label for="campStatus">创建后是否立即生效</label><select id="campStatus"><option value="draft">保存为草稿</option><option value="active">立即生效</option></select></div>
                 <div class="field"><label for="campBudget">每个结算周期最多发放</label><input id="campBudget" type="number" step="0.0001" min="0" value="0" /><div class="hint">填写 0 表示不限制预算。</div></div>
               </div>
@@ -3073,12 +3074,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await refreshRedistribution();
     }
     const campaignLabels={
-      board:{rewards:'奖励榜',consumption:'消费榜'},
+      board:{rewards:'奖励榜',consumption:'Token 使用榜'},
       frequency:{once:'一次性',daily:'每日',weekly:'每周',monthly:'每月'},
       status:{draft:'草稿',active:'进行中',partial:'部分成功',settled:'已完成',cancelled:'已取消'},
       award:{success:'发放成功',failed:'发放失败',skipped:'已发放，自动跳过',planned:'待发放',retry_failed:'失败待重试',budget_cut:'超出预算',no_reward:'该名次无奖励',already_success:'已经发放',already_skipped:'已经跳过'}
     };
     const campaignState={items:[],page:1,pageSize:10,total:0,totalPages:0,editingId:0,previewId:0,previewData:null,awardsId:0,awardsPage:1,awardsTotalPages:0};
+    function fmtCampaignTokens(value){const n=Number(value||0);if(!Number.isFinite(n)||n<=0)return '0';if(n>=1e9)return (n/1e9).toFixed(2).replace(/\.0+$/,'')+'B';if(n>=1e6)return (n/1e6).toFixed(2).replace(/\.0+$/,'')+'M';if(n>=1e3)return (n/1e3).toFixed(2).replace(/\.0+$/,'')+'K';return Math.round(n).toLocaleString('en-US')}
+    function fmtCampaignPercent(value){const n=Number(value||0)*100;if(!Number.isFinite(n)||n<=0)return '0%';return n.toFixed(n>=10?1:2).replace(/\.0+$/,'')+'%'}
     function defaultCampRewards(){return [{mode:'single',rank:1,rank_from:0,rank_to:0,amount:5},{mode:'range',rank:0,rank_from:2,rank_to:5,amount:1},{mode:'range',rank:0,rank_from:6,rank_to:10,amount:.5}]}
     let campRewardState=defaultCampRewards();
     function campaignCloseDialog(id){const dialog=el(id);if(dialog&&dialog.open)dialog.close()}
@@ -3120,7 +3123,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     }
     function syncCampaignEditorHelp(){
       const board=el('campBoard')?.value||'rewards';
-      el('campaignBoardHelp').textContent=board==='consumption'?'按照活动期间用户在 Sub2API 中的消费金额排名，需要有效的 Admin API Key。':'按照活动期间用户通过签到和抽奖获得的额度排名。';
+      el('campaignBoardHelp').textContent=board==='consumption'?'按照活动期间用户的 Token 使用总量排名；同量时按实际消费、用户 ID 决定顺序，需要有效的 Admin API Key。':'按照活动期间用户通过签到和抽奖获得的额度排名。';
       const frequency=el('campFrequency')?.value||'once';
       const text={once:'统计开始日期至结束日期的数据，活动结束后由管理员手工预览并结算。',daily:'每天到达设定时间后，自动结算前一个自然日。',weekly:'到达设定时间后，自动结算上一个完整的周一至周日。',monthly:'到达设定时间后，自动结算上一个完整自然月。'}[frequency];
       el('campaignFrequencyHelp').textContent=text;
@@ -3184,7 +3187,21 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     }
     async function loadCampaignPreview(){
       campaignShowError('campaignPreviewError','');el('campaignPreviewBody').innerHTML='<div class="campaign-empty">正在计算获奖名单…</div>';
-      try{const period=(el('campaignPreviewPeriod').value||'').trim(),suffix=period?'?period_key='+encodeURIComponent(period):'';const data=await api('./api/admin/rank/campaigns/'+campaignState.previewId+'/preview'+suffix);campaignState.previewData=data;const rows=(data.details||[]).map(d=>`<tr><td>#${Number(d.rank||0)}</td><td>${Number(d.user_id||0)}</td><td>${Number(d.board_amount||0).toFixed(4)}</td><td>${Number(d.amount||0).toFixed(4)}</td><td>${escapeHtml(campaignPreviewStatus(d.status))}</td></tr>`).join('');el('campaignPreviewBody').innerHTML=`<div class="campaign-preview-stats"><div class="campaign-preview-stat"><div class="k">统计周期</div><div class="v">${escapeHtml(data.period_key||'once')}</div></div><div class="campaign-preview-stat"><div class="k">排行榜人数</div><div class="v">${Number(data.row_count||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">本次应发</div><div class="v">${Number(data.payable||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">预计总支出</div><div class="v">${Number(data.planned_spend||0).toFixed(4)}</div></div></div><div class="tbl-wrap"><table class="tbl"><thead><tr><th>名次</th><th>用户 ID</th><th>榜单金额</th><th>奖励额度</th><th>处理结果</th></tr></thead><tbody>${rows||'<tr><td colspan="5"><div class="campaign-empty">当前周期排行榜为空，没有可发放奖励。</div></td></tr>'}</tbody></table></div>`;el('btnCampaignConfirmSettle').disabled=!(Number(data.payable||0)>0);if(data.warning)campaignShowError('campaignPreviewError',data.warning==='ranking is empty'?'当前周期排行榜为空，无法结算。':'当前周期没有需要发放的奖励。');}
+      try{
+        const period=(el('campaignPreviewPeriod').value||'').trim(),suffix=period?'?period_key='+encodeURIComponent(period):'';
+        const data=await api('./api/admin/rank/campaigns/'+campaignState.previewId+'/preview'+suffix);campaignState.previewData=data;
+        const tokenBoard=data.board==='consumption',details=data.details||[];
+        const head=tokenBoard
+          ? '<tr><th>名次</th><th>用户 ID</th><th>Token 使用量</th><th>占比</th><th>请求数</th><th>平均 Token/次</th><th>实际消费</th><th>每次成本</th><th>每百万 Token 成本</th><th>奖励额度</th><th>处理结果</th></tr>'
+          : '<tr><th>名次</th><th>用户 ID</th><th>获得总额</th><th>奖励额度</th><th>处理结果</th></tr>';
+        const rows=details.map(d=>tokenBoard
+          ? `<tr><td>#${Number(d.rank||0)}</td><td>${Number(d.user_id||0)}</td><td>${fmtCampaignTokens(d.board_amount)}</td><td>${fmtCampaignPercent(d.token_share)}</td><td>${Number(d.request_count||0).toLocaleString('en-US')}</td><td>${fmtCampaignTokens(d.avg_tokens_per_request)}</td><td>${Number(d.actual_cost||0).toFixed(4)}</td><td>${Number(d.cost_per_request||0).toFixed(4)}</td><td>${Number(d.cost_per_million_tokens||0).toFixed(4)}</td><td>${Number(d.amount||0).toFixed(4)}</td><td>${escapeHtml(campaignPreviewStatus(d.status))}</td></tr>`
+          : `<tr><td>#${Number(d.rank||0)}</td><td>${Number(d.user_id||0)}</td><td>${Number(d.board_amount||0).toFixed(4)}</td><td>${Number(d.amount||0).toFixed(4)}</td><td>${escapeHtml(campaignPreviewStatus(d.status))}</td></tr>`).join('');
+        const colspan=tokenBoard?11:5;
+        el('campaignPreviewBody').innerHTML=`<div class="campaign-preview-stats"><div class="campaign-preview-stat"><div class="k">统计周期</div><div class="v">${escapeHtml(data.period_key||'once')}</div></div><div class="campaign-preview-stat"><div class="k">排行榜人数</div><div class="v">${Number(data.row_count||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">本次应发</div><div class="v">${Number(data.payable||0)} 人</div></div><div class="campaign-preview-stat"><div class="k">预计总支出</div><div class="v">${Number(data.planned_spend||0).toFixed(4)}</div></div></div><div class="tbl-wrap"><table class="tbl ${tokenBoard?'campaign-token-preview':''}"><thead>${head}</thead><tbody>${rows||`<tr><td colspan="${colspan}"><div class="campaign-empty">当前周期排行榜为空，没有可发放奖励。</div></td></tr>`}</tbody></table></div>`;
+        el('btnCampaignConfirmSettle').disabled=!(Number(data.payable||0)>0);
+        if(data.warning)campaignShowError('campaignPreviewError',data.warning==='ranking is empty'?'当前周期排行榜为空，无法结算。':'当前周期没有需要发放的奖励。');
+      }
       catch(error){campaignState.previewData=null;el('campaignPreviewBody').innerHTML='<div class="campaign-empty">发奖预览加载失败</div>';campaignShowError('campaignPreviewError',error.message||String(error));el('btnCampaignConfirmSettle').disabled=true}
     }
     async function confirmCampaignSettle(){

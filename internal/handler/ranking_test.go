@@ -113,3 +113,67 @@ func TestConsumptionRankingFallback(t *testing.T) {
 		t.Fatalf("expected warning when upstream down: %v", body)
 	}
 }
+
+func TestConsumptionRankingUsesTokenVolume(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/admin/dashboard/users-ranking" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("limit"); got != "5000" {
+			t.Fatalf("upstream limit=%s want 5000", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"total_actual_cost":17,"total_requests":5,"total_tokens":500,"ranking":[` +
+			`{"user_id":1,"username":"cost-first","actual_cost":10,"requests":2,"tokens":100},` +
+			`{"user_id":2,"username":"token-first","actual_cost":7,"requests":3,"tokens":400}]}}`))
+	}))
+	defer upstream.Close()
+
+	st, err := store.Open(filepath.Join(t.TempDir(), "token-rank.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	cfg := config.Default()
+	cfg.Sub2API.BaseURL = upstream.URL
+	cfg.Sub2API.AdminToken = "admin-key"
+	cfg.Checkin.Timezone = "Asia/Shanghai"
+	client := sub2api.New(upstream.URL, cfg.Sub2API.AdminToken, time.Second)
+	h := handler.New(cfg, st, client, settings.New(st, cfg.Checkin), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/ranking/consumption?range=2026-08-12,2026-08-12&limit=20", nil)
+	rec := httptest.NewRecorder()
+	h.RankingConsumption(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			Rank                int     `json:"rank"`
+			UserID              int64   `json:"user_id"`
+			TokenCount          float64 `json:"token_count"`
+			TokenShare          float64 `json:"token_share"`
+			AvgTokensPerRequest float64 `json:"avg_tokens_per_request"`
+		} `json:"items"`
+		Summary struct {
+			TotalTokens    float64 `json:"total_tokens"`
+			TotalRequests  int64   `json:"total_requests"`
+			TopTokens      float64 `json:"top_tokens"`
+			Top3TokenShare float64 `json:"top3_token_share"`
+			UserCount      int64   `json:"user_count"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 2 || body.Items[0].UserID != 2 || body.Items[0].Rank != 1 {
+		t.Fatalf("items=%+v", body.Items)
+	}
+	if body.Items[0].TokenCount != 400 || body.Items[0].TokenShare != 0.8 || body.Items[0].AvgTokensPerRequest != 400.0/3.0 {
+		t.Fatalf("top metrics=%+v", body.Items[0])
+	}
+	if body.Summary.TotalTokens != 500 || body.Summary.TotalRequests != 5 || body.Summary.TopTokens != 400 || body.Summary.Top3TokenShare != 1 || body.Summary.UserCount != 2 {
+		t.Fatalf("summary=%+v", body.Summary)
+	}
+}

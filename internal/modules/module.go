@@ -46,7 +46,7 @@ func Builtin() []Module {
 		{
 			ID:          "ranking",
 			Name:        "排行榜",
-			Description: "用户消费排行（对接 Sub2API 用量）+ 扩展奖励排行（签到/抽奖获得总额），支持今日/昨日/近7天/近30天；管理台可配置奖励榜/消费榜活动结算发奖。",
+			Description: "用户 Token 使用排行（按 Token 总量）+ 扩展奖励排行（签到/抽奖获得总额），支持今日/昨日/近7天/近30天；管理台可配置奖励榜/Token 使用榜活动结算发奖。",
 			UserPath:    "./rank.html",
 			AdminPath:   "./admin.html#campaign",
 			APIBase:     "./api/ranking",

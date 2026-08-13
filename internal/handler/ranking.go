@@ -14,26 +14,36 @@ import (
 )
 
 type rankingSummary struct {
-	TotalAmount  float64 `json:"total_amount"`
-	DisplayCount int     `json:"display_count"`
-	TopAmount    float64 `json:"top_amount"`
-	MyRank       int     `json:"my_rank"`
-	MyAmount     float64 `json:"my_amount"`
-	UserCount    int64   `json:"user_count,omitempty"`
+	TotalAmount    float64 `json:"total_amount"`
+	TotalRequests  int64   `json:"total_requests,omitempty"`
+	TotalTokens    float64 `json:"total_tokens,omitempty"`
+	DisplayCount   int     `json:"display_count"`
+	TopAmount      float64 `json:"top_amount"`
+	TopTokens      float64 `json:"top_tokens,omitempty"`
+	Top3TokenShare float64 `json:"top3_token_share,omitempty"`
+	MyRank         int     `json:"my_rank"`
+	MyAmount       float64 `json:"my_amount"`
+	MyTokens       float64 `json:"my_tokens,omitempty"`
+	MyRequestCount int64   `json:"my_request_count,omitempty"`
+	UserCount      int64   `json:"user_count,omitempty"`
 }
 
 type rankingItem struct {
-	Rank          int     `json:"rank"`
-	UserID        int64   `json:"user_id,omitempty"`
-	DisplayName   string  `json:"display_name"`
-	Amount        float64 `json:"amount"`
-	RequestCount  int64   `json:"request_count,omitempty"`
-	TokenCount    float64 `json:"token_count,omitempty"`
-	CheckinAmount float64 `json:"checkin_amount,omitempty"`
-	LotteryAmount float64 `json:"lottery_amount,omitempty"`
-	CheckinCount  int64   `json:"checkin_count,omitempty"`
-	LotteryCount  int64   `json:"lottery_count,omitempty"`
-	IsMe          bool    `json:"is_me"`
+	Rank                 int     `json:"rank"`
+	UserID               int64   `json:"user_id,omitempty"`
+	DisplayName          string  `json:"display_name"`
+	Amount               float64 `json:"amount"`
+	RequestCount         int64   `json:"request_count,omitempty"`
+	TokenCount           float64 `json:"token_count,omitempty"`
+	TokenShare           float64 `json:"token_share,omitempty"`
+	AvgTokensPerRequest  float64 `json:"avg_tokens_per_request,omitempty"`
+	CostPerRequest       float64 `json:"cost_per_request,omitempty"`
+	CostPerMillionTokens float64 `json:"cost_per_million_tokens,omitempty"`
+	CheckinAmount        float64 `json:"checkin_amount,omitempty"`
+	LotteryAmount        float64 `json:"lottery_amount,omitempty"`
+	CheckinCount         int64   `json:"checkin_count,omitempty"`
+	LotteryCount         int64   `json:"lottery_count,omitempty"`
+	IsMe                 bool    `json:"is_me"`
 }
 
 type rankingResponse struct {
@@ -181,7 +191,7 @@ func (h *Handler) RankingConsumption(w http.ResponseWriter, r *http.Request) {
 
 	h.syncAdminCred()
 
-	res, err := h.client.FetchUsageRanking(r.Context(), token, clientMetaFromRequest(r), q)
+	res, err := h.client.FetchTokenUsageRanking(r.Context(), q)
 	if err != nil {
 		writeJSON(w, http.StatusOK, rankingResponse{
 			Board:       "consumption",
@@ -193,44 +203,35 @@ func (h *Handler) RankingConsumption(w http.ResponseWriter, r *http.Request) {
 			Summary:     rankingSummary{DisplayCount: 0},
 			Items:       []rankingItem{},
 			FallbackURL: fallback,
-			Warning:     "官方消费排行暂不可用：" + err.Error(),
+			Warning:     "Token 使用排行暂不可用：" + err.Error(),
 		})
 		return
 	}
 
 	items := make([]rankingItem, 0, len(res.Items))
-	topAmount := 0.0
 	for _, it := range res.Items {
 		name := maskDisplayName(it.DisplayName)
 		isMe := me != nil && it.UserID == me.ID
 		if isMe {
 			name = maskDisplayName(firstNonEmptyStr(me.Username, me.Email, it.DisplayName))
 		}
-		if it.Amount > topAmount {
-			topAmount = it.Amount
-		}
 		items = append(items, rankingItem{
-			Rank:         it.Rank,
-			UserID:       it.UserID,
-			DisplayName:  name,
-			Amount:       it.Amount,
-			RequestCount: it.RequestCount,
-			TokenCount:   it.TokenCount,
-			IsMe:         isMe,
+			Rank:                 it.Rank,
+			UserID:               it.UserID,
+			DisplayName:          name,
+			Amount:               it.Amount,
+			RequestCount:         it.RequestCount,
+			TokenCount:           it.TokenCount,
+			TokenShare:           it.TokenShare,
+			AvgTokensPerRequest:  it.AvgTokensPerRequest,
+			CostPerRequest:       it.CostPerRequest,
+			CostPerMillionTokens: it.CostPerMillionTokens,
+			IsMe:                 isMe,
 		})
 	}
 
-	myRank, myAmount := res.MyRank, res.MyAmount
-	if me != nil && myRank == 0 {
-		for _, it := range res.Items {
-			if it.UserID == me.ID {
-				myRank = it.Rank
-				myAmount = it.Amount
-				break
-			}
-		}
-	}
-	if topAmount == 0 && len(items) > 0 {
+	topAmount := 0.0
+	if len(items) > 0 {
 		topAmount = items[0].Amount
 	}
 
@@ -242,11 +243,18 @@ func (h *Handler) RankingConsumption(w http.ResponseWriter, r *http.Request) {
 		Limit:    limit,
 		Timezone: h.settings.Get().Timezone,
 		Summary: rankingSummary{
-			TotalAmount:  res.TotalAmount,
-			DisplayCount: len(items),
-			TopAmount:    topAmount,
-			MyRank:       myRank,
-			MyAmount:     myAmount,
+			TotalAmount:    res.TotalAmount,
+			TotalRequests:  res.TotalRequests,
+			TotalTokens:    res.TotalTokens,
+			DisplayCount:   len(items),
+			TopAmount:      topAmount,
+			TopTokens:      res.TopTokens,
+			Top3TokenShare: res.Top3TokenShare,
+			MyRank:         res.MyRank,
+			MyAmount:       res.MyAmount,
+			MyTokens:       res.MyTokens,
+			MyRequestCount: res.MyRequestCount,
+			UserCount:      int64(res.UserCount),
 		},
 		Items:       items,
 		Source:      res.Source,
