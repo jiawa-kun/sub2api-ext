@@ -270,7 +270,7 @@ tr.me{background:rgba(91,140,255,.08)}
       </div>
       <div class="msg" id="msg"></div>
     </section>
-    <div class="foot">Token 使用榜按统计周期内的 Token 总量排名；奖励榜统计签到+抽奖获得总额 · 用户名已脱敏</div>
+    <div class="foot">Token 使用榜按统计周期内的 Token 总量排名；奖励榜统计签到+抽奖获得总额 · 用户名已脱敏，副标题为脱敏邮箱</div>
   </div>
 
   <script>
@@ -455,7 +455,7 @@ tr.me{background:rgba(91,140,255,.08)}
         tb.innerHTML = items.map(it => {
           return `<tr class="${it.is_me?'me':''}">
             <td><span class="rank-pill ${rankClass(it.rank)}">${it.rank}</span></td>
-            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':'已脱敏展示'}</div></div></div></td>
+            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':escapeHtml(it.display_account||'')}</div></div></div></td>
             <td class="amt">${money(it.amount)}</td>
             <td>${money(it.checkin_amount)} <span class="sub">×${fmtInt(it.checkin_count)}</span></td>
             <td>${money(it.lottery_amount)} <span class="sub">×${fmtInt(it.lottery_count)}</span></td>
@@ -465,7 +465,7 @@ tr.me{background:rgba(91,140,255,.08)}
         tb.innerHTML = items.map(it => {
           return `<tr class="${it.is_me?'me':''}">
             <td><span class="rank-pill ${rankClass(it.rank)}">${it.rank}</span></td>
-            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':'已脱敏展示'}</div></div></div></td>
+            <td><div class="user-cell"><span class="avatar">👤</span><div><div>${escapeHtml(it.display_name||'***')}</div><div class="sub">${it.is_me?'我':escapeHtml(it.display_account||'')}</div></div></div></td>
             <td class="amt" title="${fmtInt(it.token_count)} Token">${fmtToken(it.token_count)}</td>
             <td>${fmtPercent(it.token_share)}</td>
             <td>${fmtInt(it.request_count)}</td>

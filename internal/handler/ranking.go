@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"sub2api-ext/internal/sub2api"
 )
@@ -32,6 +31,7 @@ type rankingItem struct {
 	Rank                 int     `json:"rank"`
 	UserID               int64   `json:"user_id,omitempty"`
 	DisplayName          string  `json:"display_name"`
+	DisplayAccount       string  `json:"display_account,omitempty"` // masked email
 	Amount               float64 `json:"amount"`
 	RequestCount         int64   `json:"request_count,omitempty"`
 	TokenCount           float64 `json:"token_count,omitempty"`
@@ -103,24 +103,26 @@ func (h *Handler) RankingRewards(w http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		ids = append(ids, row.UserID)
 	}
-	names := h.resolveRankDisplayNames(r.Context(), ids, me)
+	idents := h.resolveRankIdentities(r.Context(), ids, me)
 
 	items := make([]rankingItem, 0, len(rows))
 	for i, row := range rows {
-		name := names[row.UserID]
-		if name == "" {
-			name = maskDisplayName(fmt.Sprintf("用户%d", row.UserID))
+		id := idents[row.UserID]
+		name := id.DisplayName
+		if name == "" || isUselessMaskedName(name) {
+			name = maskDisplayNameWithUserID("", row.UserID)
 		}
 		items = append(items, rankingItem{
-			Rank:          i + 1,
-			UserID:        row.UserID,
-			DisplayName:   name,
-			Amount:        row.TotalAmount,
-			CheckinAmount: row.CheckinAmount,
-			LotteryAmount: row.LotteryAmount,
-			CheckinCount:  row.CheckinCount,
-			LotteryCount:  row.LotteryCount,
-			IsMe:          me != nil && me.ID == row.UserID,
+			Rank:           i + 1,
+			UserID:         row.UserID,
+			DisplayName:    name,
+			DisplayAccount: id.DisplayAccount,
+			Amount:         row.TotalAmount,
+			CheckinAmount:  row.CheckinAmount,
+			LotteryAmount:  row.LotteryAmount,
+			CheckinCount:   row.CheckinCount,
+			LotteryCount:   row.LotteryCount,
+			IsMe:           me != nil && me.ID == row.UserID,
 		})
 	}
 
@@ -208,17 +210,34 @@ func (h *Handler) RankingConsumption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ids := make([]int64, 0, len(res.Items))
+	for _, it := range res.Items {
+		if it.UserID > 0 {
+			ids = append(ids, it.UserID)
+		}
+	}
+	idents := h.resolveRankIdentities(r.Context(), ids, me)
+
 	items := make([]rankingItem, 0, len(res.Items))
 	for _, it := range res.Items {
-		name := maskDisplayName(it.DisplayName)
+		id := idents[it.UserID]
+		name := id.DisplayName
+		if name == "" || isUselessMaskedName(name) {
+			name = maskDisplayNameWithUserID(it.DisplayName, it.UserID)
+		}
+		account := id.DisplayAccount
 		isMe := me != nil && it.UserID == me.ID
 		if isMe {
-			name = maskDisplayName(firstNonEmptyStr(me.Username, me.Email, it.DisplayName))
+			name = maskDisplayNameWithUserID(firstNonEmptyStr(me.Username, me.Email, it.DisplayName), it.UserID)
+			if acc := maskEmail(me.Email); acc != "" {
+				account = acc
+			}
 		}
 		items = append(items, rankingItem{
 			Rank:                 it.Rank,
 			UserID:               it.UserID,
 			DisplayName:          name,
+			DisplayAccount:       account,
 			Amount:               it.Amount,
 			RequestCount:         it.RequestCount,
 			TokenCount:           it.TokenCount,
@@ -282,8 +301,14 @@ func (h *Handler) officialRankURL() string {
 }
 
 type nameCacheEntry struct {
-	name string
-	exp  time.Time
+	username string
+	email    string
+	exp      time.Time
+}
+
+type rankIdentity struct {
+	DisplayName    string
+	DisplayAccount string // masked email
 }
 
 const (
@@ -291,18 +316,27 @@ const (
 	rankNameWorkers  = 6
 )
 
-// resolveRankDisplayNames fills masked names for ranking rows.
+func buildRankIdentity(userID int64, username, email string) rankIdentity {
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	rawName := firstNonEmptyStr(username, email, fmt.Sprintf("用户%d", userID))
+	return rankIdentity{
+		DisplayName:    maskDisplayNameWithUserID(rawName, userID),
+		DisplayAccount: maskEmail(email),
+	}
+}
+
+// resolveRankIdentities fills masked display name + masked email for ranking rows.
 // Prefer current user profile for self; otherwise admin GetUserByAdmin when available.
 // Uses a short TTL cache and limited concurrency to avoid N serial admin calls.
-func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, me *sub2api.User) map[int64]string {
-	out := make(map[int64]string, len(userIDs))
+func (h *Handler) resolveRankIdentities(ctx context.Context, userIDs []int64, me *sub2api.User) map[int64]rankIdentity {
+	out := make(map[int64]rankIdentity, len(userIDs))
 	if h == nil {
 		return out
 	}
 	h.syncAdminCred()
 	now := time.Now()
 
-	// unique positive ids, preserve first-seen order
 	needFetch := make([]int64, 0, len(userIDs))
 	seen := make(map[int64]struct{}, len(userIDs))
 	for _, id := range userIDs {
@@ -315,13 +349,13 @@ func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, 
 		seen[id] = struct{}{}
 
 		if me != nil && me.ID == id {
-			raw := firstNonEmptyStr(me.Username, me.Email, fmt.Sprintf("用户%d", id))
-			out[id] = maskDisplayName(raw)
-			h.putRankNameCache(id, raw, now)
+			ident := buildRankIdentity(id, me.Username, me.Email)
+			out[id] = ident
+			h.putRankNameCache(id, me.Username, me.Email, now)
 			continue
 		}
-		if raw, ok := h.getRankNameCache(id, now); ok {
-			out[id] = maskDisplayName(raw)
+		if username, email, ok := h.getRankNameCache(id, now); ok {
+			out[id] = buildRankIdentity(id, username, email)
 			continue
 		}
 		needFetch = append(needFetch, id)
@@ -341,17 +375,16 @@ func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, 
 	}
 	if !canAdmin {
 		for _, id := range needFetch {
-			raw := fmt.Sprintf("用户%d", id)
-			out[id] = maskDisplayName(raw)
-			// do not cache bare fallbacks long-term? still cache briefly to avoid stampede
-			h.putRankNameCache(id, raw, now)
+			out[id] = buildRankIdentity(id, "", "")
+			h.putRankNameCache(id, fmt.Sprintf("用户%d", id), "", now)
 		}
 		return out
 	}
 
 	type fetched struct {
-		id  int64
-		raw string
+		id       int64
+		username string
+		email    string
 	}
 	jobs := make(chan int64, len(needFetch))
 	results := make(chan fetched, len(needFetch))
@@ -365,13 +398,12 @@ func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, 
 		go func() {
 			defer wg.Done()
 			for id := range jobs {
-				raw := fmt.Sprintf("用户%d", id)
+				username, email := "", ""
 				if u, err := h.client.GetUserByAdmin(ctx, id); err == nil && u != nil {
-					if v := firstNonEmptyStr(u.Username, u.Email); v != "" {
-						raw = v
-					}
+					username = strings.TrimSpace(u.Username)
+					email = strings.TrimSpace(u.Email)
 				}
-				results <- fetched{id: id, raw: raw}
+				results <- fetched{id: id, username: username, email: email}
 			}
 		}()
 	}
@@ -383,38 +415,51 @@ func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, 
 	close(results)
 
 	for item := range results {
-		out[item.id] = maskDisplayName(item.raw)
-		h.putRankNameCache(item.id, item.raw, now)
+		out[item.id] = buildRankIdentity(item.id, item.username, item.email)
+		h.putRankNameCache(item.id, item.username, item.email, now)
 	}
-	// ensure every requested id has an entry even if context cancelled mid-flight
 	for _, id := range needFetch {
 		if _, ok := out[id]; ok {
 			continue
 		}
-		raw := fmt.Sprintf("用户%d", id)
-		out[id] = maskDisplayName(raw)
+		out[id] = buildRankIdentity(id, "", "")
 	}
 	return out
 }
 
-func (h *Handler) getRankNameCache(id int64, now time.Time) (string, bool) {
+// resolveRankDisplayNames keeps a thin wrapper for older tests/callers.
+func (h *Handler) resolveRankDisplayNames(ctx context.Context, userIDs []int64, me *sub2api.User) map[int64]string {
+	idents := h.resolveRankIdentities(ctx, userIDs, me)
+	out := make(map[int64]string, len(idents))
+	for id, ident := range idents {
+		out[id] = ident.DisplayName
+	}
+	return out
+}
+
+func (h *Handler) getRankNameCache(id int64, now time.Time) (username, email string, ok bool) {
 	h.nameCacheMu.Lock()
 	defer h.nameCacheMu.Unlock()
 	if h.nameCache == nil {
-		return "", false
+		return "", "", false
 	}
-	ent, ok := h.nameCache[id]
-	if !ok || now.After(ent.exp) {
-		if ok {
+	ent, found := h.nameCache[id]
+	if !found || now.After(ent.exp) {
+		if found {
 			delete(h.nameCache, id)
 		}
-		return "", false
+		return "", "", false
 	}
-	return ent.name, true
+	return ent.username, ent.email, true
 }
 
-func (h *Handler) putRankNameCache(id int64, raw string, now time.Time) {
-	if id <= 0 || strings.TrimSpace(raw) == "" {
+func (h *Handler) putRankNameCache(id int64, username, email string, now time.Time) {
+	if id <= 0 {
+		return
+	}
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	if username == "" && email == "" {
 		return
 	}
 	h.nameCacheMu.Lock()
@@ -422,8 +467,7 @@ func (h *Handler) putRankNameCache(id int64, raw string, now time.Time) {
 	if h.nameCache == nil {
 		h.nameCache = make(map[int64]nameCacheEntry)
 	}
-	h.nameCache[id] = nameCacheEntry{name: raw, exp: now.Add(rankNameCacheTTL)}
-	// soft bound to avoid unbounded growth
+	h.nameCache[id] = nameCacheEntry{username: username, email: email, exp: now.Add(rankNameCacheTTL)}
 	if len(h.nameCache) > 2000 {
 		for k, v := range h.nameCache {
 			if now.After(v.exp) {
@@ -439,17 +483,82 @@ func maskDisplayName(name string) string {
 		return "***"
 	}
 	if strings.Contains(name, "***") {
-		return name
+		// Keep upstream partial masks only when they still show identity chars.
+		if !isUselessMaskedName(name) {
+			return name
+		}
+		return "***"
 	}
 	runes := []rune(name)
-	n := utf8.RuneCountInString(name)
-	if n <= 2 {
+	n := len(runes)
+	if n <= 1 {
 		return "***"
+	}
+	if n == 2 {
+		return string(runes[0]) + "***" + string(runes[1])
 	}
 	if n <= 4 {
 		return string(runes[:1]) + "***" + string(runes[n-1:])
 	}
 	return string(runes[:2]) + "***" + string(runes[n-2:])
+}
+
+func isUselessMaskedName(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "***" {
+		return true
+	}
+	for _, r := range []rune(name) {
+		if r != '*' {
+			return false
+		}
+	}
+	return true
+}
+
+// maskDisplayNameWithUserID desensitizes a name and falls back to user-id based
+// label when the result would be unreadable (e.g. "***").
+func maskDisplayNameWithUserID(name string, userID int64) string {
+	masked := maskDisplayName(name)
+	if !isUselessMaskedName(masked) {
+		return masked
+	}
+	if userID > 0 {
+		return maskDisplayName(fmt.Sprintf("用户%d", userID))
+	}
+	return "***"
+}
+
+func maskEmail(email string) string {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return ""
+	}
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at == len(email)-1 {
+		// not a normal email; fall back to generic mask
+		masked := maskDisplayName(email)
+		if isUselessMaskedName(masked) {
+			return ""
+		}
+		return masked
+	}
+	local := email[:at]
+	domain := email[at+1:]
+	lr := []rune(local)
+	n := len(lr)
+	var maskedLocal string
+	switch {
+	case n <= 1:
+		maskedLocal = "***"
+	case n == 2:
+		maskedLocal = string(lr[0]) + "***" + string(lr[1])
+	case n <= 4:
+		maskedLocal = string(lr[:1]) + "***" + string(lr[n-1:])
+	default:
+		maskedLocal = string(lr[:2]) + "***" + string(lr[n-2:])
+	}
+	return maskedLocal + "@" + domain
 }
 
 func firstNonEmptyStr(vals ...string) string {
