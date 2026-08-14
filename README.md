@@ -675,3 +675,8 @@ curl -X PUT "https://your-sub2api.example.com/ext/api/admin/settings" \
 - [x] Idempotency-Key 合法化
 - [x] iframe 嵌入头 / Nginx 反代
 - [x] 一键部署脚本
+
+## 贡献与许可
+
+- 贡献流程：[CONTRIBUTING.md](CONTRIBUTING.md)（详情见 [docs/COLLABORATION.md](docs/COLLABORATION.md)）
+- 开源许可：[MIT License](LICENSE)
