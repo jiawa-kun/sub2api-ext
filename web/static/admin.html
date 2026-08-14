@@ -307,7 +307,40 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
 .foot-links{margin-top:4px; font-size:.78rem; color:var(--muted)}
 .theme-btn{padding:5px 10px; border-radius:999px; font-size:.72rem; font-weight:650}
 
-  </style>
+  
+.creative-work-viewer{width:min(1280px,calc(100vw - 32px));height:min(880px,calc(100vh - 32px));max-width:none;max-height:none;padding:0;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);box-shadow:0 24px 80px rgba(0,0,0,.45);overflow:hidden}
+.creative-work-viewer::backdrop{background:rgba(3,7,18,.78)}
+.creative-work-viewer-shell{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.creative-work-viewer-head,.creative-work-viewer-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px}
+.creative-work-viewer-head{border-bottom:1px solid var(--border)}
+.creative-work-viewer-foot{border-top:1px solid var(--border)}
+.creative-work-viewer-head > div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.creative-work-viewer-head strong{font-size:.82rem;font-weight:700}
+.creative-work-viewer-head span{color:var(--muted);font-size:.7rem}
+.creative-work-viewer-content{min-width:0;min-height:0;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr)}
+.creative-work-viewer-media{min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#05070b;color:var(--muted)}
+.creative-work-viewer-media img,.creative-work-viewer-media video{max-width:100%;max-height:100%;object-fit:contain}
+.creative-work-viewer-details{min-width:0;overflow:auto;padding:20px;border-left:1px solid var(--border);background:var(--panel)}
+.creative-work-viewer-detail-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.creative-work-viewer-eyebrow{margin:0;color:var(--muted);font-size:.7rem;font-weight:700}
+.creative-work-viewer-detail-title{margin:5px 0 0;font-size:1rem;line-height:1.3}
+.creative-work-copy-prompt{width:36px;height:36px;min-height:36px!important;padding:0!important;flex:0 0 auto}
+.creative-work-copy-feedback{min-height:18px;margin-top:7px;color:var(--ok);font-size:.7rem}
+.creative-work-copy-feedback.error{color:var(--danger)}
+.creative-work-viewer-detail-section{margin-top:20px}
+.creative-work-viewer-section-title{margin-bottom:8px;color:var(--muted);font-size:.7rem;font-weight:700}
+.creative-work-viewer-prompt{max-height:260px;overflow:auto;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--soft);color:var(--text);font-size:.8rem;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.creative-work-viewer-facts,.creative-work-viewer-param-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.creative-work-viewer-fact,.creative-work-viewer-param{min-width:0;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card)}
+.creative-work-viewer-fact span,.creative-work-viewer-param span{display:block;color:var(--muted);font-size:.67rem}
+.creative-work-viewer-fact strong,.creative-work-viewer-param strong{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.76rem;font-weight:700}
+.creative-work-viewer-param.empty{grid-column:1/-1}
+.creative-work-viewer-nav{display:flex;align-items:center;gap:8px}
+.creative-work-viewer-nav span{min-width:72px;color:var(--muted);font-size:.72rem;text-align:center}
+@media(max-width:900px){.creative-work-viewer-content{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(280px,.9fr) minmax(0,1fr)}.creative-work-viewer-details{border-top:1px solid var(--border);border-left:0}}
+@media(max-width:760px){.creative-work-viewer{width:calc(100vw - 16px);height:calc(100vh - 16px)}.creative-work-viewer-foot{align-items:stretch;flex-direction:column}.creative-work-viewer-nav{justify-content:space-between}}
+
+</style>
   <link rel="stylesheet" href="./assets/app.css" />
 </head>
 <body class="app-page app-admin">
@@ -1387,7 +1420,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       <dialog class="creative-work-viewer" id="creativeWorkViewer">
         <div class="creative-work-viewer-shell">
           <div class="creative-work-viewer-head"><div><strong id="creativeWorkViewerTitle">作品预览</strong><span id="creativeWorkViewerOwner"></span></div><button type="button" class="secondary app-action" id="creativeWorkViewerClose" title="关闭" aria-label="关闭"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
-          <div class="creative-work-viewer-media" id="creativeWorkViewerMedia"></div>
+          <div class="creative-work-viewer-content">
+            <div class="creative-work-viewer-media" id="creativeWorkViewerMedia"></div>
+            <aside class="creative-work-viewer-details" aria-label="作品详情">
+              <div class="creative-work-viewer-detail-heading"><div><p class="creative-work-viewer-eyebrow">创作详情</p><h2 class="creative-work-viewer-detail-title" id="creativeWorkViewerDetailTitle">作品信息</h2></div><button type="button" class="secondary app-action creative-work-copy-prompt" id="creativeWorkCopyPrompt" title="复制提示词" aria-label="复制提示词"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+              <div class="creative-work-copy-feedback" id="creativeWorkCopyPromptFeedback" aria-live="polite"></div>
+              <section class="creative-work-viewer-detail-section"><div class="creative-work-viewer-section-title">提示词</div><div class="creative-work-viewer-prompt" id="creativeWorkViewerPrompt"></div></section>
+              <section class="creative-work-viewer-detail-section"><div class="creative-work-viewer-section-title">生成信息</div><div class="creative-work-viewer-facts" id="creativeWorkViewerFacts"></div></section>
+              <section class="creative-work-viewer-detail-section"><div class="creative-work-viewer-section-title">参数配置</div><div class="creative-work-viewer-param-grid" id="creativeWorkViewerParams"></div></section>
+            </aside>
+          </div>
           <div class="creative-work-viewer-foot"><div class="creative-work-viewer-nav"><button type="button" class="secondary app-action" id="creativeWorkViewerPrev"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span id="creativeWorkViewerIndex">1 / 1</span><button type="button" class="secondary app-action" id="creativeWorkViewerNext"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div><button type="button" class="app-action" id="creativeWorkViewerDownload"><svg class="button-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11M8 11l4 4 4-4M5 19h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>下载</span></button></div>
         </div>
       </dialog>
@@ -3276,7 +3318,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       await refreshTasksAdmin();
     }
 
-    const creativeState={providers:[],models:[],jobs:[],users:[],userMap:new Map(),groups:[],pool:null,selectedProviderID:0,kind:'sub2api_pool',jobPage:1,jobPageSize:10,jobTotal:0,viewerJob:null,viewerIndex:0,viewerURL:''};
+    const creativeState={providers:[],models:[],jobs:[],users:[],userMap:new Map(),groups:[],pool:null,selectedProviderID:0,kind:'sub2api_pool',jobPage:1,jobPageSize:10,jobTotal:0,viewerJob:null,viewerIndex:0,viewerURL:'',copyTimer:0};
     function showCreativeMsg(msg,type){
       const node=el('creativeMsg'); if(!node)return;
       node.textContent=msg; node.className='msg show '+(type||'ok');
@@ -3493,7 +3535,16 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       renderCreativeJobs();
     }
     function releaseCreativeWorkURL(){if(creativeState.viewerURL){URL.revokeObjectURL(creativeState.viewerURL);creativeState.viewerURL=''}}
-    function closeCreativeWorkViewer(){const viewer=el('creativeWorkViewer');releaseCreativeWorkURL();creativeState.viewerJob=null;creativeState.viewerIndex=0;if(viewer?.open)viewer.close()}
+    function creativeWorkViewerFact(label,value){return `<div class="creative-work-viewer-fact"><span>${escapeHtml(label)}</span><strong title="${escAttr(value)}">${escapeHtml(value)}</strong></div>`}
+    function creativeWorkViewerParam(label,value){return `<div class="creative-work-viewer-param"><span>${escapeHtml(label)}</span><strong title="${escAttr(value)}">${escapeHtml(value)}</strong></div>`}
+    function formatCreativeWorkViewerValue(value){if(value===null||value===undefined||value==='')return '—';if(typeof value==='boolean')return value?'是':'否';if(Array.isArray(value))return value.map(formatCreativeWorkViewerValue).join('、');if(typeof value==='object')return JSON.stringify(value);return String(value)}
+    function creativeWorkAmountText(job){if(job.charge_status==='upstream')return '预计 '+money(job.charge_amount);if(job.charge_status==='refunded')return money(job.charge_amount)+' · 已退款';if(job.charge_status==='refund_pending')return money(job.charge_amount)+' · 退款中';return money(job.charge_amount)}
+    function creativeWorkDateText(value){const date=new Date(value);return Number.isNaN(date.getTime())?'—':date.toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}
+    function showCreativeWorkCopyFeedback(text,isError=false){const feedback=el('creativeWorkCopyPromptFeedback');if(!feedback)return;clearTimeout(creativeState.copyTimer);feedback.textContent=text;feedback.className=isError?'creative-work-copy-feedback error':'creative-work-copy-feedback';creativeState.copyTimer=setTimeout(()=>{feedback.textContent='';feedback.className='creative-work-copy-feedback'},2400)}
+    function clearCreativeWorkViewerDetails(){clearTimeout(creativeState.copyTimer);const prompt=el('creativeWorkViewerPrompt'),facts=el('creativeWorkViewerFacts'),params=el('creativeWorkViewerParams'),feedback=el('creativeWorkCopyPromptFeedback'),copyBtn=el('creativeWorkCopyPrompt');if(prompt)prompt.textContent='';if(facts)facts.innerHTML='';if(params)params.innerHTML='';if(feedback){feedback.textContent='';feedback.className='creative-work-copy-feedback'}if(copyBtn)copyBtn.disabled=false}
+    function renderCreativeWorkViewerDetails(){const job=creativeState.viewerJob;if(!job)return;const prompt=String(job.prompt||'').trim(),count=job.media_type==='image'?Math.max(1,Number(job.content_count||1)):1,params=job.params&&typeof job.params==='object'?job.params:{},labels={n:'生成数量',count:'生成数量',aspect_ratio:'画面比例',resolution:'分辨率',size:'尺寸',quality:'质量',duration:'时长',response_format:'输出格式',transparent_background:'透明背景',moderation:'审核'},hiddenKeys=new Set(['prompt','model','model_id','api_key','authorization','key']),entries=Object.entries(params).filter(([key,value])=>!hiddenKeys.has(String(key).toLowerCase())&&value!==null&&value!==undefined&&value!==''),owner=creativeUser(job.user_id);el('creativeWorkViewerTitle').textContent=job.media_type==='video'?'视频作品':'图片作品';el('creativeWorkViewerOwner').textContent=(owner.display_name||('用户 #'+job.user_id))+' · ID '+Number(job.user_id);el('creativeWorkViewerDetailTitle').textContent=job.media_type==='video'?'视频创作':'图片创作';el('creativeWorkViewerPrompt').textContent=prompt||'未记录提示词';el('creativeWorkCopyPrompt').disabled=!prompt;el('creativeWorkCopyPromptFeedback').textContent='';el('creativeWorkCopyPromptFeedback').className='creative-work-copy-feedback';el('creativeWorkViewerFacts').innerHTML=[creativeWorkViewerFact('订单号',job.order_no||String(job.id||'—')),creativeWorkViewerFact('模型',job.model_id||'—'),creativeWorkViewerFact('作品类型',job.media_type==='video'?'视频':'图片'),creativeWorkViewerFact('生成数量',job.media_type==='image'?`${count} 张`:'1 个视频'),creativeWorkViewerFact('费用',creativeWorkAmountText(job)),creativeWorkViewerFact('创建时间',creativeWorkDateText(job.created_at)),creativeWorkViewerFact('状态',creativeStatusLabel(job.status))].join('');el('creativeWorkViewerParams').innerHTML=entries.length?entries.map(([key,value])=>creativeWorkViewerParam(labels[key]||key,formatCreativeWorkViewerValue(value))).join(''):'<div class="creative-work-viewer-param empty"><span>参数配置</span><strong>未记录额外参数</strong></div>'}
+    async function copyCreativeWorkPrompt(){const prompt=String(creativeState.viewerJob?.prompt||'').trim();if(!prompt)return;try{if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(prompt);else{const textarea=document.createElement('textarea');textarea.value=prompt;textarea.setAttribute('readonly','');textarea.style.cssText='position:fixed;opacity:0;pointer-events:none';document.body.append(textarea);textarea.select();const copied=document.execCommand('copy');textarea.remove();if(!copied)throw new Error('clipboard unavailable')}showCreativeWorkCopyFeedback('提示词已复制')}catch{showCreativeWorkCopyFeedback('复制失败，请手动复制',true)}}
+    function closeCreativeWorkViewer(){const viewer=el('creativeWorkViewer');releaseCreativeWorkURL();creativeState.viewerJob=null;creativeState.viewerIndex=0;clearCreativeWorkViewerDetails();if(el('creativeWorkViewerMedia'))el('creativeWorkViewerMedia').innerHTML='';if(viewer?.open)viewer.close()}
     async function fetchCreativeWorkBlob(job,index=0){
       resolveAuth();
       const response=await fetch(`./api/admin/creative/jobs/${Number(job.id)}/content?index=${Number(index)}`,{headers:authOnlyHeaders()});
@@ -3503,14 +3554,14 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     async function renderCreativeWorkViewer(){
       const job=creativeState.viewerJob;if(!job)return;
       const count=Math.max(1,Number(job.content_count||1)),index=Math.max(0,Math.min(count-1,creativeState.viewerIndex));creativeState.viewerIndex=index;
-      const owner=creativeUser(job.user_id),media=el('creativeWorkViewerMedia');
-      el('creativeWorkViewerTitle').textContent=job.prompt||job.order_no||'作品预览';el('creativeWorkViewerOwner').textContent=(owner.display_name||('用户 #'+job.user_id))+' · ID '+Number(job.user_id);
+      const media=el('creativeWorkViewerMedia');
+      renderCreativeWorkViewerDetails();
       el('creativeWorkViewerIndex').textContent=(index+1)+' / '+count;el('creativeWorkViewerPrev').disabled=index<=0;el('creativeWorkViewerNext').disabled=index>=count-1;
       releaseCreativeWorkURL();media.innerHTML='<span class="sub">正在加载作品…</span>';
       const blob=await fetchCreativeWorkBlob(job,index);creativeState.viewerURL=URL.createObjectURL(blob);
       media.innerHTML=job.media_type==='video'?`<video src="${creativeState.viewerURL}" controls autoplay playsinline></video>`:`<img src="${creativeState.viewerURL}" alt="${escAttr(job.prompt||'AI 作品')}"/>`;
     }
-    async function openCreativeWork(id){const job=creativeState.jobs.find(item=>Number(item.id)===Number(id));if(!job)return;creativeState.viewerJob=job;creativeState.viewerIndex=0;const viewer=el('creativeWorkViewer');if(!viewer.open)viewer.showModal();try{await renderCreativeWorkViewer()}catch(error){el('creativeWorkViewerMedia').innerHTML='<span class="sub">'+escapeHtml(error.message||String(error))+'</span>'}}
+    async function openCreativeWork(id){const job=creativeState.jobs.find(item=>Number(item.id)===Number(id));if(!job||job.status!=='completed'||job.deleted_at)return;creativeState.viewerJob=job;creativeState.viewerIndex=0;const viewer=el('creativeWorkViewer');renderCreativeWorkViewerDetails();el('creativeWorkViewerMedia').innerHTML='<span class="sub">正在加载作品…</span>';if(!viewer.open)viewer.showModal();try{await renderCreativeWorkViewer()}catch(error){el('creativeWorkViewerMedia').innerHTML='<span class="sub">'+escapeHtml(error.message||String(error))+'</span>'}}
     async function downloadCreativeWork(id,index){const job=creativeState.jobs.find(item=>Number(item.id)===Number(id))||creativeState.viewerJob;if(!job)return;const blob=await fetchCreativeWorkBlob(job,index===undefined?0:index),url=URL.createObjectURL(blob),link=document.createElement('a'),ext=job.media_type==='video'?'mp4':blob.type.includes('jpeg')?'jpg':'png';link.href=url;link.download=`creative-${Number(job.id)}-${Number(index||0)+1}.${ext}`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
     async function deleteCreativeWork(id){const job=creativeState.jobs.find(item=>Number(item.id)===Number(id));if(!job)return;const owner=creativeUser(job.user_id);if(!confirm(`确定删除 ${owner.display_name||('用户 #'+job.user_id)} 的作品 ${job.order_no||job.id} 吗？\n\n记录会被软删除，本地媒体缓存会清理。`))return;await api('./api/admin/creative/jobs/'+Number(job.id),{method:'DELETE'});if(creativeState.viewerJob&&Number(creativeState.viewerJob.id)===Number(job.id))closeCreativeWorkViewer();showCreativeJobMsg('作品已删除','ok');await loadCreativeUsers();await loadCreativeJobs(false)}
     async function refreshCreative(){
@@ -3676,7 +3727,8 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const creativeWorkViewerPrev=el('creativeWorkViewerPrev'); if(creativeWorkViewerPrev) creativeWorkViewerPrev.onclick=()=>{if(creativeState.viewerIndex>0){creativeState.viewerIndex--;renderCreativeWorkViewer().catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'))}};
     const creativeWorkViewerNext=el('creativeWorkViewerNext'); if(creativeWorkViewerNext) creativeWorkViewerNext.onclick=()=>{const count=Math.max(1,Number(creativeState.viewerJob?.content_count||1));if(creativeState.viewerIndex<count-1){creativeState.viewerIndex++;renderCreativeWorkViewer().catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'))}};
     const creativeWorkViewerDownload=el('creativeWorkViewerDownload'); if(creativeWorkViewerDownload) creativeWorkViewerDownload.onclick=()=>creativeState.viewerJob&&downloadCreativeWork(creativeState.viewerJob.id,creativeState.viewerIndex).catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'));
-    const creativeWorkViewer=el('creativeWorkViewer'); if(creativeWorkViewer){creativeWorkViewer.onclick=event=>{if(event.target===creativeWorkViewer)closeCreativeWorkViewer()};creativeWorkViewer.addEventListener('close',releaseCreativeWorkURL)}
+    const creativeWorkCopyPrompt=el('creativeWorkCopyPrompt'); if(creativeWorkCopyPrompt) creativeWorkCopyPrompt.onclick=()=>copyCreativeWorkPrompt().catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err'));
+    const creativeWorkViewer=el('creativeWorkViewer'); if(creativeWorkViewer){creativeWorkViewer.onclick=event=>{if(event.target===creativeWorkViewer)closeCreativeWorkViewer()};creativeWorkViewer.addEventListener('close',()=>{releaseCreativeWorkURL();clearCreativeWorkViewerDetails()})}
     window.addEventListener('beforeunload',releaseCreativeWorkURL);
     const btnLedgerRefresh=el('btnLedgerRefresh'); if(btnLedgerRefresh) btnLedgerRefresh.onclick=()=>refreshLedger().catch(e2=>show(e2.message||String(e2),'err'));
     const btnLedgerToday=el('btnLedgerToday'); if(btnLedgerToday) btnLedgerToday.onclick=()=>{ ledgerSetRangeDays(1); refreshLedger().catch(e2=>show(e2.message||String(e2),'err')); };
