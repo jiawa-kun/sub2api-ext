@@ -220,9 +220,30 @@ html.light .pool-chip.warn strong{color:#b45309}
     function readStorage(k){
       try{ return localStorage.getItem(k)||''; }catch{ return ''; }
     }
+    function storeToken(t){
+      if(!t) return;
+      try{ localStorage.setItem('auth_token', t); }catch{}
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.localStorage.setItem('auth_token', t);
+        }
+      }catch{}
+    }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function pickToken(){
       const q = cleanToken(params.get('token')||'');
-      if(q) return q;
+      if(q){
+        storeToken(q);
+        cleanTokenQuery();
+        return q;
+      }
       const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
       for(const k of keys){
         const v = cleanToken(readStorage(k));
@@ -281,19 +302,6 @@ html.light .pool-chip.warn strong{color:#b45309}
       try{ localStorage.setItem(THEME_KEY, light?'light':'dark'); }catch{}
     }
     function wireInternalNav(){
-      document.querySelectorAll('.topnav a').forEach(a=>{
-        a.addEventListener('click', (e)=>{
-          const href=a.getAttribute('href')||'';
-          if(!href.startsWith('./')) return;
-          // keep token in query if present
-          if(accessToken && !href.includes('token=')){
-            e.preventDefault();
-            const u=new URL(href, location.href);
-            u.searchParams.set('token', accessToken);
-            location.href=u.pathname+u.search+u.hash;
-          }
-        });
-      });
     }
     function render(data, rewards, pool){
       const items = data.items||[];

@@ -223,22 +223,33 @@ html.light .brand-title .logo.light{display:block}
       }
     }
 
-    // token-preserving nav
+    // Accept legacy URL token once, then remove it from the address bar.
+    function storeToken(t){
+      if(!t) return;
+      try{ localStorage.setItem('auth_token', t); }catch{}
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.localStorage.setItem('auth_token', t);
+        }
+      }catch{}
+    }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function pickToken(){
-      return params.get('token') || '';
+      const t = params.get('token') || '';
+      if(t){
+        storeToken(t);
+        cleanTokenQuery();
+      }
+      return t;
     }
     const accessToken = pickToken();
-    document.querySelectorAll('.topnav a').forEach(a=>{
-      const href=a.getAttribute('href');
-      if(href && href.startsWith('./') && accessToken && !href.includes('token=')){
-        a.addEventListener('click', (e)=>{
-          e.preventDefault();
-          const u=new URL(href, location.href);
-          u.searchParams.set('token', accessToken);
-          location.href=u.pathname+u.search+u.hash;
-        });
-      }
-    });
 
     // image lightbox: click to view, wheel to zoom, drag to pan
     const lightbox = el('lightbox');
@@ -251,18 +262,6 @@ html.light .brand-title .logo.light{display:block}
       const t = e.target;
       const link = t && t.closest ? t.closest('#content a[href]') : null;
       if(link){
-        const href=(link.getAttribute('href')||'').trim();
-        if(accessToken && href && !/^https?:\/\//i.test(href) && !href.startsWith('//') && !href.startsWith('mailto:') && !href.startsWith('#')){
-          try{
-            const u=new URL(href, location.href);
-            if(u.origin===location.origin && !u.searchParams.get('token')){
-              e.preventDefault();
-              u.searchParams.set('token', accessToken);
-              location.href=u.pathname+u.search+u.hash;
-              return;
-            }
-          }catch{}
-        }
         return;
       }
       const img = t && t.closest ? t.closest('#content img') : null;

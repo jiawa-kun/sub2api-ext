@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -245,6 +247,61 @@ func TestPrepareJobCompensatesWhenChargeSucceededButStateWriteFailed(t *testing.
 	}
 }
 
+func TestVideoArchiveFailureRetriesThenFailsForRefund(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	ctx := context.Background()
+	p, err := st.SaveCreativeProvider(ctx, store.CreativeProvider{Name: "provider", BaseURL: "https://provider.example.com", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := st.CreateCreativeJob(ctx, store.CreativeJob{
+		OrderNo: "video-archive-fail", RequestKey: "video-archive-fail", UserID: 7, ProviderID: p.ID,
+		ModelID: "video", MediaType: "video", Status: store.CreativeJobProcessing, ChargeStatus: "charged", ChargeAmount: 0.2,
+		UpstreamStatus: "completed", ResultJSON: `{"video":{"url":"https://cdn.example.com/video.mp4"}}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(st, nil, nil)
+	cause := errors.New("disk full")
+	svc.handleVideoArchiveFailure(ctx, job, cause)
+	saved, err := st.GetCreativeJob(ctx, job.ID, job.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Status != store.CreativeJobProcessing || saved.ErrorCode != videoArchiveRetryCode || !strings.Contains(saved.ErrorMessage, "第 1/3 次") {
+		t.Fatalf("first archive failure state=%+v", saved)
+	}
+	if !svc.videoArchiveRetryCoolingDown(ctx, saved) {
+		t.Fatal("archive retry should cool down after first failure")
+	}
+
+	svc.handleVideoArchiveFailure(ctx, saved, cause)
+	saved, err = st.GetCreativeJob(ctx, job.ID, job.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Status != store.CreativeJobProcessing || !strings.Contains(saved.ErrorMessage, "第 2/3 次") {
+		t.Fatalf("second archive failure state=%+v", saved)
+	}
+	svc.handleVideoArchiveFailure(ctx, saved, cause)
+	saved, err = st.GetCreativeJob(ctx, job.ID, job.UserID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Status != store.CreativeJobFailed || saved.ErrorCode != videoArchiveFailureEvent || saved.ChargeStatus != "refund_pending" {
+		t.Fatalf("third archive failure state=%+v", saved)
+	}
+	count, _, _, err := st.CreativeJobEventStats(ctx, job.ID, videoArchiveFailureEvent)
+	if err != nil || count != 3 {
+		t.Fatalf("archive failure events count=%d err=%v", count, err)
+	}
+}
+
 func TestValidateImageDataURL(t *testing.T) {
 	validPNG := []byte{'\x89', 'P', 'N', 'G', '\r', '\n', '\x1a', '\n'}
 	valid := "data:image/png;base64," + base64.StdEncoding.EncodeToString(validPNG)
@@ -432,10 +489,11 @@ func TestOpenJobContentDoesNotLeakProviderKeyToExternalURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := &Service{store: st, client: media.Client()}
+	publicMediaURL, mediaClient := publicURLForTestServer(t, media, "/asset.png")
+	svc := &Service{store: st, client: mediaClient}
 	job := &store.CreativeJob{
 		ProviderID: p.ID, MediaType: "image", Status: store.CreativeJobCompleted,
-		ResultJSON: `{"data":[{"url":"` + media.URL + `/asset.png"}]}`,
+		ResultJSON: `{"data":[{"url":"` + publicMediaURL + `"}]}`,
 	}
 	content, err := svc.OpenJobContent(context.Background(), job, 0, "")
 	if err != nil {
@@ -450,6 +508,50 @@ func TestOpenJobContentDoesNotLeakProviderKeyToExternalURL(t *testing.T) {
 	}
 	if content.ContentType != "image/png" {
 		t.Fatalf("content type=%q", content.ContentType)
+	}
+}
+
+func publicURLForTestServer(t *testing.T, server *httptest.Server, path string) (string, *http.Client) {
+	t.Helper()
+	parsed, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, network, parsed.Host)
+		},
+	}
+	t.Cleanup(transport.CloseIdleConnections)
+	return "http://198.51.100.10" + path, &http.Client{Transport: transport}
+}
+
+func TestOpenJobContentRejectsUnsafeExternalMediaURL(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "creative.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	p, err := st.SaveCreativeProvider(context.Background(), store.CreativeProvider{
+		Name: "provider", BaseURL: "https://provider.example.com", APIKey: "provider-secret", Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := &Service{store: st, client: http.DefaultClient}
+	job := &store.CreativeJob{
+		ProviderID: p.ID, MediaType: "image", Status: store.CreativeJobCompleted,
+		ResultJSON: `{"data":[{"url":"http://127.0.0.1/private.png"}]}`,
+	}
+	content, err := svc.OpenJobContent(context.Background(), job, 0, "")
+	if err == nil {
+		if content != nil && content.Body != nil {
+			_ = content.Body.Close()
+		}
+		t.Fatal("unsafe loopback media URL was accepted")
+	}
+	if !strings.Contains(err.Error(), "内网") && !strings.Contains(err.Error(), "本机") {
+		t.Fatalf("unsafe media error=%v", err)
 	}
 }
 

@@ -640,6 +640,21 @@ func (s *Store) AddCreativeJobEvent(ctx context.Context, e CreativeJobEvent) err
 	_, err := s.db.ExecContext(ctx, `INSERT INTO creative_job_events(job_id,event_type,message,data_json,created_at) VALUES(?,?,?,?,?)`, e.JobID, e.EventType, e.Message, e.DataJSON, time.Now().UTC().Format(time.RFC3339Nano))
 	return err
 }
+
+func (s *Store) CreativeJobEventStats(ctx context.Context, jobID int64, eventType string) (count int, firstAt, lastAt time.Time, err error) {
+	var firstRaw, lastRaw string
+	err = s.db.QueryRowContext(ctx, `SELECT COUNT(1),COALESCE(MIN(created_at),''),COALESCE(MAX(created_at),'') FROM creative_job_events WHERE job_id=? AND event_type=?`, jobID, eventType).Scan(&count, &firstRaw, &lastRaw)
+	if err != nil {
+		return 0, time.Time{}, time.Time{}, err
+	}
+	if firstRaw != "" {
+		firstAt = parseStoreTime(firstRaw)
+	}
+	if lastRaw != "" {
+		lastAt = parseStoreTime(lastRaw)
+	}
+	return count, firstAt, lastAt, nil
+}
 func boolInt(v bool) int {
 	if v {
 		return 1

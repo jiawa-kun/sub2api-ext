@@ -276,6 +276,14 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
         }
       }catch{}
     }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function storageGetAll(key){
       const out=[];
       try{ const v=localStorage.getItem(key); if(v) out.push(v); }catch{}
@@ -306,7 +314,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
       try{
         const u = new URL(href, location.href);
         if(u.origin !== location.origin) return href;
-        for(const k of ['token','theme']){
+        for(const k of ['theme']){
           const v = params.get(k);
           if(v && !u.searchParams.get(k)) u.searchParams.set(k, v);
         }
@@ -439,6 +447,7 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size
     }
 
     persistAuthFromContext();
+    cleanTokenQuery();
     initTheme();
     wireInternalNav();
     el('themeBtn').onclick = toggleTheme;

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -34,6 +35,12 @@ const (
 	ProviderPool    = "sub2api_pool"
 	SourceCharge    = "creative_charge"
 	SourceRefund    = "creative_refund"
+
+	videoArchiveFailureEvent = "video_archive_failed"
+	videoArchiveRetryCode    = "video_archive_retry"
+	videoArchiveMaxFailures  = 3
+	videoArchiveRetryDelay   = 15 * time.Minute
+	videoArchiveRetryWindow  = 30 * time.Minute
 )
 
 type Pricing struct {
@@ -122,13 +129,17 @@ type creditService interface {
 func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service, options ...string) *Service {
 	secret := ""
 	mediaRoot := ""
+	var billing creditService
+	if creditSvc != nil {
+		billing = creditSvc
+	}
 	if len(options) > 0 {
 		secret = options[0]
 	}
 	if len(options) > 1 {
 		mediaRoot = strings.TrimSpace(options[1])
 	}
-	return &Service{store: st, accounts: accounts, credit: creditSvc, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), mediaRoot: mediaRoot, stop: make(chan struct{})}
+	return &Service{store: st, accounts: accounts, credit: billing, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), mediaRoot: mediaRoot, stop: make(chan struct{})}
 }
 func (s *Service) Start() {
 	s.wg.Add(1)
@@ -960,6 +971,9 @@ func (s *Service) pollPending(ctx context.Context) {
 	}
 	for i := range jobs {
 		job := jobs[i]
+		if s.videoArchiveRetryCoolingDown(ctx, &job) {
+			continue
+		}
 		p, err := s.store.GetCreativeProvider(ctx, job.ProviderID)
 		if err != nil {
 			continue
@@ -990,11 +1004,14 @@ func (s *Service) pollPending(ctx context.Context) {
 		switch v.Status {
 		case "done", "completed":
 			if err := s.archiveVideo(ctx, &job); err != nil {
+				s.handleVideoArchiveFailure(ctx, &job, err)
 				continue
 			}
 			now := time.Now().UTC()
 			job.Status = store.CreativeJobCompleted
 			job.Progress = 100
+			job.ErrorCode = ""
+			job.ErrorMessage = ""
 			job.CompletedAt = &now
 			_ = s.store.UpdateCreativeJob(ctx, job)
 			_ = s.store.AddCreativeJobEvent(ctx, store.CreativeJobEvent{JobID: job.ID, EventType: "completed", Message: "视频生成完成"})
@@ -1005,6 +1022,53 @@ func (s *Service) pollPending(ctx context.Context) {
 		}
 	}
 	s.retryRefunds(ctx)
+}
+
+func (s *Service) videoArchiveRetryCoolingDown(ctx context.Context, job *store.CreativeJob) bool {
+	if s == nil || s.store == nil || job == nil || job.ErrorCode != videoArchiveRetryCode {
+		return false
+	}
+	_, _, lastAt, err := s.store.CreativeJobEventStats(ctx, job.ID, videoArchiveFailureEvent)
+	if err != nil || lastAt.IsZero() {
+		return false
+	}
+	return time.Since(lastAt) < videoArchiveRetryDelay
+}
+
+func (s *Service) handleVideoArchiveFailure(ctx context.Context, job *store.CreativeJob, cause error) {
+	if s == nil || s.store == nil || job == nil || cause == nil {
+		return
+	}
+	durableCtx, cancel := durableContext(ctx)
+	defer cancel()
+
+	attempts, firstAt, _, err := s.store.CreativeJobEventStats(durableCtx, job.ID, videoArchiveFailureEvent)
+	if err != nil {
+		attempts = 0
+		firstAt = time.Time{}
+	}
+	attempt := attempts + 1
+	data, _ := json.Marshal(map[string]any{"attempt": attempt, "max_attempts": videoArchiveMaxFailures})
+	_ = s.store.AddCreativeJobEvent(durableCtx, store.CreativeJobEvent{
+		JobID:     job.ID,
+		EventType: videoArchiveFailureEvent,
+		Message:   cause.Error(),
+		DataJSON:  string(data),
+	})
+	if firstAt.IsZero() {
+		firstAt = time.Now().UTC()
+	}
+	if attempt >= videoArchiveMaxFailures || time.Since(firstAt) >= videoArchiveRetryWindow {
+		_, _ = s.failAndRefund(durableCtx, job, videoArchiveFailureEvent, fmt.Errorf("视频生成完成，但保存到本地失败: %w", cause))
+		return
+	}
+
+	job.ErrorCode = videoArchiveRetryCode
+	job.ErrorMessage = fmt.Sprintf("视频已生成，正在重试保存到本地（第 %d/%d 次）：%v", attempt, videoArchiveMaxFailures, cause)
+	if job.Progress < 99 {
+		job.Progress = 99
+	}
+	_ = s.store.UpdateCreativeJob(durableCtx, *job)
 }
 
 func (s *Service) retryRefunds(ctx context.Context) {
@@ -1079,6 +1143,10 @@ func (s *Service) openRemoteJobContent(ctx context.Context, job *store.CreativeJ
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return nil, fmt.Errorf("媒体地址无效")
 	}
+	providerURL, _ := url.Parse(s.providerBaseURL(*p))
+	if err := validateRemoteMediaURL(ctx, u, providerURL); err != nil {
+		return nil, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
@@ -1086,7 +1154,6 @@ func (s *Service) openRemoteJobContent(ctx context.Context, job *store.CreativeJ
 	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
-	providerURL, _ := url.Parse(s.providerBaseURL(*p))
 	if sameURLOrigin(u, providerURL) {
 		callProvider, credentialErr := s.providerForUser(ctx, job.UserID, *p)
 		if credentialErr != nil {
@@ -1097,6 +1164,9 @@ func (s *Service) openRemoteJobContent(ctx context.Context, job *store.CreativeJ
 	}
 	mediaClient := *s.client
 	mediaClient.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+		if err := validateRemoteMediaURL(next.Context(), next.URL, providerURL); err != nil {
+			return err
+		}
 		if !sameURLOrigin(next.URL, providerURL) {
 			next.Header.Del("Authorization")
 			next.Host = ""
@@ -1173,6 +1243,46 @@ func applyProviderAuth(req *http.Request, p store.CreativeProvider) {
 }
 func sameURLOrigin(a, b *url.URL) bool {
 	return a != nil && b != nil && strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(a.Host, b.Host)
+}
+func validateRemoteMediaURL(ctx context.Context, target, provider *url.URL) error {
+	if sameURLOrigin(target, provider) {
+		return nil
+	}
+	host := strings.ToLower(strings.Trim(strings.TrimSpace(target.Hostname()), "."))
+	if host == "" {
+		return fmt.Errorf("媒体地址无效")
+	}
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return fmt.Errorf("媒体地址指向本机，已拒绝")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if isUnsafeRemoteIP(ip) {
+			return fmt.Errorf("媒体地址指向内网或本机，已拒绝")
+		}
+		return nil
+	}
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return fmt.Errorf("媒体地址域名解析失败: %w", err)
+	}
+	if len(addrs) == 0 {
+		return fmt.Errorf("媒体地址域名没有可用解析")
+	}
+	for _, addr := range addrs {
+		if isUnsafeRemoteIP(addr.IP) {
+			return fmt.Errorf("媒体地址解析到内网或本机，已拒绝")
+		}
+	}
+	return nil
+}
+func isUnsafeRemoteIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		ip = ip4
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast()
 }
 func providerEndpoint(baseURL, path string) string {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")

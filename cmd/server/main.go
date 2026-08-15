@@ -272,6 +272,10 @@ func spaFallback(next http.Handler, fsys fs.FS) http.Handler {
 			path = "index.html"
 		}
 		if _, err := fs.Stat(fsys, path); err != nil {
+			if !shouldFallbackToSPA(path) {
+				http.NotFound(w, r)
+				return
+			}
 			r2 := r.Clone(r.Context())
 			r2.URL.Path = "/"
 			next.ServeHTTP(w, r2)
@@ -279,6 +283,17 @@ func spaFallback(next http.Handler, fsys fs.FS) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func shouldFallbackToSPA(path string) bool {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	if path == "" {
+		return true
+	}
+	if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "tutorial-assets/") {
+		return false
+	}
+	return !strings.Contains(path, ".")
 }
 
 func withLogging(next http.Handler) http.Handler {

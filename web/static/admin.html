@@ -1538,7 +1538,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       try{
         const u=new URL(href, location.href);
         if(u.origin!==location.origin) return href;
-        for(const k of ['token','theme']){
+        for(const k of ['theme']){
           const v=params.get(k);
           if(v && !u.searchParams.get(k)) u.searchParams.set(k,v);
         }
@@ -1580,6 +1580,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       try{ el('cred').focus(); }catch{}
     }
     function clean(t){ t=(t||'').trim(); if(/^bearer\s+/i.test(t)) t=t.replace(/^bearer\s+/i,''); return t; }
+    let initialURLToken=clean(params.get('token')||'');
     function looksLikeJWT(t){ const p=(t||'').split('.'); return p.length===3 && p.every(x=>x.length>0); }
     function readLS(k){ try{return localStorage.getItem(k)||''}catch{return ''} }
     function loadStoredCred(){ try{return sessionStorage.getItem(SS_KEY)||''}catch{return ''} }
@@ -1590,7 +1591,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     function detectAutoToken(){
       const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
       const cands=[];
-      const q=clean(params.get('token')||'');
+      const q=initialURLToken || clean(params.get('token')||'');
       if(q) cands.push(q);
       for(const k of keys){
         try{ const v=clean(readLS(k)); if(v) cands.push(v); }catch{}
@@ -1616,12 +1617,21 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         }
       }catch{}
     }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function resolveAuth(){
       const manual=clean(loadStoredCred()||el('cred').value||'');
       if(manual){
         accessToken=manual;
         authMode=looksLikeJWT(manual)?'jwt':'api_key';
         if(authMode==='jwt') persistUserToken(manual);
+        cleanTokenQuery();
         return;
       }
       const auto=detectAutoToken();
@@ -1629,9 +1639,11 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         accessToken=auto;
         authMode=looksLikeJWT(auto)?'jwt':'api_key';
         if(authMode==='jwt') persistUserToken(auto);
+        cleanTokenQuery();
         return;
       }
       accessToken=''; authMode='none';
+      cleanTokenQuery();
     }
     function setAuthStatus(text,cls){ const n=el('authStatus'); n.textContent=text; n.className='auth-status'+(cls?' '+cls:''); }
     function authOnlyHeaders(){

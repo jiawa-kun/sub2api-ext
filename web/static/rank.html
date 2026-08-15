@@ -313,7 +313,7 @@ tr.me{background:rgba(91,140,255,.08)}
     function keepQuery(href){
       try{
         const u = new URL(href, location.href);
-        for(const k of ['token','theme']){
+        for(const k of ['theme']){
           const v = params.get(k);
           if(v && !u.searchParams.get(k)) u.searchParams.set(k, v);
         }
@@ -362,6 +362,23 @@ tr.me{background:rgba(91,140,255,.08)}
       applyFavicon(light);
     }
     function readStorage(key){ try{return localStorage.getItem(key)||''}catch{return ''} }
+    function storeToken(t){
+      if(!t) return;
+      try{ localStorage.setItem('auth_token', t); }catch{}
+      try{
+        if(window.parent && window.parent !== window){
+          window.parent.localStorage.setItem('auth_token', t);
+        }
+      }catch{}
+    }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function cleanToken(raw){
       raw = String(raw||'').trim();
       if(/^Bearer\s+/i.test(raw)) raw = raw.replace(/^Bearer\s+/i,'');
@@ -369,7 +386,11 @@ tr.me{background:rgba(91,140,255,.08)}
     }
     function pickToken(){
       const q = cleanToken(params.get('token')||'');
-      if(q) return q;
+      if(q){
+        storeToken(q);
+        cleanTokenQuery();
+        return q;
+      }
       const keys=['auth_token','access_token','token','jwt','sub2api_token','sub2api_access_token'];
       for(const k of keys){
         const v = cleanToken(readStorage(k));

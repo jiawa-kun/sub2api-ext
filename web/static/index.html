@@ -374,7 +374,7 @@ details.more .body{padding:0 12px 12px}
       try{
         const u = new URL(href, location.href);
         if(u.origin !== location.origin) return href;
-        for(const k of ['token','theme']){
+        for(const k of ['theme']){
           const v = params.get(k);
           if(v && !u.searchParams.get(k)) u.searchParams.set(k, v);
         }
@@ -441,6 +441,14 @@ details.more .body{padding:0 12px 12px}
         }
       }catch{}
     }
+    function cleanTokenQuery(){
+      if(!params.has('token')) return;
+      params.delete('token');
+      try{
+        const q=params.toString();
+        history.replaceState(null,'',location.pathname+(q?'?'+q:'')+location.hash);
+      }catch{}
+    }
     function storageClearLocal(keys){
       try{
         (keys||[]).forEach(k=>{ try{ localStorage.removeItem(k); }catch{} });
@@ -481,8 +489,6 @@ details.more .body{padding:0 12px 12px}
     function tasksHref(){
       try{
         const u=new URL('./tasks.html', location.href);
-        const t=(typeof accessToken!=='undefined' && accessToken) ? accessToken : (typeof pickToken==='function' ? pickToken() : '');
-        if(t) u.searchParams.set('token', t);
         const th=document.documentElement.classList.contains('light')?'light':'';
         if(th) u.searchParams.set('theme', th==='light'?'light':'dark');
         return u.pathname + u.search + u.hash;
@@ -556,6 +562,7 @@ function pickToken(){
         }
       }catch{}
     }
+    cleanTokenQuery();
 
     function isExpiredAuthError(err){
       const m=String(err&&err.message?err.message:err||'');

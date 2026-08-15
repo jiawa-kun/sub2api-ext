@@ -1153,19 +1153,21 @@ func clientMetaFromRequest(r *http.Request) sub2api.ClientMeta {
 }
 
 func clientIP(r *http.Request) string {
-	for _, h := range []string{"CF-Connecting-IP", "True-Client-IP", "X-Real-IP"} {
-		if v := strings.TrimSpace(r.Header.Get(h)); v != "" {
-			return firstIP(v)
+	remote := firstIP(r.RemoteAddr)
+	if isTrustedProxyIP(remote) {
+		for _, h := range []string{"CF-Connecting-IP", "True-Client-IP", "X-Real-IP"} {
+			if v := firstIP(r.Header.Get(h)); v != "" {
+				return v
+			}
+		}
+		if v := firstIP(r.Header.Get("X-Forwarded-For")); v != "" {
+			return v
 		}
 	}
-	if v := r.Header.Get("X-Forwarded-For"); v != "" {
-		return firstIP(v)
+	if remote != "" {
+		return remote
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return r.RemoteAddr
+	return strings.TrimSpace(r.RemoteAddr)
 }
 
 func firstIP(v string) string {
@@ -1173,7 +1175,24 @@ func firstIP(v string) string {
 	if i := strings.Index(v, ","); i >= 0 {
 		v = strings.TrimSpace(v[:i])
 	}
-	return v
+	if host, _, err := net.SplitHostPort(v); err == nil {
+		v = host
+	}
+	if ip := net.ParseIP(strings.Trim(v, "[]")); ip != nil {
+		return ip.String()
+	}
+	return ""
+}
+
+func isTrustedProxyIP(v string) bool {
+	ip := net.ParseIP(v)
+	if ip == nil {
+		return false
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		ip = ip4
+	}
+	return ip.IsLoopback() || ip.IsPrivate()
 }
 
 func extractToken(r *http.Request) string {
