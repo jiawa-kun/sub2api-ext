@@ -35,8 +35,12 @@ services:
     networks:
       - default
       - sub2api-net
+      - onepanel-net
 
 networks:
   sub2api-net:
     external: true
     name: sub2api-deploy_sub2api-network
+  onepanel-net:
+    external: true
+    name: 1panel-network
