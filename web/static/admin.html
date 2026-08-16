@@ -99,6 +99,7 @@ html.light .modnav button.active{background:#fff; border-color:rgba(15,23,42,.08
 .card-head .desc{margin:4px 0 0; color:var(--muted); font-size:.78rem; line-height:1.4}
 .section-title{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px}
 .section-title h3{margin:0; font-size:.9rem}
+.sub.err{color:#b42318}
 .sub{color:var(--muted); font-size:.8rem; line-height:1.45; margin:0 0 8px}
 .hint{font-size:.72rem; color:var(--muted); margin-top:6px; line-height:1.4}
 label{display:block; font-size:.74rem; color:var(--muted); margin:0 0 5px; font-weight:600}
@@ -1343,9 +1344,19 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
           <div class="field"><label>密码状态</label><div class="sub" id="creativeMediaPassState">—</div></div>
         </div>
         <div class="msg" id="creativeMediaMsg"></div>
+        <div class="sub" id="creativeMediaHealthLine">健康状态：—</div>
+        <div class="sub" id="creativeMediaAuditLine">缺失巡检：—</div>
+        <div class="tbl-wrap" id="creativeMediaMissingWrap" style="display:none;margin-top:8px">
+          <table class="tbl">
+            <thead><tr><th>任务</th><th>用户</th><th>类型</th><th>文件</th><th>原因</th></tr></thead>
+            <tbody id="creativeMediaMissingBody"></tbody>
+          </table>
+        </div>
         <div class="toolbar creative-actions">
           <button type="button" id="btnCreativeMediaSave">保存存储配置</button>
           <button type="button" class="secondary" id="btnCreativeMediaTest">测试连接</button>
+          <button type="button" class="secondary" id="btnCreativeMediaHealth">检查健康</button>
+          <button type="button" class="secondary" id="btnCreativeMediaAudit">巡检缺失媒体</button>
           <button type="button" class="secondary" id="btnCreativeMediaReload">重新加载</button>
         </div>
       </div>
@@ -3396,20 +3407,85 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       if(el("creativeMediaPassState")) el("creativeMediaPassState").textContent=s.password_configured?("已配置 "+(s.password_masked||"")):"未配置";
       if(el("creativeMediaBadge")) el("creativeMediaBadge").textContent=s.driver==="webdav"?"WebDAV":"本地磁盘";
     }
+    function fmtMediaTime(v){
+      if(!v) return "—";
+      try{ const d=new Date(v); if(Number.isNaN(d.getTime())) return String(v); return d.toLocaleString(); }catch{ return String(v); }
+    }
+    function renderCreativeMediaHealth(h){
+      const line=el("creativeMediaHealthLine"); if(!line) return;
+      if(!h){ line.textContent="健康状态：尚未检查"; line.className="sub"; return; }
+      const ok=!!h.ok;
+      line.textContent=`健康状态：${ok?"正常":"异常"} · 驱动 ${h.driver||"—"} · 延迟 ${h.latency_ms??"—"}ms · ${fmtMediaTime(h.checked_at)}${h.message?(" · "+h.message):""}${h.source?(" · "+h.source):""}`;
+      line.className="sub"+(ok?"":" err");
+      if(el("creativeMediaBadge") && h.driver){
+        const base=h.driver==="webdav"?"WebDAV":"本地磁盘";
+        el("creativeMediaBadge").textContent=ok?base:(base+" · 异常");
+      }
+    }
+    function renderCreativeMediaAudit(a){
+      const line=el("creativeMediaAuditLine");
+      const wrap=el("creativeMediaMissingWrap");
+      const body=el("creativeMediaMissingBody");
+      if(!line) return;
+      if(!a){ line.textContent="缺失巡检：尚未执行"; if(wrap) wrap.style.display="none"; if(body) body.innerHTML=""; return; }
+      line.textContent=`缺失巡检：扫描 ${a.scanned||0} · 正常 ${a.present||0} · 缺失 ${a.missing||0} · 大小不符 ${a.size_mismatch||0} · 耗时 ${a.duration_ms??"—"}ms · ${fmtMediaTime(a.checked_at)}`;
+      line.className="sub"+(Number(a.missing||0)>0?" err":"");
+      const items=Array.isArray(a.missing_items)?a.missing_items:[];
+      if(!wrap||!body){ return; }
+      if(!items.length){ wrap.style.display="none"; body.innerHTML=""; return; }
+      wrap.style.display="";
+      body.innerHTML=items.slice(0,100).map(it=>`<tr>
+        <td>#${Number(it.job_id||0)}</td>
+        <td>${Number(it.user_id||0)}</td>
+        <td>${escapeHtml(it.media_type||"—")}${it.media_type==="image"?(" #"+(Number(it.image_index||0)+1)):""}</td>
+        <td><code>${escapeHtml(it.file_name||"—")}</code></td>
+        <td>${escapeHtml(it.reason||"missing")}</td>
+      </tr>`).join("")+(items.length>100?`<tr><td colspan="5" class="sub">仅显示前 100 条，共 ${items.length} 条</td></tr>`:"");
+    }
     async function loadCreativeMediaSettings(){
       const r=await api("./api/admin/creative/media-settings");
       fillCreativeMediaSettings(r.settings||{});
+      renderCreativeMediaHealth((r.settings||{}).health||null);
+      const sum=(r.settings||{}).audit_summary;
+      if(sum){
+        renderCreativeMediaAudit({
+          scanned:sum.scanned, present:sum.present, missing:sum.missing, size_mismatch:sum.size_mismatch,
+          duration_ms:sum.duration_ms, checked_at:sum.checked_at, missing_items:[]
+        });
+      }
+      // load cached full audit list if any
+      try{
+        const ar=await api("./api/admin/creative/media-settings/audit");
+        if(ar && ar.audit) renderCreativeMediaAudit(ar.audit);
+      }catch(_){ /* ignore empty cache */ }
     }
     async function saveCreativeMediaSettings(){
       const body=creativeMediaBodyFromForm();
       const r=await api("./api/admin/creative/media-settings",{method:"PUT", body:JSON.stringify(body)});
       fillCreativeMediaSettings(r.settings||{});
+      if(r.health) renderCreativeMediaHealth(r.health);
       showCreativeMediaMsg(r.message||"已保存","ok");
     }
     async function testCreativeMediaSettings(){
       const body=creativeMediaBodyFromForm();
       const r=await api("./api/admin/creative/media-settings/test",{method:"POST", body:JSON.stringify(body)});
+      if(r.health) renderCreativeMediaHealth(r.health);
       showCreativeMediaMsg(r.message||"连通性正常","ok");
+    }
+    async function checkCreativeMediaHealth(){
+      const r=await api("./api/admin/creative/media-settings/health",{method:"POST", body:"{}"});
+      renderCreativeMediaHealth(r.health||null);
+      showCreativeMediaMsg(r.message||(r.health&&r.health.ok?"健康正常":"健康异常"), r.health&&r.health.ok?"ok":"err");
+    }
+    async function auditCreativeMedia(){
+      showCreativeMediaMsg("正在巡检缺失媒体…","ok");
+      const r=await api("./api/admin/creative/media-settings/audit",{method:"POST", body:"{}"});
+      if(r.audit){
+        renderCreativeMediaAudit(r.audit);
+        if(r.audit.health) renderCreativeMediaHealth(r.audit.health);
+      }
+      const missing=Number((r.audit||{}).missing||0);
+      showCreativeMediaMsg(r.message||"巡检完成", missing>0?"err":"ok");
     }
 
 function parseCreativeJSON(raw,fallback={}){try{return JSON.parse(raw||'{}')}catch{return fallback}}
@@ -3803,6 +3879,8 @@ function parseCreativeJSON(raw,fallback={}){try{return JSON.parse(raw||'{}')}cat
     const btnCreativeProviderSave=el('btnCreativeProviderSave'); if(btnCreativeProviderSave) btnCreativeProviderSave.onclick=()=>saveCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeMediaSave=el('btnCreativeMediaSave'); if(btnCreativeMediaSave) btnCreativeMediaSave.onclick=()=>saveCreativeMediaSettings().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
     const btnCreativeMediaTest=el('btnCreativeMediaTest'); if(btnCreativeMediaTest) btnCreativeMediaTest.onclick=()=>testCreativeMediaSettings().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
+    const btnCreativeMediaHealth=el('btnCreativeMediaHealth'); if(btnCreativeMediaHealth) btnCreativeMediaHealth.onclick=()=>checkCreativeMediaHealth().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
+    const btnCreativeMediaAudit=el('btnCreativeMediaAudit'); if(btnCreativeMediaAudit) btnCreativeMediaAudit.onclick=()=>auditCreativeMedia().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
     const btnCreativeMediaReload=el('btnCreativeMediaReload'); if(btnCreativeMediaReload) btnCreativeMediaReload.onclick=()=>loadCreativeMediaSettings().then(()=>showCreativeMediaMsg('已重新加载','ok')).catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider('openai_compatible');
     const btnCreativeProviderTest=el('btnCreativeProviderTest'); if(btnCreativeProviderTest) btnCreativeProviderTest.onclick=()=>testCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));

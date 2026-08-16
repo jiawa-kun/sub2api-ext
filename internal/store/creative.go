@@ -88,6 +88,20 @@ type CreativeJobImage struct {
 	LocalMediaSize int64     `json:"-"`
 	CreatedAt      time.Time `json:"created_at"`
 }
+
+// CreativeMediaRef is a DB-side pointer to archived media binary.
+type CreativeMediaRef struct {
+	JobID          int64     `json:"job_id"`
+	UserID         int64     `json:"user_id"`
+	MediaType      string    `json:"media_type"`
+	JobStatus      string    `json:"job_status"`
+	ImageIndex     int       `json:"image_index"`
+	FileName       string    `json:"file_name"`
+	ContentType    string    `json:"content_type"`
+	ExpectedSize   int64     `json:"expected_size"`
+	JobCreatedAt   time.Time `json:"job_created_at"`
+	MediaCreatedAt time.Time `json:"media_created_at"`
+}
 type CreativeJobFilter struct {
 	UserID         int64
 	MediaType      string
@@ -667,4 +681,56 @@ func parseStoreTime(v string) time.Time {
 		t, _ = time.Parse(time.RFC3339, v)
 	}
 	return t
+}
+
+func (s *Store) ListCreativeMediaRefs(ctx context.Context) ([]CreativeMediaRef, error) {
+	out := []CreativeMediaRef{}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT j.id, j.user_id, j.media_type, j.status, j.created_at,
+       i.image_index, i.local_media_file, i.local_media_type, i.local_media_size, i.created_at
+FROM creative_job_images i
+JOIN creative_jobs j ON j.id = i.job_id
+WHERE COALESCE(i.local_media_file,'') <> '' AND COALESCE(j.deleted_at,'') = ''
+ORDER BY j.id DESC, i.image_index ASC`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var ref CreativeMediaRef
+		var jobCreated, mediaCreated string
+		if err := rows.Scan(&ref.JobID, &ref.UserID, &ref.MediaType, &ref.JobStatus, &jobCreated, &ref.ImageIndex, &ref.FileName, &ref.ContentType, &ref.ExpectedSize, &mediaCreated); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ref.JobCreatedAt = parseStoreTime(jobCreated)
+		ref.MediaCreatedAt = parseStoreTime(mediaCreated)
+		out = append(out, ref)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	rows, err = s.db.QueryContext(ctx, `
+SELECT id, user_id, media_type, status, created_at,
+       0, local_media_file, local_media_type, local_media_size, COALESCE(completed_at, created_at)
+FROM creative_jobs
+WHERE media_type='video' AND COALESCE(local_media_file,'') <> '' AND COALESCE(deleted_at,'') = ''
+ORDER BY id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var ref CreativeMediaRef
+		var jobCreated, mediaCreated string
+		if err := rows.Scan(&ref.JobID, &ref.UserID, &ref.MediaType, &ref.JobStatus, &jobCreated, &ref.ImageIndex, &ref.FileName, &ref.ContentType, &ref.ExpectedSize, &mediaCreated); err != nil {
+			return nil, err
+		}
+		ref.JobCreatedAt = parseStoreTime(jobCreated)
+		ref.MediaCreatedAt = parseStoreTime(mediaCreated)
+		out = append(out, ref)
+	}
+	return out, rows.Err()
 }

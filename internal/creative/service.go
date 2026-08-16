@@ -114,13 +114,15 @@ type Service struct {
 	client        *http.Client
 	credentialKey []byte
 	mediaRoot     string
-	mediaStore    MediaStore
-	mediaConfig   *MediaConfig
-	stop          chan struct{}
-	wg            sync.WaitGroup
-	pollMu        sync.Mutex
-	routeMu       sync.Mutex
-	mediaMu       sync.Mutex
+	mediaStore      MediaStore
+	mediaConfig     *MediaConfig
+	mediaAuditOnce  sync.Once
+	mediaAuditState *mediaAuditState
+	stop            chan struct{}
+	wg              sync.WaitGroup
+	pollMu          sync.Mutex
+	routeMu         sync.Mutex
+	mediaMu         sync.Mutex
 }
 
 type creditService interface {

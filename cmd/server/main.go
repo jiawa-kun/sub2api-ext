@@ -109,9 +109,15 @@ func main() {
 	)
 	mediaCfg := creative.NewMediaConfig(st, mediaDefaults)
 	if err := creativeSvc.SetMediaConfig(mediaCfg); err != nil {
-		log.Fatalf("configure creative media: %v", err)
+		log.Printf("configure creative media from settings failed: %v; falling back to local", err)
+		localOnly := mediaDefaults
+		localOnly.Driver = creative.MediaDriverLocal
+		localOnly.LocalFallback = true
+		if err2 := creativeSvc.ConfigureMedia(localOnly.StoreOptions()); err2 != nil {
+			log.Fatalf("configure creative media local fallback: %v", err2)
+		}
 	}
-	if driver := creativeSvc.MediaDriver(); driver != "" && driver != "local" {
+	if driver := creativeSvc.MediaDriver(); driver != "" {
 		log.Printf("creative media driver: %s", driver)
 	}
 	if len(strings.TrimSpace(cfg.Security.CreativeCredentialSecret)) < 32 {
@@ -197,6 +203,8 @@ func main() {
 	mux.HandleFunc(base+"/api/creative/jobs/", h.CreativeJobByID)
 	mux.HandleFunc(base+"/api/admin/creative/media-settings", h.AdminCreativeMediaSettings)
 	mux.HandleFunc(base+"/api/admin/creative/media-settings/test", h.AdminCreativeMediaSettingsTest)
+	mux.HandleFunc(base+"/api/admin/creative/media-settings/health", h.AdminCreativeMediaHealth)
+	mux.HandleFunc(base+"/api/admin/creative/media-settings/audit", h.AdminCreativeMediaAudit)
 	mux.HandleFunc(base+"/api/admin/creative/providers", h.AdminCreativeProviders)
 	mux.HandleFunc(base+"/api/admin/creative/providers/", h.AdminCreativeProviderByID)
 	mux.HandleFunc(base+"/api/admin/creative/account-pool", h.AdminCreativeAccountPool)

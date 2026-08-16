@@ -518,7 +518,26 @@ func (h *Handler) AdminCreativeJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(items))
 	for i := range items {
-		out = append(out, creativeAdminJobPublic(&items[i]))
+		item := creativeAdminJobPublic(&items[i])
+		if h.creative != nil {
+			file := strings.TrimSpace(items[i].LocalMediaFile)
+			if items[i].MediaType == "image" {
+				if avail, known, reason := h.creative.MediaAvailability(items[i].ID, "image", -1, ""); known {
+					item["media_available"] = avail
+					if !avail && reason != "" {
+						item["media_missing_reason"] = reason
+					}
+				}
+			} else if file != "" {
+				if avail, known, reason := h.creative.MediaAvailability(items[i].ID, items[i].MediaType, 0, file); known {
+					item["media_available"] = avail
+					if !avail && reason != "" {
+						item["media_missing_reason"] = reason
+					}
+				}
+			}
+		}
+		out = append(out, item)
 	}
 	writeJSON(w, 200, map[string]any{"items": out, "total": total, "page": page, "page_size": limit})
 }
