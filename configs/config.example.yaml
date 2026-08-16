@@ -95,3 +95,15 @@ security:
   # AI 创作用户 API Key 的服务端加密密钥，生产环境至少 32 个随机字符。
   # 设置后不要随意更换，否则已有用户 Key 将无法解密。
   creative_credential_secret: ""
+
+creative:
+  # local | webdav
+  media_driver: "local"
+  # optional override of local .../creative/videos
+  media_root: ""
+  webdav_url: ""
+  webdav_username: ""
+  webdav_password: ""
+  # optional path under WebDAV base, e.g. GoogleDrive/sub2api-ext/creative
+  webdav_root: ""
+  # media_local_fallback: true

@@ -114,6 +114,7 @@ type Service struct {
 	client        *http.Client
 	credentialKey []byte
 	mediaRoot     string
+	mediaStore    MediaStore
 	stop          chan struct{}
 	wg            sync.WaitGroup
 	pollMu        sync.Mutex
@@ -139,7 +140,40 @@ func New(st *store.Store, accounts *sub2api.Client, creditSvc *credit.Service, o
 	if len(options) > 1 {
 		mediaRoot = strings.TrimSpace(options[1])
 	}
-	return &Service{store: st, accounts: accounts, credit: billing, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), mediaRoot: mediaRoot, stop: make(chan struct{})}
+	svc := &Service{store: st, accounts: accounts, credit: billing, client: &http.Client{Timeout: 5 * time.Minute}, credentialKey: deriveCredentialKey(secret), mediaRoot: mediaRoot, stop: make(chan struct{})}
+	if mediaRoot != "" {
+		svc.mediaStore = NewLocalMediaStore(mediaRoot)
+	}
+	return svc
+}
+
+// ConfigureMedia replaces the media backend.
+func (s *Service) ConfigureMedia(settings MediaSettings) error {
+	if s == nil {
+		return fmt.Errorf("creative service is nil")
+	}
+	if strings.TrimSpace(settings.LocalVideoRoot) == "" {
+		settings.LocalVideoRoot = s.mediaRoot
+	}
+	if strings.TrimSpace(settings.LocalVideoRoot) != "" {
+		s.mediaRoot = strings.TrimSpace(settings.LocalVideoRoot)
+	}
+	if settings.HTTPClient == nil {
+		settings.HTTPClient = s.client
+	}
+	ms, err := NewMediaStore(settings)
+	if err != nil {
+		return err
+	}
+	s.mediaStore = ms
+	return nil
+}
+
+func (s *Service) MediaDriver() string {
+	if s == nil || s.mediaStore == nil {
+		return ""
+	}
+	return s.mediaStore.Driver()
 }
 func (s *Service) Start() {
 	s.wg.Add(1)
@@ -735,7 +769,7 @@ func (s *Service) GenerateImage(ctx context.Context, userID int64, in ImageInput
 	images, sanitizedResult, archiveErr := s.archiveImages(archiveCtx, job, body)
 	archiveCancel()
 	if archiveErr != nil {
-		return s.failAndRefund(ctx, job, "image_archive_failed", fmt.Errorf("保存图片到本地失败: %w", archiveErr))
+		return s.failAndRefund(ctx, job, "image_archive_failed", fmt.Errorf("保存图片失败: %w", archiveErr))
 	}
 	now := time.Now().UTC()
 	job.ResultJSON = sanitizedResult
@@ -1088,16 +1122,16 @@ func (s *Service) OpenJobContent(ctx context.Context, job *store.CreativeJob, in
 		return nil, fmt.Errorf("作品尚未完成")
 	}
 	if job.MediaType == "image" {
-		if content, err := s.openLocalImage(ctx, job, index); content != nil || err != nil {
+		if content, err := s.openStoredImage(ctx, job, index, rangeHeader); content != nil || err != nil {
 			return content, err
 		}
 		if err := s.archiveExistingImages(ctx, job); err == nil {
-			if content, openErr := s.openLocalImage(ctx, job, index); content != nil || openErr != nil {
+			if content, openErr := s.openStoredImage(ctx, job, index, rangeHeader); content != nil || openErr != nil {
 				return content, openErr
 			}
 		}
 	}
-	if content, err := s.openLocalMedia(job); content != nil || err != nil {
+	if content, err := s.openStoredMedia(ctx, job, rangeHeader); content != nil || err != nil {
 		return content, err
 	}
 	return s.openRemoteJobContent(ctx, job, index, rangeHeader)

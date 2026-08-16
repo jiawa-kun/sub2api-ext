@@ -94,7 +94,24 @@ func main() {
 	taskSettings := tasks.NewSettings(st)
 	h.SetTasks(taskSettings)
 	creativeMediaRoot := filepath.Join(filepath.Dir(cfg.Store.SQLitePath), "creative", "videos")
+	if strings.TrimSpace(cfg.Creative.MediaRoot) != "" {
+		creativeMediaRoot = strings.TrimSpace(cfg.Creative.MediaRoot)
+	}
 	creativeSvc := creative.New(st, client, creditSvc, cfg.Security.CreativeCredentialSecret, creativeMediaRoot)
+	if err := creativeSvc.ConfigureMedia(creative.MediaSettings{
+		Driver:         cfg.Creative.MediaDriver,
+		LocalVideoRoot: creativeMediaRoot,
+		WebDAVURL:      cfg.Creative.WebDAVURL,
+		WebDAVUsername: cfg.Creative.WebDAVUsername,
+		WebDAVPassword: cfg.Creative.WebDAVPassword,
+		WebDAVRoot:     cfg.Creative.WebDAVRoot,
+		LocalFallback:  cfg.Creative.MediaLocalFallback,
+	}); err != nil {
+		log.Fatalf("configure creative media: %v", err)
+	}
+	if driver := creativeSvc.MediaDriver(); driver != "" && driver != "local" {
+		log.Printf("creative media driver: %s", driver)
+	}
 	if len(strings.TrimSpace(cfg.Security.CreativeCredentialSecret)) < 32 {
 		log.Printf("creative user API key storage disabled: CREATIVE_CREDENTIAL_SECRET must be at least 32 characters")
 	}

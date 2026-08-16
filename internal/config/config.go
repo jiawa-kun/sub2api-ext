@@ -20,6 +20,7 @@ type Config struct {
 	Sub2API  Sub2APIConfig  `yaml:"sub2api"`
 	Store    StoreConfig    `yaml:"store"`
 	Security SecurityConfig `yaml:"security"`
+	Creative CreativeConfig `yaml:"creative"`
 }
 
 type ServerConfig struct {
@@ -149,6 +150,20 @@ type SecurityConfig struct {
 	SensitiveWriteRequireAPIKey bool `yaml:"sensitive_write_require_api_key"`
 	// CreativeCredentialSecret encrypts user-owned media API keys at rest.
 	CreativeCredentialSecret string `yaml:"creative_credential_secret"`
+}
+
+type CreativeConfig struct {
+	// MediaDriver: local | webdav. Empty defaults to local.
+	MediaDriver string `yaml:"media_driver"`
+	// MediaRoot overrides local video root (.../creative/videos). Empty derives from sqlite path.
+	MediaRoot      string `yaml:"media_root"`
+	WebDAVURL      string `yaml:"webdav_url"`
+	WebDAVUsername string `yaml:"webdav_username"`
+	WebDAVPassword string `yaml:"webdav_password"`
+	// WebDAVRoot is an optional path under the WebDAV base, e.g. GoogleDrive/sub2api-ext/creative.
+	WebDAVRoot string `yaml:"webdav_root"`
+	// MediaLocalFallback keeps reading old local files after switching to webdav. nil/default true.
+	MediaLocalFallback *bool `yaml:"media_local_fallback"`
 }
 
 func Default() Config {
@@ -413,6 +428,28 @@ func applyEnv(cfg *Config) {
 	}
 	if v := os.Getenv("CREATIVE_CREDENTIAL_SECRET"); v != "" {
 		cfg.Security.CreativeCredentialSecret = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_MEDIA_DRIVER"); v != "" {
+		cfg.Creative.MediaDriver = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_MEDIA_ROOT"); v != "" {
+		cfg.Creative.MediaRoot = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_WEBDAV_URL"); v != "" {
+		cfg.Creative.WebDAVURL = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_WEBDAV_USERNAME"); v != "" {
+		cfg.Creative.WebDAVUsername = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_WEBDAV_PASSWORD"); v != "" {
+		cfg.Creative.WebDAVPassword = v
+	}
+	if v := os.Getenv("CREATIVE_WEBDAV_ROOT"); v != "" {
+		cfg.Creative.WebDAVRoot = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("CREATIVE_MEDIA_LOCAL_FALLBACK"); v != "" {
+		b := parseBool(v, true)
+		cfg.Creative.MediaLocalFallback = &b
 	}
 
 	cfg.Sub2API.BaseURL = strings.TrimRight(cfg.Sub2API.BaseURL, "/")

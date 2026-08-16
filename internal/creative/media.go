@@ -1,6 +1,7 @@
 package creative
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -27,12 +28,16 @@ type upstreamImage struct {
 	B64JSON string `json:"b64_json"`
 }
 
+func (s *Service) mediaReady() bool {
+	return s != nil && s.mediaStore != nil && s.mediaStore.Ready()
+}
+
 func (s *Service) archiveImages(ctx context.Context, job *store.CreativeJob, body []byte) ([]store.CreativeJobImage, string, error) {
 	if job == nil || job.MediaType != "image" || job.ID <= 0 {
 		return nil, "", fmt.Errorf("图片任务无效")
 	}
-	if s.imageMediaRoot() == "" {
-		return nil, "", fmt.Errorf("本地图片目录未配置")
+	if !s.mediaReady() {
+		return nil, "", fmt.Errorf("媒体存储未配置")
 	}
 	var payload struct {
 		Data []upstreamImage `json:"data"`
@@ -44,11 +49,7 @@ func (s *Service) archiveImages(ctx context.Context, job *store.CreativeJob, bod
 	remoteJob.ResultJSON = string(body)
 	images := make([]store.CreativeJobImage, 0, len(payload.Data))
 	cleanup := func() {
-		for _, image := range images {
-			if path, err := s.localImagePath(image.LocalMediaFile); err == nil {
-				_ = os.Remove(path)
-			}
-		}
+		s.removeArchivedImages(images)
 	}
 	for index, item := range payload.Data {
 		var content io.ReadCloser
@@ -77,7 +78,7 @@ func (s *Service) archiveImages(ctx context.Context, job *store.CreativeJob, bod
 			cleanup()
 			return nil, "", fmt.Errorf("第 %d 张图片没有可保存的内容", index+1)
 		}
-		image, err := s.archiveImageReader(job.ID, index, content)
+		image, err := s.archiveImageReader(ctx, job.ID, index, content)
 		_ = content.Close()
 		if err != nil {
 			cleanup()
@@ -94,8 +95,8 @@ func (s *Service) archiveImages(ctx context.Context, job *store.CreativeJob, bod
 }
 
 func (s *Service) archiveExistingImages(ctx context.Context, job *store.CreativeJob) error {
-	if job == nil || job.MediaType != "image" || s.imageMediaRoot() == "" {
-		return fmt.Errorf("本地图片目录未配置")
+	if job == nil || job.MediaType != "image" || !s.mediaReady() {
+		return fmt.Errorf("媒体存储未配置")
 	}
 	s.mediaMu.Lock()
 	defer s.mediaMu.Unlock()
@@ -103,7 +104,7 @@ func (s *Service) archiveExistingImages(ctx context.Context, job *store.Creative
 	if err != nil {
 		return err
 	}
-	if s.localImagesAvailable(job, existing) {
+	if s.storedImagesAvailable(ctx, job, existing) {
 		return nil
 	}
 	images, sanitizedResult, err := s.archiveImages(ctx, job, []byte(job.ResultJSON))
@@ -121,7 +122,7 @@ func (s *Service) archiveExistingImages(ctx context.Context, job *store.Creative
 	return nil
 }
 
-func (s *Service) localImagesAvailable(job *store.CreativeJob, images []store.CreativeJobImage) bool {
+func (s *Service) storedImagesAvailable(ctx context.Context, job *store.CreativeJob, images []store.CreativeJobImage) bool {
 	var result struct {
 		Data []json.RawMessage `json:"data"`
 	}
@@ -132,12 +133,8 @@ func (s *Service) localImagesAvailable(job *store.CreativeJob, images []store.Cr
 		if image.ImageIndex != index {
 			return false
 		}
-		path, err := s.localImagePath(image.LocalMediaFile)
-		if err != nil {
-			return false
-		}
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() || info.Size() != image.LocalMediaSize {
+		size, _, ok, err := s.mediaStore.Stat(ctx, MediaKindImage, image.LocalMediaFile)
+		if err != nil || !ok || size != image.LocalMediaSize {
 			return false
 		}
 	}
@@ -145,10 +142,11 @@ func (s *Service) localImagesAvailable(job *store.CreativeJob, images []store.Cr
 }
 
 func (s *Service) removeArchivedImages(images []store.CreativeJobImage) {
+	if !s.mediaReady() {
+		return
+	}
 	for _, image := range images {
-		if path, err := s.localImagePath(image.LocalMediaFile); err == nil {
-			_ = os.Remove(path)
-		}
+		_ = s.mediaStore.Delete(context.Background(), MediaKindImage, image.LocalMediaFile)
 	}
 }
 
@@ -186,67 +184,36 @@ func sanitizeImageResult(body []byte) (string, error) {
 	return string(raw), nil
 }
 
-func (s *Service) archiveImageReader(jobID int64, index int, source io.Reader) (store.CreativeJobImage, error) {
-	root := s.imageMediaRoot()
-	if err := os.MkdirAll(root, 0o750); err != nil {
-		return store.CreativeJobImage{}, fmt.Errorf("创建图片目录: %w", err)
+func (s *Service) archiveImageReader(ctx context.Context, jobID int64, index int, source io.Reader) (store.CreativeJobImage, error) {
+	if !s.mediaReady() {
+		return store.CreativeJobImage{}, fmt.Errorf("媒体存储未配置")
 	}
-	head := make([]byte, 512)
-	n, readErr := io.ReadFull(source, head)
-	if readErr != nil && readErr != io.EOF && readErr != io.ErrUnexpectedEOF {
-		return store.CreativeJobImage{}, readErr
+	limited := io.LimitReader(source, maxArchivedImageBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return store.CreativeJobImage{}, err
 	}
-	head = head[:n]
-	if len(head) == 0 {
+	if len(data) == 0 {
 		return store.CreativeJobImage{}, fmt.Errorf("图片内容为空")
 	}
-	contentType, extension, err := archivedImageFormat(head)
+	if int64(len(data)) > maxArchivedImageBytes {
+		return store.CreativeJobImage{}, fmt.Errorf("图片超过 64 MiB 上限")
+	}
+	contentType, extension, err := archivedImageFormat(data)
 	if err != nil {
 		return store.CreativeJobImage{}, err
 	}
 	name := fmt.Sprintf("image-%d-%d-%s%s", jobID, index+1, newToken(4), extension)
-	path, err := s.localImagePath(name)
-	if err != nil {
+	if err := s.mediaStore.Put(ctx, MediaKindImage, name, bytes.NewReader(data), int64(len(data)), contentType); err != nil {
 		return store.CreativeJobImage{}, err
 	}
-	tmp, err := os.CreateTemp(root, ".image-*.tmp")
-	if err != nil {
-		return store.CreativeJobImage{}, fmt.Errorf("创建图片临时文件: %w", err)
-	}
-	tmpName := tmp.Name()
-	committed := false
-	defer func() {
-		_ = tmp.Close()
-		if !committed {
-			_ = os.Remove(tmpName)
-		}
-	}()
-	if _, err := tmp.Write(head); err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	remaining := maxArchivedImageBytes - int64(len(head))
-	written, err := io.Copy(tmp, io.LimitReader(source, remaining+1))
-	if err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	size := int64(len(head)) + written
-	if size > maxArchivedImageBytes {
-		return store.CreativeJobImage{}, fmt.Errorf("图片超过 64 MiB 上限")
-	}
-	if err := tmp.Sync(); err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	if err := tmp.Close(); err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	if err := os.Chmod(tmpName, 0o640); err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return store.CreativeJobImage{}, err
-	}
-	committed = true
-	return store.CreativeJobImage{JobID: jobID, ImageIndex: index, LocalMediaFile: name, LocalMediaType: contentType, LocalMediaSize: size}, nil
+	return store.CreativeJobImage{
+		JobID:          jobID,
+		ImageIndex:     index,
+		LocalMediaFile: name,
+		LocalMediaType: contentType,
+		LocalMediaSize: int64(len(data)),
+	}, nil
 }
 
 func archivedImageFormat(head []byte) (string, string, error) {
@@ -264,18 +231,14 @@ func archivedImageFormat(head []byte) (string, string, error) {
 }
 
 func (s *Service) archiveVideo(ctx context.Context, job *store.CreativeJob) error {
-	if job == nil || job.MediaType != "video" || s.mediaRoot == "" || job.LocalMediaFile != "" {
+	if job == nil || job.MediaType != "video" || !s.mediaReady() || job.LocalMediaFile != "" {
 		return nil
 	}
 	name := fmt.Sprintf("video-%d.mp4", job.ID)
-	path, err := s.localMediaPath(name)
-	if err != nil {
-		return err
-	}
-	if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() {
+	if size, _, ok, err := s.mediaStore.Stat(ctx, MediaKindVideo, name); err == nil && ok {
 		job.LocalMediaFile = name
 		job.LocalMediaType = "video/mp4"
-		job.LocalMediaSize = info.Size()
+		job.LocalMediaSize = size
 		return nil
 	}
 
@@ -287,20 +250,15 @@ func (s *Service) archiveVideo(ctx context.Context, job *store.CreativeJob) erro
 	if content.ContentLength > maxArchivedVideoBytes {
 		return fmt.Errorf("归档视频超过 2 GiB 上限")
 	}
-	if err := os.MkdirAll(s.mediaRoot, 0o750); err != nil {
-		return fmt.Errorf("创建视频目录: %w", err)
-	}
-	tmp, err := os.CreateTemp(s.mediaRoot, ".video-*.tmp")
+
+	tmp, err := os.CreateTemp("", "creative-video-*.tmp")
 	if err != nil {
 		return fmt.Errorf("创建视频临时文件: %w", err)
 	}
 	tmpName := tmp.Name()
-	committed := false
 	defer func() {
 		_ = tmp.Close()
-		if !committed {
-			_ = os.Remove(tmpName)
-		}
+		_ = os.Remove(tmpName)
 	}()
 	n, copyErr := io.Copy(tmp, io.LimitReader(content.Body, maxArchivedVideoBytes+1))
 	if copyErr != nil {
@@ -312,54 +270,42 @@ func (s *Service) archiveVideo(ctx context.Context, job *store.CreativeJob) erro
 	if n == 0 {
 		return fmt.Errorf("归档视频内容为空")
 	}
-	if err := tmp.Sync(); err != nil {
-		return fmt.Errorf("同步归档视频: %w", err)
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("回读归档视频: %w", err)
 	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("关闭归档视频: %w", err)
+	contentType := normalizeVideoContentType(content.ContentType)
+	if err := s.mediaStore.Put(ctx, MediaKindVideo, name, tmp, n, contentType); err != nil {
+		return err
 	}
-	if err := os.Chmod(tmpName, 0o640); err != nil {
-		return fmt.Errorf("设置归档视频权限: %w", err)
-	}
-	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("提交归档视频: %w", err)
-	}
-	committed = true
 	job.LocalMediaFile = name
-	job.LocalMediaType = normalizeVideoContentType(content.ContentType)
+	job.LocalMediaType = contentType
 	job.LocalMediaSize = n
 	return nil
 }
 
-func (s *Service) openLocalMedia(job *store.CreativeJob) (*MediaContent, error) {
-	if job == nil || s.mediaRoot == "" || job.LocalMediaFile == "" {
+func (s *Service) openStoredMedia(ctx context.Context, job *store.CreativeJob, rangeHeader string) (*MediaContent, error) {
+	if job == nil || !s.mediaReady() || job.LocalMediaFile == "" {
 		return nil, nil
 	}
-	path, err := s.localMediaPath(job.LocalMediaFile)
+	content, err := s.mediaStore.Open(ctx, MediaKindVideo, job.LocalMediaFile, rangeHeader)
 	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	file, err := os.Open(path)
-	if os.IsNotExist(err) {
-		return nil, nil
+	content.ContentType = normalizeVideoContentType(firstNonEmpty(content.ContentType, job.LocalMediaType))
+	if content.Name == "" {
+		content.Name = job.LocalMediaFile
 	}
-	if err != nil {
-		return nil, fmt.Errorf("打开本地视频: %w", err)
+	if content.StatusCode == 0 {
+		content.StatusCode = http.StatusOK
 	}
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		_ = file.Close()
-		return nil, fmt.Errorf("本地视频无效")
-	}
-	return &MediaContent{
-		Body: file, ReadSeeker: file, Name: job.LocalMediaFile, ModTime: info.ModTime(),
-		ContentType: normalizeVideoContentType(job.LocalMediaType), ContentLength: info.Size(),
-		AcceptRanges: "bytes", StatusCode: 200,
-	}, nil
+	return content, nil
 }
 
-func (s *Service) openLocalImage(ctx context.Context, job *store.CreativeJob, index int) (*MediaContent, error) {
-	if job == nil || job.MediaType != "image" || s.imageMediaRoot() == "" {
+func (s *Service) openStoredImage(ctx context.Context, job *store.CreativeJob, index int, rangeHeader string) (*MediaContent, error) {
+	if job == nil || job.MediaType != "image" || !s.mediaReady() {
 		return nil, nil
 	}
 	image, err := s.store.GetCreativeJobImage(ctx, job.ID, index)
@@ -369,46 +315,41 @@ func (s *Service) openLocalImage(ctx context.Context, job *store.CreativeJob, in
 		}
 		return nil, err
 	}
-	path, err := s.localImagePath(image.LocalMediaFile)
+	content, err := s.mediaStore.Open(ctx, MediaKindImage, image.LocalMediaFile, rangeHeader)
 	if err != nil {
+		if isNotFound(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
-	file, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if content.ContentLength >= 0 && image.LocalMediaSize > 0 && content.ContentLength != image.LocalMediaSize && content.StatusCode == http.StatusOK {
+		_ = content.Body.Close()
 		return nil, nil
 	}
-	if err != nil {
-		return nil, fmt.Errorf("打开本地图片: %w", err)
+	if ct := strings.TrimSpace(image.LocalMediaType); ct != "" {
+		content.ContentType = ct
 	}
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() {
-		_ = file.Close()
-		return nil, fmt.Errorf("本地图片无效")
+	if content.Name == "" {
+		content.Name = image.LocalMediaFile
 	}
-	if info.Size() != image.LocalMediaSize {
-		_ = file.Close()
-		return nil, nil
+	if content.StatusCode == 0 {
+		content.StatusCode = http.StatusOK
 	}
-	return &MediaContent{
-		Body: file, ReadSeeker: file, Name: image.LocalMediaFile, ModTime: info.ModTime(),
-		ContentType: image.LocalMediaType, ContentLength: info.Size(), AcceptRanges: "bytes", StatusCode: http.StatusOK,
-	}, nil
+	return content, nil
 }
 
 func (s *Service) removeLocalMedia(ctx context.Context, job *store.CreativeJob) {
-	if job != nil && job.MediaType == "image" {
+	if !s.mediaReady() || job == nil {
+		return
+	}
+	if job.MediaType == "image" {
 		s.mediaMu.Lock()
 		defer s.mediaMu.Unlock()
 		images, err := s.store.ListCreativeJobImages(ctx, job.ID)
 		if err == nil {
 			allRemoved := true
 			for _, image := range images {
-				path, pathErr := s.localImagePath(image.LocalMediaFile)
-				if pathErr != nil {
-					allRemoved = false
-					continue
-				}
-				if removeErr := os.Remove(path); removeErr != nil && !os.IsNotExist(removeErr) {
+				if removeErr := s.mediaStore.Delete(ctx, MediaKindImage, image.LocalMediaFile); removeErr != nil && !isNotFound(removeErr) {
 					allRemoved = false
 				}
 			}
@@ -417,41 +358,23 @@ func (s *Service) removeLocalMedia(ctx context.Context, job *store.CreativeJob) 
 			}
 		}
 	}
-	if job == nil || job.LocalMediaFile == "" {
+	if job.LocalMediaFile == "" {
 		return
 	}
-	path, err := s.localMediaPath(job.LocalMediaFile)
-	if err == nil {
-		_ = os.Remove(path)
-	}
+	_ = s.mediaStore.Delete(ctx, MediaKindVideo, job.LocalMediaFile)
 }
 
-func (s *Service) imageMediaRoot() string {
-	if strings.TrimSpace(s.mediaRoot) == "" {
-		return ""
-	}
-	return filepath.Join(filepath.Dir(s.mediaRoot), "images")
-}
-
-func (s *Service) localImagePath(name string) (string, error) {
-	root := s.imageMediaRoot()
-	if root == "" {
-		return "", fmt.Errorf("本地图片目录未配置")
-	}
-	name = strings.TrimSpace(name)
-	if name == "" || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) {
-		return "", fmt.Errorf("本地图片文件名无效")
-	}
-	return filepath.Join(root, name), nil
-}
-
+// localMediaPath remains for tests and recovery tools that still inspect local layout.
 func (s *Service) localMediaPath(name string) (string, error) {
+	if local, ok := s.mediaStore.(*LocalMediaStore); ok {
+		return local.pathFor(MediaKindVideo, name)
+	}
 	if strings.TrimSpace(s.mediaRoot) == "" {
 		return "", fmt.Errorf("本地媒体目录未配置")
 	}
-	name = strings.TrimSpace(name)
-	if name == "" || filepath.Base(name) != name || strings.ContainsAny(name, `/\\`) {
-		return "", fmt.Errorf("本地媒体文件名无效")
+	name, err := validateMediaName(name)
+	if err != nil {
+		return "", err
 	}
 	return filepath.Join(s.mediaRoot, name), nil
 }
@@ -461,4 +384,13 @@ func normalizeVideoContentType(value string) string {
 		return parsed
 	}
 	return "video/mp4"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
