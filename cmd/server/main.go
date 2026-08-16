@@ -98,15 +98,17 @@ func main() {
 		creativeMediaRoot = strings.TrimSpace(cfg.Creative.MediaRoot)
 	}
 	creativeSvc := creative.New(st, client, creditSvc, cfg.Security.CreativeCredentialSecret, creativeMediaRoot)
-	if err := creativeSvc.ConfigureMedia(creative.MediaSettings{
-		Driver:         cfg.Creative.MediaDriver,
-		LocalVideoRoot: creativeMediaRoot,
-		WebDAVURL:      cfg.Creative.WebDAVURL,
-		WebDAVUsername: cfg.Creative.WebDAVUsername,
-		WebDAVPassword: cfg.Creative.WebDAVPassword,
-		WebDAVRoot:     cfg.Creative.WebDAVRoot,
-		LocalFallback:  cfg.Creative.MediaLocalFallback,
-	}); err != nil {
+	mediaDefaults := creative.MediaRuntimeFromEnvConfig(
+		cfg.Creative.MediaDriver,
+		creativeMediaRoot,
+		cfg.Creative.WebDAVURL,
+		cfg.Creative.WebDAVUsername,
+		cfg.Creative.WebDAVPassword,
+		cfg.Creative.WebDAVRoot,
+		cfg.Creative.MediaLocalFallback,
+	)
+	mediaCfg := creative.NewMediaConfig(st, mediaDefaults)
+	if err := creativeSvc.SetMediaConfig(mediaCfg); err != nil {
 		log.Fatalf("configure creative media: %v", err)
 	}
 	if driver := creativeSvc.MediaDriver(); driver != "" && driver != "local" {
@@ -193,6 +195,8 @@ func main() {
 	mux.HandleFunc(base+"/api/creative/videos", h.CreativeVideos)
 	mux.HandleFunc(base+"/api/creative/jobs", h.CreativeJobs)
 	mux.HandleFunc(base+"/api/creative/jobs/", h.CreativeJobByID)
+	mux.HandleFunc(base+"/api/admin/creative/media-settings", h.AdminCreativeMediaSettings)
+	mux.HandleFunc(base+"/api/admin/creative/media-settings/test", h.AdminCreativeMediaSettingsTest)
 	mux.HandleFunc(base+"/api/admin/creative/providers", h.AdminCreativeProviders)
 	mux.HandleFunc(base+"/api/admin/creative/providers/", h.AdminCreativeProviderByID)
 	mux.HandleFunc(base+"/api/admin/creative/account-pool", h.AdminCreativeAccountPool)

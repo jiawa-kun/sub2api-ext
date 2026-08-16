@@ -115,6 +115,7 @@ type Service struct {
 	credentialKey []byte
 	mediaRoot     string
 	mediaStore    MediaStore
+	mediaConfig   *MediaConfig
 	stop          chan struct{}
 	wg            sync.WaitGroup
 	pollMu        sync.Mutex
@@ -165,16 +166,145 @@ func (s *Service) ConfigureMedia(settings MediaSettings) error {
 	if err != nil {
 		return err
 	}
+	s.mediaMu.Lock()
 	s.mediaStore = ms
+	s.mediaMu.Unlock()
 	return nil
 }
 
+func (s *Service) SetMediaConfig(cfg *MediaConfig) error {
+	if s == nil {
+		return fmt.Errorf("creative service is nil")
+	}
+	s.mediaConfig = cfg
+	if cfg == nil {
+		return nil
+	}
+	return s.applyMediaRuntime(cfg.Get())
+}
+
+func (s *Service) MediaConfig() *MediaConfig {
+	if s == nil {
+		return nil
+	}
+	return s.mediaConfig
+}
+
+func (s *Service) MediaRuntime() MediaRuntime {
+	if s == nil {
+		return MediaRuntime{Driver: MediaDriverLocal, LocalFallback: true}
+	}
+	if s.mediaConfig != nil {
+		return s.mediaConfig.Get()
+	}
+	driver := s.MediaDriver()
+	if driver == "" {
+		driver = MediaDriverLocal
+	}
+	return MediaRuntime{Driver: driver, LocalVideoRoot: s.mediaRoot, LocalFallback: true}
+}
+
+func (s *Service) UpdateMediaConfig(ctx context.Context, in MediaUpdateInput) (MediaRuntime, error) {
+	if s == nil || s.mediaConfig == nil {
+		return MediaRuntime{}, fmt.Errorf("media config unavailable")
+	}
+	// preview next runtime
+	cur := s.mediaConfig.Get()
+	next := cur
+	if in.Driver != nil {
+		next.Driver = strings.TrimSpace(*in.Driver)
+	}
+	if in.WebDAVURL != nil {
+		next.WebDAVURL = strings.TrimSpace(*in.WebDAVURL)
+	}
+	if in.WebDAVUsername != nil {
+		next.WebDAVUsername = strings.TrimSpace(*in.WebDAVUsername)
+	}
+	if in.PasswordClear != nil && *in.PasswordClear {
+		next.WebDAVPassword = ""
+	} else if in.WebDAVPassword != nil && strings.TrimSpace(*in.WebDAVPassword) != "" {
+		next.WebDAVPassword = strings.TrimSpace(*in.WebDAVPassword)
+	}
+	if in.WebDAVRoot != nil {
+		next.WebDAVRoot = strings.TrimSpace(*in.WebDAVRoot)
+	}
+	if in.LocalFallback != nil {
+		next.LocalFallback = *in.LocalFallback
+	}
+	next.LocalVideoRoot = s.mediaConfig.Defaults().LocalVideoRoot
+	next = normalizeMediaRuntime(next)
+	if err := validateMediaRuntime(next); err != nil {
+		return cur, err
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	if err := ProbeMediaRuntime(probeCtx, next); err != nil {
+		return cur, fmt.Errorf("媒体存储连通性检查失败: %w", err)
+	}
+	rt, err := s.mediaConfig.Update(ctx, in)
+	if err != nil {
+		return cur, err
+	}
+	if err := s.applyMediaRuntime(rt); err != nil {
+		return rt, fmt.Errorf("配置已保存但应用失败: %w", err)
+	}
+	return rt, nil
+}
+
+func (s *Service) TestMediaConfig(ctx context.Context, in MediaUpdateInput) error {
+	if s == nil {
+		return fmt.Errorf("creative service is nil")
+	}
+	base := s.MediaRuntime()
+	if s.mediaConfig != nil {
+		base = s.mediaConfig.Get()
+		base.LocalVideoRoot = s.mediaConfig.Defaults().LocalVideoRoot
+	}
+	next := base
+	if in.Driver != nil {
+		next.Driver = strings.TrimSpace(*in.Driver)
+	}
+	if in.WebDAVURL != nil {
+		next.WebDAVURL = strings.TrimSpace(*in.WebDAVURL)
+	}
+	if in.WebDAVUsername != nil {
+		next.WebDAVUsername = strings.TrimSpace(*in.WebDAVUsername)
+	}
+	if in.PasswordClear != nil && *in.PasswordClear {
+		next.WebDAVPassword = ""
+	} else if in.WebDAVPassword != nil && strings.TrimSpace(*in.WebDAVPassword) != "" {
+		next.WebDAVPassword = strings.TrimSpace(*in.WebDAVPassword)
+	}
+	if in.WebDAVRoot != nil {
+		next.WebDAVRoot = strings.TrimSpace(*in.WebDAVRoot)
+	}
+	if in.LocalFallback != nil {
+		next.LocalFallback = *in.LocalFallback
+	}
+	next = normalizeMediaRuntime(next)
+	probeCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+	defer cancel()
+	return ProbeMediaRuntime(probeCtx, next)
+}
+
+func (s *Service) applyMediaRuntime(rt MediaRuntime) error {
+	opts := rt.StoreOptions()
+	opts.HTTPClient = s.client
+	return s.ConfigureMedia(opts)
+}
+
 func (s *Service) MediaDriver() string {
-	if s == nil || s.mediaStore == nil {
+	if s == nil {
+		return ""
+	}
+	s.mediaMu.Lock()
+	defer s.mediaMu.Unlock()
+	if s.mediaStore == nil {
 		return ""
 	}
 	return s.mediaStore.Driver()
 }
+
 func (s *Service) Start() {
 	s.wg.Add(1)
 	go func() {

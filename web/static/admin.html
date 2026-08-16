@@ -1324,7 +1324,33 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
         </div>
       </div>
 
-      <div class="creative-kpis" aria-label="账号池摘要">
+            <div class="card" id="creativeMediaCard">
+        <div class="card-head">
+          <div>
+            <h2>媒体存储</h2>
+            <p class="desc">图片/视频归档位置。可热更新；切换 WebDAV 前请先测试连通性。密码留空表示不修改。</p>
+          </div>
+          <span class="badge" id="creativeMediaBadge">—</span>
+        </div>
+        <div class="grid2">
+          <div class="field"><label for="creativeMediaDriver">存储驱动</label><select id="creativeMediaDriver"></select></div>
+          <div class="field"><label for="creativeMediaLocalRoot">本地视频目录（只读）</label><input id="creativeMediaLocalRoot" readonly /></div>
+          <div class="field"><label for="creativeMediaWebdavURL">WebDAV URL</label><input id="creativeMediaWebdavURL" placeholder="http://alist:5244/dav/" /></div>
+          <div class="field"><label for="creativeMediaWebdavUser">WebDAV 用户名</label><input id="creativeMediaWebdavUser" autocomplete="off" /></div>
+          <div class="field"><label for="creativeMediaWebdavPass">WebDAV 密码</label><input id="creativeMediaWebdavPass" type="password" autocomplete="new-password" placeholder="已配置时留空保留" /></div>
+          <div class="field"><label for="creativeMediaWebdavRoot">WebDAV Root（可选）</label><input id="creativeMediaWebdavRoot" placeholder="一般留空" /></div>
+          <div class="field"><label>本地回退</label><label class="switch"><input id="creativeMediaLocalFallback" type="checkbox" /><span>WebDAV 找不到时继续读本地旧文件</span></label></div>
+          <div class="field"><label>密码状态</label><div class="sub" id="creativeMediaPassState">—</div></div>
+        </div>
+        <div class="msg" id="creativeMediaMsg"></div>
+        <div class="toolbar creative-actions">
+          <button type="button" id="btnCreativeMediaSave">保存存储配置</button>
+          <button type="button" class="secondary" id="btnCreativeMediaTest">测试连接</button>
+          <button type="button" class="secondary" id="btnCreativeMediaReload">重新加载</button>
+        </div>
+      </div>
+
+<div class="creative-kpis" aria-label="账号池摘要">
         <div class="creative-kpi"><span>账号总数</span><strong id="creativePoolAccounts">—</strong></div>
         <div class="creative-kpi"><span>健康账号</span><strong id="creativePoolHealthy">—</strong></div>
         <div class="creative-kpi"><span>图片模型</span><strong id="creativePoolImages">—</strong></div>
@@ -3336,7 +3362,57 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
       node.textContent=msg; node.className='msg show '+(type||'ok');
       setTimeout(()=>{node.className='msg';},5000);
     }
-    function parseCreativeJSON(raw,fallback={}){try{return JSON.parse(raw||'{}')}catch{return fallback}}
+        function showCreativeMediaMsg(msg,type){
+      const node=el("creativeMediaMsg"); if(!node)return;
+      node.textContent=msg; node.className="msg show "+(type||"ok");
+      setTimeout(()=>{node.className="msg";},5000);
+    }
+    function creativeMediaBodyFromForm(){
+      const body={
+        driver:(el("creativeMediaDriver")?.value||"local").trim(),
+        webdav_url:(el("creativeMediaWebdavURL")?.value||"").trim(),
+        webdav_username:(el("creativeMediaWebdavUser")?.value||"").trim(),
+        webdav_root:(el("creativeMediaWebdavRoot")?.value||"").trim(),
+        local_fallback:!!el("creativeMediaLocalFallback")?.checked
+      };
+      const pass=(el("creativeMediaWebdavPass")?.value||"").trim();
+      if(pass) body.webdav_password=pass;
+      return body;
+    }
+    function fillCreativeMediaSettings(s){
+      if(!s)return;
+      const sel=el("creativeMediaDriver");
+      if(sel){
+        const opts=s.driver_options||[{value:"local",label:"本地磁盘"},{value:"webdav",label:"WebDAV / AList"}];
+        sel.innerHTML=opts.map(o=>`<option value="${o.value}">${o.label||o.value}</option>`).join("");
+        sel.value=s.driver||"local";
+      }
+      if(el("creativeMediaLocalRoot")) el("creativeMediaLocalRoot").value=s.local_root||"";
+      if(el("creativeMediaWebdavURL")) el("creativeMediaWebdavURL").value=s.webdav_url||"";
+      if(el("creativeMediaWebdavUser")) el("creativeMediaWebdavUser").value=s.webdav_username||"";
+      if(el("creativeMediaWebdavRoot")) el("creativeMediaWebdavRoot").value=s.webdav_root||"";
+      if(el("creativeMediaLocalFallback")) el("creativeMediaLocalFallback").checked=!!s.local_fallback;
+      if(el("creativeMediaWebdavPass")) el("creativeMediaWebdavPass").value="";
+      if(el("creativeMediaPassState")) el("creativeMediaPassState").textContent=s.password_configured?("已配置 "+(s.password_masked||"")):"未配置";
+      if(el("creativeMediaBadge")) el("creativeMediaBadge").textContent=s.driver==="webdav"?"WebDAV":"本地磁盘";
+    }
+    async function loadCreativeMediaSettings(){
+      const r=await api("./api/admin/creative/media-settings");
+      fillCreativeMediaSettings(r.settings||{});
+    }
+    async function saveCreativeMediaSettings(){
+      const body=creativeMediaBodyFromForm();
+      const r=await api("./api/admin/creative/media-settings",{method:"PUT", body:JSON.stringify(body)});
+      fillCreativeMediaSettings(r.settings||{});
+      showCreativeMediaMsg(r.message||"已保存","ok");
+    }
+    async function testCreativeMediaSettings(){
+      const body=creativeMediaBodyFromForm();
+      const r=await api("./api/admin/creative/media-settings/test",{method:"POST", body:JSON.stringify(body)});
+      showCreativeMediaMsg(r.message||"连通性正常","ok");
+    }
+
+function parseCreativeJSON(raw,fallback={}){try{return JSON.parse(raw||'{}')}catch{return fallback}}
     function creativeKindLabel(kind){return kind==='sub2api_pool'?'Sub2API 账号池':'外部兼容渠道'}
     function creativeStatusLabel(value){return ({created:'已创建',processing:'生成中',completed:'已完成',failed:'失败',refunded:'已退款',charged:'已扣费',refund_pending:'退款中',pending:'待处理',upstream:'Sub2API 结算'})[value]||value||'—'}
     function showCreativeJobMsg(msg,type){const node=el('creativeJobMsg');if(!node)return;node.textContent=msg;node.className='msg show '+(type||'ok');setTimeout(()=>{node.className='msg'},5000)}
@@ -3579,6 +3655,7 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     async function refreshCreative(){
       await loadCreativePool(el('creativeProviderGroup')?.value||'');
       await loadCreativeProviders();
+      await loadCreativeMediaSettings();
     }
     async function refreshCreativeWorks(){
       await loadCreativeUsers();
@@ -3724,6 +3801,9 @@ html.light .save-dock .inner{background:rgba(255,255,255,.97); border-color:rgba
     const navCreativeWorks=el('nav-creative-works'); if(navCreativeWorks) navCreativeWorks.onclick=(e)=>{ e.preventDefault(); setAdminSection('creative-works'); refreshCreativeWorks().catch(e2=>showCreativeJobMsg(e2.message||String(e2),'err')); };
     const navTutorial=el('nav-tutorial'); if(navTutorial) navTutorial.onclick=(e)=>{ e.preventDefault(); setAdminSection('tutorial'); refreshTutorial().catch(e2=>show(e2.message||String(e2),'err')); };
     const btnCreativeProviderSave=el('btnCreativeProviderSave'); if(btnCreativeProviderSave) btnCreativeProviderSave.onclick=()=>saveCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
+    const btnCreativeMediaSave=el('btnCreativeMediaSave'); if(btnCreativeMediaSave) btnCreativeMediaSave.onclick=()=>saveCreativeMediaSettings().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
+    const btnCreativeMediaTest=el('btnCreativeMediaTest'); if(btnCreativeMediaTest) btnCreativeMediaTest.onclick=()=>testCreativeMediaSettings().catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
+    const btnCreativeMediaReload=el('btnCreativeMediaReload'); if(btnCreativeMediaReload) btnCreativeMediaReload.onclick=()=>loadCreativeMediaSettings().then(()=>showCreativeMediaMsg('已重新加载','ok')).catch(e2=>showCreativeMediaMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderNew=el('btnCreativeProviderNew'); if(btnCreativeProviderNew) btnCreativeProviderNew.onclick=()=>resetCreativeProvider('openai_compatible');
     const btnCreativeProviderTest=el('btnCreativeProviderTest'); if(btnCreativeProviderTest) btnCreativeProviderTest.onclick=()=>testCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
     const btnCreativeProviderSync=el('btnCreativeProviderSync'); if(btnCreativeProviderSync) btnCreativeProviderSync.onclick=()=>syncCreativeProvider().catch(e2=>showCreativeMsg(e2.message||String(e2),'err'));
